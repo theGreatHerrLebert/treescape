@@ -154,6 +154,7 @@ class TreePlot:
         self._metadata_rows: dict[str, dict] = {}
         self._metadata_columns: set[str] = set()
         self._branch_colors: dict[int, tuple[int, int, int, int]] = {}
+        self._branch_widths: dict[int, float] = {}
 
     def layout(self, kind: str) -> "TreePlot":
         if kind not in self._SUPPORTED_LAYOUTS:
@@ -399,8 +400,13 @@ class TreePlot:
 
         discrete_palette = self._resolve_discrete_palette(column, palette)
         root = self._tree.root
+        # v0.4 Phase 3 lifted v0.3's "internal branches only" rule.
+        # Terminal branches now participate: a 1-tip subtree is
+        # trivially monophyletic, so the terminal branch picks up the
+        # tip's color (matching what users expect when both
+        # color_tips_by and color_branches_by run on the same column).
         for node_id in self._tree.preorder():
-            if node_id == root or self._tree.is_tip(node_id):
+            if node_id == root:
                 continue
             tips = self._descendant_tips(node_id)
             values = [self._metadata_rows.get(tip, {}).get(column) for tip in tips]
@@ -418,6 +424,60 @@ class TreePlot:
                 TreescapeStyleWarning,
                 stacklevel=2,
             )
+        return self
+
+    def width_branches_by(
+        self,
+        column: str,
+        wmin: float = 1.0,
+        wmax: float = 4.0,
+        vmin: Optional[float] = None,
+        vmax: Optional[float] = None,
+    ) -> "TreePlot":
+        """Scale branch stroke widths by a numeric metadata column.
+
+        Internal branches use the **mean** of descendant tips' non-missing
+        values; terminal branches use the tip's own value (subtree of one).
+        Subtrees with no observed values keep ``SceneOptions.stroke_width``
+        silently — same convention ``color_branches_by`` continuous uses.
+
+        ``(wmin, wmax)`` defaults to ``(1.0, 4.0)`` px; ``(vmin, vmax)``
+        defaults to the column's observed min/max so width and color
+        share a coherent scale by construction when applied to the same
+        column. Out-of-range values are clamped, not extrapolated.
+
+        Numeric-only. Width-by-discrete is out of v0.4 scope. Raises
+        ``ValueError`` if any observed value is non-numeric.
+        """
+        if column not in self._metadata_columns:
+            raise ValueError(f"metadata column {column!r} has not been joined")
+
+        observed = [
+            self._metadata_rows.get(tip, {}).get(column) for tip in self._tree.tip_order()
+        ]
+        observed_present = [v for v in observed if v is not None]
+        if not observed_present:
+            return self  # nothing to scale; keep all defaults
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in observed_present):
+            raise ValueError(
+                f"width_branches_by({column!r}) requires a numeric column; "
+                "discrete-by-width is out of v0.4 scope"
+            )
+
+        lo, hi = self._column_value_range(column, vmin, vmax)
+        wlo, whi = float(wmin), float(wmax)
+        root = self._tree.root
+        for node_id in self._tree.preorder():
+            if node_id == root:
+                continue
+            tips = self._descendant_tips(node_id)
+            values = [self._metadata_rows.get(tip, {}).get(column) for tip in tips]
+            numeric = [float(v) for v in values if v is not None]
+            if not numeric:
+                continue  # no data → keep default stroke_width, silent
+            mean_value = sum(numeric) / len(numeric)
+            t = self._normalize(mean_value, lo, hi)
+            self._branch_widths[node_id] = wlo + t * (whi - wlo)
         return self
 
     def _is_continuous(
@@ -506,8 +566,12 @@ class TreePlot:
         cmap_fn = self._resolve_cmap(cmap)
         lo, hi = self._column_value_range(column, vmin, vmax)
         root = self._tree.root
+        # v0.4 Phase 3 lifts the is_tip skip — terminals participate.
+        # subtree-of-one mean = the tip's own value, so terminal-branch
+        # color matches its tip's color when both color_tips_by and
+        # color_branches_by run on the same column.
         for node_id in self._tree.preorder():
-            if node_id == root or self._tree.is_tip(node_id):
+            if node_id == root:
                 continue
             tips = self._descendant_tips(node_id)
             values = [self._metadata_rows.get(tip, {}).get(column) for tip in tips]
@@ -580,6 +644,7 @@ class TreePlot:
             bool(self._highlights)
             or bool(self._tip_colors)
             or bool(self._branch_colors)
+            or bool(self._branch_widths)
             or self._scale_bar is not None
             or self._support_labels
         )
@@ -594,6 +659,7 @@ class TreePlot:
                     self._support_labels,
                     self._support_min,
                     list(self._branch_colors.items()),
+                    list(self._branch_widths.items()),
                 )
             return render_rectangular_svg(self._tree, self._scene_opts)
         if self._layout == "circular":
@@ -605,6 +671,7 @@ class TreePlot:
                 bool(self._highlights)
                 or bool(self._tip_colors)
                 or bool(self._branch_colors)
+                or bool(self._branch_widths)
                 or self._scale_bar is not None
                 or self._support_labels
             )
@@ -618,6 +685,7 @@ class TreePlot:
                     self._scale_bar,
                     self._support_labels,
                     self._support_min,
+                    list(self._branch_widths.items()),
                 )
             return render_circular_svg(self._tree, self._circular_opts)
         raise AssertionError(f"unreachable: layout {self._layout!r}")

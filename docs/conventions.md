@@ -127,6 +127,32 @@ The Python reference at `packages/treescape-reference/src/treescape_reference/me
 - Palette rules match `color_tips_by`: user palettes must cover observed non-None values; omitted palettes use Tableau-10 in first occurrence order over tree tips.
 - Terminal branches are out of scope for v0.3's monophyly claim. They remain default-colored until a separate terminal-branch styling API lands.
 
+### Branch width by metadata + terminal-branch coloring (v0.4 Phase 3)
+
+v0.3 styling shipped color along the metadata-driven pipeline; Phase 3 adds **width** to the same vocabulary, plus lifts v0.3's "internal branches only" rule so terminals participate.
+
+**`.width_branches_by(column, wmin=1.0, wmax=4.0, vmin=None, vmax=None)`** — numeric-only.
+
+- **API and dispatch.** Numeric only; no discrete-by-width variant. The column's observed values must all be `int`/`float` (excluding `bool`); otherwise the method raises `ValueError`. No auto-detection magic — width-by-discrete is rare and the `palette`/`cmap` symmetry the color path uses doesn't translate cleanly to width.
+- **Range.** `(wmin, wmax)` defaults to `(1.0, 4.0)` px. The lower bound matches `SceneOptions.stroke_width`'s default so a "minimum" width branch reads visually identical to an unstyled branch; the upper bound is set so emphasis is visible without overwhelming the layout. User can override.
+- **Value range.** `(vmin, vmax)` defaults to the column's observed min/max across the tree's tip universe — same convention `color_branches_by` uses, so width and color stay coherent when applied to the same column. Values outside `[vmin, vmax]` are clamped to the endpoints, not extrapolated.
+- **Per-branch rule (matches `.color_branches_by` continuous):**
+  - **Internal branch:** width = linear-interp(`mean(descendant tips' non-missing values for column)`, in `[vmin, vmax]`, to `[wmin, wmax]`). Subtree mean.
+  - **Terminal branch:** width = linear-interp(tip's own value, …). Subtree of one.
+  - **No observed values in subtree:** keep `SceneOptions.stroke_width` (default). No warning — same convention as `color_branches_by` continuous, where "no data" is not a paraphyletic miscoloring.
+- **Degenerate range** (`vmin == vmax`, or all values equal): every observed value maps to `t = 0.5` → width = `(wmin + wmax) / 2`. Deterministic, no divide-by-zero.
+- **Layout coverage.** Both rectangular (parent→child horizontal segment) and circular (radial parent→child Line). The sibling spine — rectangular's vertical connector and circular's arc — keeps `SceneOptions.stroke_width` regardless of width-by-metadata, mirroring the v0.4 Phase 1 color convention ("only the parent→child segment carries the metadata-driven attribute; sibling connectors stay neutral").
+
+**Terminal-branch coloring (v0.4 Phase 3 lift on `.color_branches_by`).**
+
+- v0.3 / v0.4 Phase 1 explicitly excluded terminal branches from `.color_branches_by` (every preorder loop carried `if tree.is_tip(node_id): continue`). Phase 3 lifts that exclusion: terminals participate in monophyly (trivially: one tip, one value, no warning) and in continuous mean (the tip's own value through `cmap`).
+- **Visible effect.** When a user calls both `.color_tips_by("col")` and `.color_branches_by("col")` on the same column, the terminal branch and its tip carry the same color — what users expect from ggtree-style figures, what v0.3 quietly didn't deliver.
+- **Backwards-compat note.** Bytes change for any existing render that uses `.color_branches_by` without also pinning terminal-branch styling. Test goldens in `tests/fixtures/golden/` are unaffected because none of them route through `color_branches_by` (the styling-determinism `STYLE_SPECS` use highlights + tip_colors only). The `assets/gallery/` SVGs that do use `color_branches_by` (06, 08) regenerate when `scripts/regen_assets.py` runs; the gallery is documentation, not pinned bytes.
+
+**EVIDENT (v0.4 Phase 3):**
+- **New claim** `treescape-branch-width-by-numeric-determinism` (ci-tier, property-style): same column + same `(wmin, wmax, vmin, vmax)` → byte-identical SVG; subtree-mean rule on internal branches; tip-value rule on terminals; default `stroke_width` for no-data subtrees.
+- **Amended claim** `treescape-color-branches-by-monophyly`: claim text now covers internal AND terminal branches under the same monophyly + warn semantics.
+
 ### Circular `.scale_bar` + `.support_labels` (v0.4 Phase 2)
 
 Lifts the v0.3+v0.4-Phase-1 `NotImplementedError` for `TreePlot.scale_bar` and `TreePlot.support_labels` on `.layout("circular")`. After v0.4 Phase 2 lands, the circular path has feature parity with rectangular for every styling primitive v0.3+v0.4 covers.

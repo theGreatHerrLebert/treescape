@@ -446,13 +446,18 @@ pub fn build_circular_scene_with_style(
                 .get(&child)
                 .copied()
                 .unwrap_or(opts.stroke);
+            let stroke_width = style
+                .branch_widths
+                .get(&child)
+                .copied()
+                .unwrap_or(opts.stroke_width);
             items.push(SceneItem::Line {
                 x1,
                 y1,
                 x2,
                 y2,
                 stroke,
-                stroke_width: opts.stroke_width,
+                stroke_width,
             });
         }
 

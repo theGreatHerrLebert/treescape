@@ -87,6 +87,7 @@ class StyleSpec:
     highlights: ListT[CladeHighlight] = field(default_factory=list)
     tip_colors: Dict[str, Color] = field(default_factory=dict)
     branch_colors: Dict[int, Color] = field(default_factory=dict)
+    branch_widths: Dict[int, float] = field(default_factory=dict)
     scale_bar: Optional[ScaleBar] = None
     support_labels: Optional[SupportLabelSpec] = None
 
@@ -203,6 +204,7 @@ def build_rectangular_scene(
             cx = to_px_x(coords[id(child)][0])
             cy = opts.padding + coords[id(child)][1] * opts.px_per_y
             branch_stroke = style.branch_colors.get(id(child), opts.stroke)
+            branch_width = style.branch_widths.get(id(child), opts.stroke_width)
             items.append(
                 Line(
                     x1=parent_x,
@@ -210,7 +212,7 @@ def build_rectangular_scene(
                     x2=cx,
                     y2=cy,
                     stroke=branch_stroke,
-                    stroke_width=opts.stroke_width,
+                    stroke_width=branch_width,
                 )
             )
 
@@ -345,6 +347,7 @@ def build_circular_scene(
             x1, y1 = project(parent_r, cth)
             x2, y2 = project(cr, cth)
             branch_stroke = style.branch_colors.get(id(child), opts.stroke)
+            branch_width = style.branch_widths.get(id(child), opts.stroke_width)
             items.append(
                 Line(
                     x1=x1,
@@ -352,7 +355,7 @@ def build_circular_scene(
                     x2=x2,
                     y2=y2,
                     stroke=branch_stroke,
-                    stroke_width=opts.stroke_width,
+                    stroke_width=branch_width,
                 )
             )
 

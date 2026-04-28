@@ -37,6 +37,12 @@ pub struct StyleSpec {
     pub highlights: Vec<CladeHighlight>,
     pub tip_colors: HashMap<String, Color>,
     pub branch_colors: HashMap<usize, Color>,
+    /// v0.4 Phase 3: numeric-metadata-driven branch stroke width.
+    /// Keyed by child node id (the parent→child branch). Missing
+    /// entries fall back to `SceneOptions.stroke_width`. Sibling
+    /// connectors (rectangular vertical spine, circular arc) are
+    /// not affected by this map.
+    pub branch_widths: HashMap<usize, f64>,
     pub scale_bar: Option<ScaleBar>,
     pub support_labels: Option<SupportLabelSpec>,
 }
@@ -304,13 +310,18 @@ pub fn build_rectangular_scene_with_style(
             let child_px_x = to_px_x(layout.x[c]);
             let child_px_y = opts.padding + layout.y[c] * opts.px_per_y;
             let branch_color = style.branch_colors.get(&c).copied().unwrap_or(opts.stroke);
+            let branch_width = style
+                .branch_widths
+                .get(&c)
+                .copied()
+                .unwrap_or(opts.stroke_width);
             items.push(SceneItem::Line {
                 x1: parent_px_x,
                 y1: child_px_y,
                 x2: child_px_x,
                 y2: child_px_y,
                 stroke: branch_color,
-                stroke_width: opts.stroke_width,
+                stroke_width: branch_width,
             });
         }
     }

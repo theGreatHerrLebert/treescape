@@ -144,6 +144,8 @@ type Rgba = (u8, u8, u8, u8);
 type HighlightSpec = (Vec<String>, Rgba);
 /// `(child_node_id, color)` branch color spec.
 type BranchColorSpec = (usize, Rgba);
+/// `(child_node_id, stroke_width)` branch width spec (v0.4 Phase 3).
+type BranchWidthSpec = (usize, f64);
 /// `(length, label)` scale-bar spec. Length is in branch-length units.
 type ScaleBarSpec = (f64, String);
 
@@ -163,6 +165,7 @@ type ScaleBarSpec = (f64, String);
     support_labels = false,
     support_min = None,
     branch_colors = Vec::new(),
+    branch_widths = Vec::new(),
 ))]
 fn render_rectangular_styled_svg(
     tree: &PyTree,
@@ -173,6 +176,7 @@ fn render_rectangular_styled_svg(
     support_labels: bool,
     support_min: Option<f64>,
     branch_colors: Vec<BranchColorSpec>,
+    branch_widths: Vec<BranchWidthSpec>,
 ) -> PyResult<String> {
     let default_opts = CoreSceneOptions::default();
     let opts_ref = opts.map(|o| &o.inner).unwrap_or(&default_opts);
@@ -191,6 +195,9 @@ fn render_rectangular_styled_svg(
         style
             .branch_colors
             .insert(node_id, CoreColor::rgba(r, g, b, a));
+    }
+    for (node_id, width) in branch_widths {
+        style.branch_widths.insert(node_id, width);
     }
     if let Some((length, label)) = scale_bar {
         style.scale_bar = Some(ScaleBar { length, label });
@@ -333,6 +340,7 @@ fn render_circular_svg(tree: &PyTree, opts: Option<&PyCircularSceneOptions>) -> 
     scale_bar = None,
     support_labels = false,
     support_min = None,
+    branch_widths = Vec::new(),
 ))]
 fn render_circular_styled_svg(
     tree: &PyTree,
@@ -343,6 +351,7 @@ fn render_circular_styled_svg(
     scale_bar: Option<ScaleBarSpec>,
     support_labels: bool,
     support_min: Option<f64>,
+    branch_widths: Vec<BranchWidthSpec>,
 ) -> PyResult<String> {
     let default = CoreCircularSceneOptions::default();
     let opts_ref = opts.map(|o| &o.inner).unwrap_or(&default);
@@ -361,6 +370,9 @@ fn render_circular_styled_svg(
         style
             .branch_colors
             .insert(node_id, CoreColor::rgba(r, g, b, a));
+    }
+    for (node_id, width) in branch_widths {
+        style.branch_widths.insert(node_id, width);
     }
     if let Some((length, label)) = scale_bar {
         style.scale_bar = Some(ScaleBar { length, label });

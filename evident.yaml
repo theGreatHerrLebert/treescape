@@ -498,18 +498,25 @@ claims:
       - validation
     pattern: evident/patterns/README.md#property-based-testing
     claim: >
-      For each internal branch and discrete metadata column,
-      `TreePlot.color_branches_by(column)` colors the branch iff every
-      descendant tip in the child subtree has the same non-None metadata
-      value. Mixed or missing values leave the branch at the default
-      stroke color and emit `TreescapeStyleWarning` naming the branch and
-      column. Branch color overrides are serialized through the existing
-      deterministic styled SVG path. v0.4 Phase 1 extends coverage to
+      For each branch (internal AND terminal as of v0.4 Phase 3) and
+      discrete metadata column, `TreePlot.color_branches_by(column)`
+      colors the branch iff every descendant tip in the child subtree
+      has the same non-None metadata value. Mixed or missing values
+      leave the branch at the default stroke color and emit
+      `TreescapeStyleWarning` naming the branch and column. Branch
+      color overrides are serialized through the existing
+      deterministic styled SVG path. v0.4 Phase 1 extended coverage to
       circular layouts under the convention locked in
       docs/conventions.md (v0.4 Phase 1, circular tip + branch
-      coloring): the radial parent→child Line gets the color while the
-      arc spine stays default — same z-order and warning semantics as
-      rectangular.
+      coloring): the radial parent→child Line gets the color while
+      the arc spine stays default — same z-order and warning
+      semantics as rectangular. v0.4 Phase 3 lifted v0.3's
+      "internal branches only" restriction: a terminal branch is
+      colored by its own tip's value, since a 1-tip subtree is
+      trivially monophyletic. When `.color_tips_by` and
+      `.color_branches_by` are both applied to the same column, the
+      terminal branch and its tip carry the same color — what users
+      expect from ggtree-style figures.
     evidence:
       oracle:
         - self (monophyly resolver + SVG serialization checks on rectangular AND circular)
@@ -518,10 +525,10 @@ claims:
       artifact: tests/oracle/reports/color_branches_by_metadata.json
     assumptions:
       - >
-        v0.3/v0.4 Phase 1 color internal branches only: the
-        parent→child segment (horizontal in rectangular, radial in
-        circular). Terminal branch coloring is v0.4 Phase 3 territory
-        and is covered by an extension to this same claim.
+        v0.4 Phase 3 colors all branches (internal + terminal) under
+        the same monophyly rule. The parent→child segment is colored;
+        sibling connectors (rectangular vertical spine, circular arc)
+        stay at the default stroke regardless of branch coloring.
       - Discrete/categorical metadata only. Continuous gradients are a
         separate claim (treescape-color-by-continuous-determinism).
     failure_modes:
@@ -582,6 +589,66 @@ claims:
       - The pinned LUT changes between treescape versions, breaking
         byte-determinism across version bumps. Documented and accepted
         — golden bytes regen on a LUT change.
+
+  - id: treescape-branch-width-by-numeric-determinism
+    title: Numeric metadata branch widths produce byte-identical SVG for fixed inputs
+    case: cases/treescape.md
+    source: packages/treescape
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#property-based-testing
+    claim: >
+      `TreePlot.width_branches_by(column, wmin=, wmax=, vmin=, vmax=)`
+      maps a numeric metadata column through a linear interpolation onto
+      `[wmin, wmax]` over `[vmin, vmax]`, producing byte-identical SVG
+      across repeated renders for the same column values, the same
+      `(wmin, wmax)`, and the same `(vmin, vmax)` range. Internal
+      branches use the **mean** of descendant tips' non-missing values;
+      terminal branches use the tip's own value (subtree of one).
+      Subtrees with no observed values keep the default stroke_width
+      silently — no warning, since "no data" is not a paraphyletic
+      miscoloring (matches the convention treescape-color-by-continuous-determinism
+      uses for the color path). Degenerate ranges (`vmin == vmax`, or
+      all values equal) deterministically map to width
+      `(wmin + wmax) / 2`. Out-of-range values are clamped, not
+      extrapolated. The method raises ValueError if any observed value
+      fails to coerce to numeric — width-by-discrete is out of v0.4
+      scope.
+    evidence:
+      oracle:
+        - self (repeated render + subtree-mean assertion + tip-value-on-terminal assertion + clamp-on-outliers + raise-on-non-numeric)
+      tolerance: Exact byte equality across repeated renders for fixed inputs.
+      command: pytest tests/oracle/test_branch_width_by_metadata.py -v
+      artifact: tests/oracle/reports/branch_width_by_metadata.json
+    assumptions:
+      - The (wmin, wmax) defaults of (1.0, 4.0) match
+        SceneOptions.stroke_width's default at the lower bound, so a
+        "minimum" width branch reads visually identical to an unstyled
+        branch. User overrides are honored; no clamping of (wmin, wmax)
+        ranges.
+      - The vmin/vmax defaults take the column's observed min/max
+        across the tree's tip universe — so width and color share the
+        same scale by construction when both methods are applied to
+        the same column without explicit pins.
+      - Numeric-only dispatch reads isinstance(v, (int, float))
+        excluding bool. Strings that happen to look numeric are not
+        auto-coerced; the user must cast before the join or use the
+        width path with a pre-converted column.
+    failure_modes:
+      - User specifies wmin > wmax. Documented and accepted as a
+        deliberate "invert the scale" knob; no validation reorders.
+        Resulting widths interpolate "backwards" but remain
+        deterministic.
+      - A terminal branch's tip value is missing while sibling
+        terminals have values. The missing-value branch keeps default
+        stroke_width; siblings get their interpolated widths. No
+        warning (matches the color-continuous convention).
+      - User passes an integer column where wmin/wmax produce widths
+        that round to identical values at the SVG float-formatter's
+        precision; the goldens still differ on coordinate floats but
+        a careless test could miss the width difference. The oracle
+        checks specific stroke-width fragments to avoid this.
 
   - id: treescape-circular-annotation-determinism
     title: Circular scale_bar + support_labels produce byte-identical SVG for fixed inputs

@@ -199,6 +199,31 @@ def _render_gallery() -> None:
         "10_combined.svg",
     )
 
+    # ---- v0.4 ----
+    # 11 — circular metadata coloring (v0.4 Phase 1)
+    _save(
+        _base_circular().join_metadata(PRIMATES_METADATA, on="tip").color_tips_by("clade"),
+        "11_circular_color_tips_by_clade.svg",
+    )
+
+    # 12 — circular scale bar (v0.4 Phase 2). The primates fixture has
+    # no internal-node names, so .support_labels would be a no-op; we
+    # focus on the bottom-right radial scale bar.
+    _save(
+        _base_circular().scale_bar(0.05, "0.05 subs/site"),
+        "12_circular_scale_bar.svg",
+    )
+
+    # 13 — branch-stroke width by metadata (v0.4 Phase 3). Numeric
+    # support → width via subtree mean on internals, tip value on
+    # terminals. Default range (1.0, 4.0) px.
+    _save(
+        _base_rectangular()
+        .join_metadata(PRIMATES_METADATA, on="tip")
+        .width_branches_by("support"),
+        "13_branch_width_by_support.svg",
+    )
+
 
 def main() -> None:
     _render_marketing()

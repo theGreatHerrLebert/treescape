@@ -38,6 +38,10 @@ def test_branch_coloring_monophyletic_clades_do_not_warn() -> None:
 
 
 def test_branch_coloring_paraphyletic_clade_warns_and_leaves_default() -> None:
+    """v0.4 Phase 3: paraphyletic INTERNAL branch warns + stays default.
+    Terminal branches now carry their own monophyly-by-trivial color
+    (1-tip subtree always satisfies the rule), so even when an internal
+    is paraphyletic, the terminals beneath it can still be colored."""
     df = pl.DataFrame({"tip": ["a", "b", "c", "d"], "clade": ["left", "right", "right", "right"]})
     with pytest.warns(TreescapeStyleWarning, match="left_node"):
         svg = TreePlot(TREE).join_metadata(df, on="tip").color_branches_by(
@@ -45,12 +49,14 @@ def test_branch_coloring_paraphyletic_clade_warns_and_leaves_default() -> None:
             palette=PALETTE,
         ).to_svg()
 
-    assert 'stroke="#0000ff"' in svg
-    assert 'stroke="#ff0000"' not in svg
-    assert 'stroke="#000000"' in svg
+    assert 'stroke="#0000ff"' in svg  # right_node monophyletic + b/c/d terminals
+    assert 'stroke="#ff0000"' in svg  # terminal a (v0.4 Phase 3 lift)
+    assert 'stroke="#000000"' in svg  # left_node paraphyletic default + spines
 
 
 def test_branch_coloring_missing_value_warns_and_leaves_default() -> None:
+    """v0.4 Phase 3: terminal whose value is None keeps default; other
+    terminals carry their own values."""
     df = pl.DataFrame({"tip": ["a", "c", "d"], "clade": ["left", "right", "right"]})
     with pytest.warns(TreescapeStyleWarning, match="left_node"):
         svg = TreePlot(TREE).join_metadata(df, on="tip").color_branches_by(
@@ -58,8 +64,10 @@ def test_branch_coloring_missing_value_warns_and_leaves_default() -> None:
             palette=PALETTE,
         ).to_svg()
 
-    assert 'stroke="#0000ff"' in svg
-    assert 'stroke="#ff0000"' not in svg
+    assert 'stroke="#0000ff"' in svg  # right_node + c/d terminals
+    assert 'stroke="#ff0000"' in svg  # terminal a (its own value=left)
+    # terminal b has no value → keeps default; left_node still warns + default
+    assert 'stroke="#000000"' in svg
 
 
 def test_branch_coloring_default_palette_is_deterministic() -> None:
@@ -92,6 +100,9 @@ def test_branch_coloring_circular_monophyletic_clades_do_not_warn() -> None:
 
 
 def test_branch_coloring_circular_paraphyletic_warns_and_leaves_default() -> None:
+    """v0.4 Phase 3: same terminal-lift behavior on circular layouts.
+    Paraphyletic internal warns + stays default; terminals beneath it
+    carry their own values."""
     df = pl.DataFrame({"tip": ["a", "b", "c", "d"], "clade": ["left", "right", "right", "right"]})
     with pytest.warns(TreescapeStyleWarning, match="left_node"):
         svg = (
@@ -101,9 +112,9 @@ def test_branch_coloring_circular_paraphyletic_warns_and_leaves_default() -> Non
             .color_branches_by("clade", palette=PALETTE)
             .to_svg()
         )
-    assert 'stroke="#0000ff"' in svg
-    assert 'stroke="#ff0000"' not in svg
-    # circular default stroke is also #000000 just like rectangular
+    assert 'stroke="#0000ff"' in svg  # right_node + b/c/d terminals
+    assert 'stroke="#ff0000"' in svg  # terminal a (v0.4 Phase 3 lift)
+    # circular default stroke is also #000000; left_node + arc spines
     assert 'stroke="#000000"' in svg
 
 

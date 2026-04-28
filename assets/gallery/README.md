@@ -14,6 +14,9 @@ Eight feature variants on a single 12-tip primate phylogeny, plus two combinatio
 | [`08_color_branches_by_support.svg`](08_color_branches_by_support.svg) | Continuous branch color, subtree mean (v0.3 Phase 2) | `.color_branches_by("support")` |
 | [`09_scale_bar.svg`](09_scale_bar.svg) | Branch-length scale bar (v0.3 bonus) | `.scale_bar(0.05, "0.05 substitutions/site")` |
 | [`10_combined.svg`](10_combined.svg) | Highlight + discrete tip color + scale bar (publication-style) | several methods chained |
+| [`11_circular_color_tips_by_clade.svg`](11_circular_color_tips_by_clade.svg) | Circular discrete tip color (v0.4 Phase 1) | `.layout("circular").join_metadata(df, on="tip").color_tips_by("clade")` |
+| [`12_circular_scale_bar.svg`](12_circular_scale_bar.svg) | Circular scale bar — bottom-right radial (v0.4 Phase 2) | `.layout("circular").scale_bar(0.05, "0.05 subs/site")` |
+| [`13_branch_width_by_support.svg`](13_branch_width_by_support.svg) | Branch-stroke width by numeric metadata (v0.4 Phase 3) | `.join_metadata(df, on="tip").width_branches_by("support")` |
 
 ## Notes worth knowing
 
@@ -21,7 +24,9 @@ Eight feature variants on a single 12-tip primate phylogeny, plus two combinatio
 - **Discrete branch coloring** (`06_color_branches_by_clade.svg`) leaves *paraphyletic* MRCA branches at the default color and emits a `TreescapeStyleWarning` per such branch. Visible in the SVG as default-stroke branches connecting differently colored monophyletic subtrees. The regen script silences these warnings during gallery rendering — they're informational, not errors.
 - **Continuous coloring** uses treescape's pinned 11-keystop viridis LUT (see `docs/conventions.md`). Endpoints are `#440154` at `t=0` and `#fde725` at `t=1`. The `support` column ranges 0.75–0.99, so the spread covers most of the LUT.
 - **Branch-mean continuous coloring** (`08_color_branches_by_support.svg`) maps each internal branch through `cmap(mean(descendant tip values))`. Subtrees with no observed values keep the default color silently — different from the discrete monophyly path, which warns.
-- **Circular layouts cover the full feature surface for clade highlights only** in v0.3. `.color_tips_by`, `.color_branches_by`, `.scale_bar`, and `.support_labels` on `.layout("circular")` raise `NotImplementedError` cleanly — natural follow-ups but not in v0.3 scope.
+- **Circular layouts now cover the full v0.3+v0.4 styling surface** as of v0.4. `.color_tips_by`, `.color_branches_by`, `.scale_bar`, and `.support_labels` work on `.layout("circular")`; the v0.3 `NotImplementedError` gates are all lifted. Convention details are in `docs/conventions.md` ("v0.4 Phase 1" and "v0.4 Phase 2" sections).
+- **Branch-stroke width** (gallery file 13) is metadata-driven via `.width_branches_by(column)` (v0.4 Phase 3). Internal branches scale to the subtree mean; terminal branches scale to the tip's own value. The default range `(wmin, wmax) = (1.0, 4.0)` px keeps "no emphasis" branches visually identical to unstyled (1.0 = `SceneOptions.stroke_width` default).
+- **Terminal-branch coloring** (visible in gallery files 06 and 08, which regenerated under v0.4 Phase 3) is also automatic now — `.color_branches_by` no longer skips terminal branches, so when `.color_tips_by` and `.color_branches_by` run on the same column, terminals match their tips.
 
 ## Regenerating
 
