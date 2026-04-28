@@ -4,6 +4,72 @@ All notable changes to treescape are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-04-28
+
+The metadata-driven-styling release. v0.2 shipped explicit dict-based `.color_tips({...})` and rectangular-only `.highlight_clade(...)`. v0.3 makes those automatic from joined metadata, adds continuous coloring, and lifts the circular-layout `NotImplementedError` for `.highlight_clade` via annular sectors. Five EVIDENT claims added or extended; 187 / 31 / 8 oracle suite green; cargo workspace 46 + 11 green.
+
+### Phase 1 — `join_metadata` data-binding (polars-only)
+
+- **`TreePlot.join_metadata(df, on=...)`** — chainable. Validates a `polars.DataFrame` against the tree's tip universe and stores per-tip rows for downstream coloring. Loud on every failure mode: extra rows whose `on=` value is not a tip raise `ValueError` with the offending count and first 5 names; duplicate `on=` values raise; chained-join column-name collisions raise (silent overwrite is the "which frame won?" failure mode that's hardest to debug). Empty frames are legal and produce all-`None` metadata for every tip with no warning.
+- **Polars-only.** The plan considered dual-support and a `__dataframe__` interchange compromise; both rejected to keep maintenance flat. pandas users convert via `pl.from_pandas(df)`. One supported frame type, one error surface. Reconsider in a v0.x point release if user-reach demands.
+- **Storage scope: Python-side, no FFI.** The joined frame is held on the `TreePlot` instance; `_metadata_for(tip_name)` returns a plain Python dict (column dtypes preserved as Python scalars). Phase 2 metadata-driven coloring resolves to `{tip_name: color}` dicts on the Python side and reuses the v0.2 styled-SVG path. The Rust `treescape-core` crate is unchanged. Trade-off disclosed: practical-N for metadata-driven plots is capped at Python dict overhead, not the SoA Rust core's actual capacity. Fine for v0.3's expected scale (≤10k tips × ≤10 columns); revisit in v0.4 with a columnar-FFI variant if the use case shows up.
+- **New EVIDENT claim** `treescape-metadata-join-roundtrip` (ci-tier): every tip is queryable post-join; tips with no row return all-`None`; extra rows raise; duplicates raise; chained joins add columns and column-name collisions raise. v0.3 oracles the Python reference against itself (round-trip + explicit failure-mode tests) since there is no Rust port.
+- **`treescape-reference/src/treescape_reference/metadata.py`** is the convention owner. Synthetic CSV fixtures at `tests/fixtures/metadata/small/{two_tip,balanced_4,unbalanced_5}.csv` — each chosen so at least one MRCA is monophyletic-by-`clade` and at least one is paraphyletic, giving Phase 2's branch-coloring claim both code paths from one fixture.
+- **`polars>=1.0`** added to `treescape-reference` and `treescape` runtime deps.
+
+### Phase 2 — metadata-driven branch & tip coloring
+
+#### Discrete (categorical palette)
+
+- **`TreePlot.color_tips_by(column, palette=...)`** maps a discrete metadata column through `palette` (defaults to **Tableau-10** in tree tip-order). User palettes must cover every observed non-`None` value; missing entries raise. More than 10 observed values with the default palette raise — no cycling, because cycling silently makes unrelated categories share color. Round-trip claim: `treescape-color-tips-by-discrete-roundtrip` (ci-tier) — produces the same per-tip colors as the equivalent explicit `.color_tips({...})` call.
+- **`TreePlot.color_branches_by(column, palette=...)`** colors rectangular internal branches by **monophyly**: a branch is colored iff every descendant tip shares one non-missing value for `column`. Mixed or missing values leave the default branch color and emit `TreescapeStyleWarning` naming the branch and column. Diverges from ggtree's silent fallback; surfaces miscoloring instead of hiding. Standard `warnings.filterwarnings(...)` opts out — no custom toggle. Claim: `treescape-color-branches-by-monophyly` (ci-tier) — asserts both color *and* warning (or its absence on the monophyletic path) via `pytest.warns` / `warnings.catch_warnings`.
+- The discrete EVIDENT claim was deliberately split into a tips claim and a branches-by-monophyly claim. Collapsing them was the "claim overstatement" anti-pattern v0.1 and v0.2 round-1 reviews caught — the tip path and the branch path exercise different code.
+- Terminal branches are out of scope for v0.3's monophyly claim. They remain default-colored until a separate terminal-branch styling API lands.
+
+#### Continuous (gradient)
+
+- **Default colormap: viridis.** treescape ships its own pinned 11-keystop viridis LUT in `packages/treescape/src/treescape/plot.py::_VIRIDIS_LUT` with linear RGB interpolation between stops. Visually faithful to matplotlib's full 256-stop viridis; **byte-determinism is exact, full-256-stop fidelity is not**. Endpoints `#440154` at `t=0` and `#fde725` at `t=1`. A LUT change is a treescape-version-level break that regenerates golden bytes — track it explicitly in CHANGELOG.
+- **API:** `color_tips_by(column, cmap=, vmin=, vmax=)` and `color_branches_by(column, cmap=, vmin=, vmax=)`. `cmap` accepts a string name (built-ins: `"viridis"`) or a callable `(t: float) -> "#rrggbb"`. Passing both `palette=` and `cmap=` raises `ValueError`. Auto-detection: if neither is given, all-numeric observed values (excluding `bool`) → continuous; otherwise → discrete.
+- **Range:** `vmin` / `vmax` default to the column's observed min/max across the tree's tip universe — so tip and branch coloring on the same column share a coherent scale by construction. Values outside `[vmin, vmax]` are clamped, not extrapolated. **Degenerate range** (`vmin == vmax`, or all values equal) deterministically maps every value to `t = 0.5` (colormap midpoint) — no divide-by-zero.
+- **Branch coloring (numeric):** each non-tip branch is colored by the **mean** of descendant tips' non-missing values, mapped through `cmap`. Subtrees with no observed values keep the default color **silently** — no warning, since "no data" is not a paraphyletic miscoloring (contrast with the discrete monophyly path, which warns on mixed/missing).
+- **New EVIDENT claim** `treescape-color-by-continuous-determinism` (ci-tier, property-style): same column values + same `cmap` + same `(vmin, vmax)` → byte-identical SVG. 10 tests covering byte-determinism on tips and branches, default-cmap-is-viridis with LUT endpoints, vmin/vmax pin range and clamp outliers, degenerate range → midpoint, callable cmap honored, palette+cmap conflict raises, unknown cmap name raises, subtree-with-no-data is silent, auto-detect == explicit `cmap="viridis"`.
+
+### Phase 3 — circular clade highlighting (annular sectors)
+
+- **`TreePlot.layout("circular").highlight_clade(...)`** is now supported. The v0.2 `NotImplementedError` for circular highlights is lifted; v0.2 styled SVG bytes are unchanged.
+- **New scene type: `AnnularSector(cx, cy, r_inner, r_outer, theta_min, theta_max, fill)`** in both `treescape-reference/scene.py` and `treescape-core/layout/scene.rs`. Coordinates in pixels (post-projection), matching `Rect`. Emitted before `Line`/`Arc`/`Text` so highlights render behind branches and labels — same z-order as the rectangular `Rect` highlight.
+- **Geometry:** `r_inner = mrca_r * px_per_x` (MRCA's branch point); `r_outer = max_r * px_per_x + label_offset + max_label_px` (every highlight extends to the same outer radius — the polar analogue of v0.2's "rectangle to canvas right edge"). `theta_min`, `theta_max` are the min/max layout tip angles in `clade_tips(MRCA)` (internal-node angles do not bound the sector — only tip angles, matching the rectangular row-span convention).
+- **MRCA == root → `ValueError`.** A clade whose MRCA is the root covers every tip — the highlight would cover the whole canvas (visually meaningless, blocks every branch and label). Loud-rejected at `to_svg`-time. Wrap-split paths are dead code under v0.3's `start_angle = π/2`, `sweep = 2π` convention; a fan layout (`sweep_total < 2π`) reopens the wrap question.
+- **SVG emit:** `<path d="M ... L ... A ... L ... A ... Z" fill="...">`. Outer arc uses `sweep_flag = 0` (CCW visually under our SVG y-flip — same convention as the existing `Arc` spine); inner arc returns with `sweep_flag = 1`. `large_arc = 1` iff `theta_max − theta_min > π`. Float formatting matches the existing `Arc` renderer (`{:.4}` trim trailing zeros) — keeps Rust↔Python ref byte parity.
+- **Connector:** new `render_circular_styled_svg(tree, opts, highlights)` PyO3 function. Maps `Result::Err` containing `"MRCA == root"` to `PyValueError`; other errors map to `PyRuntimeError`.
+- **EVIDENT claim** `treescape-styling-determinism` is **extended**, not replaced. Byte-determinism property carries over unchanged. Additional property: an `AnnularSector`'s `[theta_min, theta_max]` equals the min/max layout tip angles in the clade. Rectangular↔circular shape equivalence under the polar transform is **not** claimed — each layout is byte-deterministic in its own conventions, no cross-shape parity. 8 new tests added (2× repeated render parity, 2× golden snapshot, 2× Rust↔Python ref byte parity, 1× MRCA == root raise at both ref and connector layers, 1× angular-bounds property). Two new goldens checked in: `tests/fixtures/golden/{balanced_4,unbalanced_5}_styled_circular.svg`.
+- **Other circular styling features remain `NotImplementedError`.** v0.3 Phase 3 is highlights-only per the plan. The circular-path `NotImplementedError` is now per-feature: it names which of `.color_tips` / `.color_tips_by`, `.color_branches_by`, `.scale_bar`, `.support_labels` is in use, instead of catching all of them with one message. Each is a natural follow-up; not in v0.3 scope.
+
+### Bonus rectangular grammar (not in the v0.3 plan, accepted)
+
+- **`TreePlot.scale_bar(length, label=None)`** — draws a branch-length scale bar below rectangular trees. Length validated `> 0`. Raises `NotImplementedError` on `.layout("circular")` since circular has no horizontal axis to anchor a scale bar to.
+- **`TreePlot.support_labels(min_value=None)`** — renders internal node names as support labels with optional numeric threshold filtering. Raises `NotImplementedError` on `.layout("circular")` for now (circular extension is a follow-up).
+- The connector signature for `render_rectangular_styled_svg` grew to thread `branch_colors`, `scale_bar`, `support_labels`, `support_min`. v0.2 byte-determinism preserved on existing fixtures.
+
+### EVIDENT manifest
+
+- **16 claims pinned, all green.** v0.2 baseline was 11; v0.3 adds 4 new (`treescape-metadata-join-roundtrip`, `treescape-color-tips-by-discrete-roundtrip`, `treescape-color-branches-by-monophyly`, `treescape-color-by-continuous-determinism`) and extends `treescape-styling-determinism` to the circular path.
+
+### Backwards compatibility
+
+- **v0.2 `.color_tips({...})` and rectangular `.highlight_clade(...)` work unchanged.** v0.3 adds new entry points; it does not break or rename existing ones.
+- **`treescape-svg-determinism` and `treescape-styling-determinism` byte-determinism** holds over identical bytes for fixtures that don't use metadata or circular highlights. Golden SVGs from v0.2 were not regenerated.
+- **`polars>=1.0`** is a new runtime dep — see Phase 1.
+
+### Cuts deferred to v0.4+
+
+- **Circular `.color_tips` / `.color_tips_by` / `.color_branches_by` / `.support_labels`.** Each is a natural extension of the AnnularSector path geometry / Text fill / Line stroke pipelines but needs its own convention pass and oracle.
+- **`.scale_bar` on circular layouts.** Probably belongs as a calibration ring at a fixed radius rather than a horizontal bar; design-decision deferred.
+- **Branch-stroke width by metadata, node shape styling, terminal-branch coloring.**
+- **Nexus and PhyloXML parsers, PDF export, `treescape-cli`, kerning + non-Latin shaping.** Same v0.4+ list as v0.2 deferred.
+- **GPU label collision avoidance, force-directed unrooted layout.** v0.4+/v0.5+.
+- **Columnar-FFI variant for metadata-driven coloring at >50k tips × dense metadata.** v0.3 ships Python-dict-side; revisit when a real-world fixture pushes against the budget.
+
 ## [0.2.0] — 2026-04-28
 
 ### Fixes (review round 1, post-phase-3)
