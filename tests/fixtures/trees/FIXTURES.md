@@ -22,4 +22,6 @@ Every fixture used by an EVIDENT claim lives here. Fixtures are versioned with t
 
 ## Medium and large fixtures
 
-`medium/` and `large/` directories are intentionally empty in v0.1. Real biological fixtures (e.g. NCBI mammals, COVID lineage trees) land in v0.2 alongside metadata-driven styling claims. Each must arrive with a license note.
+`medium/` currently contains a single demo fixture (`primates.nwk`) used as the README screenshot — its branch lengths are illustrative, not literature-derived, so it isn't an oracle target.
+
+Larger and biologically real fixtures (NCBI mammals, COVID lineages, etc.) land in v0.2 alongside metadata-driven styling claims. Each must arrive with a source URL, license note, and a row in the table above.

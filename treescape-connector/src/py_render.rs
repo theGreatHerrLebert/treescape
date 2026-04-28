@@ -37,15 +37,18 @@ impl PySceneOptions {
         label_offset: f64,
         stroke_width: f64,
     ) -> Self {
-        let mut inner = CoreSceneOptions::default();
-        inner.px_per_x = px_per_x;
-        inner.px_per_y = px_per_y;
-        inner.padding = padding;
-        inner.font_size = font_size;
-        inner.avg_glyph_width = avg_glyph_width;
-        inner.label_offset = label_offset;
-        inner.stroke_width = stroke_width;
-        Self { inner }
+        Self {
+            inner: CoreSceneOptions {
+                px_per_x,
+                px_per_y,
+                padding,
+                font_size,
+                avg_glyph_width,
+                label_offset,
+                stroke_width,
+                ..CoreSceneOptions::default()
+            },
+        }
     }
 
     #[getter]

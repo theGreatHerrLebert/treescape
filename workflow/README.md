@@ -20,9 +20,11 @@ Two-tier validation infrastructure for treescape's EVIDENT manifest.
 # Validate manifest structure (no oracles run)
 python workflow/validate_manifest.py evident.yaml
 
-# Run all ci-tier oracle claims
+# Run ci-tier oracle claims (excludes release_only-marked tests)
 pytest tests/oracle -v -m "not release_only"
 
 # Run release-tier (requires R + Bioconductor; must pass before tag)
-pytest tests/oracle -v
+pytest tests/oracle -v -m release_only
 ```
+
+The `release_only` mark is registered in the workspace `pyproject.toml`. Currently only `tests/oracle/test_layout_vs_ggtree.py` carries it; future heavy oracles will add the same mark.

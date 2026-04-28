@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+markers = [
+    "release_only: claim runners gated to the release-tier validation image (R + Bioconductor + ggtree). Excluded from `ci` runs via -m \"not release_only\"; included by -m release_only inside workflow/Dockerfile.evident-release.",
+]

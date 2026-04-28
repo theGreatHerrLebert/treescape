@@ -78,6 +78,7 @@ def _ggtree_tip_coords(fixture: pathlib.Path) -> dict[str, tuple[float, float]]:
     return out
 
 
+@pytest.mark.release_only
 @pytest.mark.skipif(not _has_ggtree(), reason="R + Bioconductor + ggtree required (release tier)")
 @pytest.mark.parametrize("fixture", LAYOUT_SAFE_FIXTURES, ids=lambda p: p.name)
 def test_layout_vs_ggtree(fixture: pathlib.Path) -> None:

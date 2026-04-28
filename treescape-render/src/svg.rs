@@ -41,9 +41,9 @@ impl std::error::Error for SvgError {}
 pub fn render_svg(scene: &Scene) -> Result<String, SvgError> {
     let mut out = String::new();
     out.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    write!(
+    writeln!(
         &mut out,
-        "<svg height=\"{h}\" version=\"{v}\" viewBox=\"0 0 {w} {h}\" width=\"{w}\" xmlns=\"http://www.w3.org/2000/svg\">\n",
+        "<svg height=\"{h}\" version=\"{v}\" viewBox=\"0 0 {w} {h}\" width=\"{w}\" xmlns=\"http://www.w3.org/2000/svg\">",
         w = fmt_f(scene.canvas.width),
         h = fmt_f(scene.canvas.height),
         v = SVG_VERSION,
@@ -60,9 +60,9 @@ pub fn render_svg(scene: &Scene) -> Result<String, SvgError> {
                 stroke,
                 stroke_width,
             } => {
-                write!(
+                writeln!(
                     &mut out,
-                    "  <line stroke=\"{stroke}\" stroke-width=\"{sw}\" x1=\"{x1}\" x2=\"{x2}\" y1=\"{y1}\" y2=\"{y2}\"/>\n",
+                    "  <line stroke=\"{stroke}\" stroke-width=\"{sw}\" x1=\"{x1}\" x2=\"{x2}\" y1=\"{y1}\" y2=\"{y2}\"/>",
                     stroke = fmt_color(*stroke),
                     sw = fmt_f(*stroke_width),
                     x1 = fmt_f(*x1),
@@ -81,9 +81,9 @@ pub fn render_svg(scene: &Scene) -> Result<String, SvgError> {
                 anchor,
                 is_tip_label: _,
             } => {
-                write!(
+                writeln!(
                     &mut out,
-                    "  <text fill=\"{fill}\" font-family=\"{family}\" font-size=\"{size}\" text-anchor=\"{anchor}\" x=\"{x}\" y=\"{y}\">{escaped}</text>\n",
+                    "  <text fill=\"{fill}\" font-family=\"{family}\" font-size=\"{size}\" text-anchor=\"{anchor}\" x=\"{x}\" y=\"{y}\">{escaped}</text>",
                     fill = fmt_color(*color),
                     family = FONT_FAMILY,
                     size = fmt_f(*font_size),

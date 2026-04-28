@@ -3,6 +3,7 @@ name: ci
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -55,7 +56,7 @@ jobs:
       - name: Validate manifest structure
         run: python workflow/validate_manifest.py evident.yaml
       - name: Run ci-tier oracle claims
-        run: pytest tests/oracle -v --deselect tests/oracle/test_layout_vs_ggtree.py
+        run: pytest tests/oracle -v -m "not release_only"
       - name: Upload oracle artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -77,4 +78,6 @@ jobs:
       - name: Run release-tier claim runner
         run: |
           docker run --rm -v "$PWD:/workspace" -w /workspace treescape-release \
-            bash -lc "pytest tests/oracle/test_layout_vs_ggtree.py -v"
+            bash -lc "(cd treescape-connector && maturin develop --release) && \
+                       pip install -e packages/treescape-reference -e packages/treescape && \
+                       pytest tests/oracle -v -m release_only"
