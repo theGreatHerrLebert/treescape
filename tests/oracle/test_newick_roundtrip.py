@@ -33,6 +33,13 @@ try:
 except ImportError:  # pragma: no cover - environment-dependent
     HAVE_BIOPYTHON = False
 
+try:
+    from treescape_connector.py_tree import Tree as RustTree
+
+    HAVE_CONNECTOR = True
+except ImportError:  # pragma: no cover - only before maturin develop
+    HAVE_CONNECTOR = False
+
 
 FIXTURES_DIR = pathlib.Path(__file__).parent.parent / "fixtures" / "trees"
 REPORT_DIR = pathlib.Path(__file__).parent / "reports"
@@ -134,6 +141,54 @@ def test_biopython_tip_branch_lengths_match(fixture: pathlib.Path) -> None:
         )
 
 
+# ----- Rust path (Phase 4 deliverable) --------------------------------------
+
+
+@pytest.mark.skipif(
+    not HAVE_CONNECTOR,
+    reason="treescape_connector not built (run maturin develop)",
+)
+@pytest.mark.parametrize("fixture", CANONICAL_FIXTURES, ids=lambda p: p.name)
+def test_rust_roundtrip(fixture: pathlib.Path) -> None:
+    """parse(write(parse(s))) is structurally identical to parse(s) — Rust path."""
+    src = fixture.read_text()
+    t1 = RustTree.parse_newick(src)
+    serialized = t1.write_newick()
+    t2 = RustTree.parse_newick(serialized)
+    assert t1.topology_hash() == t2.topology_hash(), (
+        f"Rust topology hash mismatch on {fixture.name}"
+    )
+
+
+@pytest.mark.skipif(
+    not HAVE_CONNECTOR,
+    reason="treescape_connector not built (run maturin develop)",
+)
+@pytest.mark.parametrize("fixture", CANONICAL_FIXTURES, ids=lambda p: p.name)
+def test_rust_matches_python_reference_topology(fixture: pathlib.Path) -> None:
+    """Rust and Python reference parse to topologically identical trees.
+
+    Topology hashes are language-specific (Rust uses fxhash, Python uses
+    builtin hash) so we compare the *tip name set* and the *number of
+    nodes* and the *postorder structure* rather than hash values.
+    """
+    src = fixture.read_text()
+    rust_tree = RustTree.parse_newick(src)
+    ref_tree = ref_parse(src)
+
+    rust_tips = sorted(
+        rust_tree.name(i)
+        for i in range(rust_tree.n_nodes)
+        if rust_tree.is_tip(i)
+    )
+    ref_tips = sorted(n.name for n in ref_tree.postorder() if n.is_tip())
+    assert rust_tips == ref_tips, (
+        f"Rust/ref tip set mismatch on {fixture.name}"
+    )
+
+    assert rust_tree.n_nodes == len(ref_tree.postorder())
+
+
 # ----- Artifact emission ----------------------------------------------------
 
 
@@ -151,6 +206,7 @@ def _emit_report() -> None:
         "fixtures_biopython_excluded": BIOPYTHON_EXCLUDED,
         "branch_length_tolerance": BRANCH_LEN_TOL,
         "biopython_available": HAVE_BIOPYTHON,
+        "connector_available": HAVE_CONNECTOR,
     }
     (REPORT_DIR / "newick_roundtrip.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True)

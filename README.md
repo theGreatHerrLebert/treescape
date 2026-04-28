@@ -6,6 +6,21 @@ Python-native phylogenetic tree visualization with a Rust core and EVIDENT-style
 
 v0.1 in development. See `plan.md` for the vision and `evident.yaml` for the trust manifest.
 
+## Quickstart (development)
+
+```bash
+git clone --recursive https://github.com/theGreatHerrLebert/treescape.git
+cd treescape
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install maturin pytest biopython ete3 hypothesis
+(cd treescape-connector && maturin develop --release)
+pip install -e packages/treescape-reference -e packages/treescape
+
+python -c "from treescape import TreePlot; TreePlot('((a:1,b:1):1,(c:1,d:1):1);').save('/tmp/tree.svg')"
+pytest tests/oracle -v          # 64 tests should pass; 4 skip without R/ggtree
+```
+
 ## Quick architecture
 
 ```
@@ -27,7 +42,7 @@ The manifest is pinned today; the oracle test runners turn green progressively a
 | Claim | Tier | Phase gate | Status |
 |---|---|---|---|
 | treescape-newick-roundtrip | ci | Phase 1 | green |
-| treescape-layout-rust-vs-reference | ci | Phase 4 (PyO3) | stub, skip-marked |
+| treescape-layout-rust-vs-reference | ci | Phase 4 | green |
 | treescape-layout-vs-ete3 | ci | Phase 2 | green |
 | treescape-layout-vs-biopython | ci | Phase 2 | green |
 | treescape-layout-vs-ggtree | release | Phase 2 (skips on `ci`) | implemented; skips when ggtree absent |

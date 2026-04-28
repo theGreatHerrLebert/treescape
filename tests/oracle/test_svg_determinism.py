@@ -34,6 +34,14 @@ from treescape_reference.render import (
     render_svg,
 )
 
+try:
+    from treescape_connector.py_tree import Tree as RustTree
+    from treescape_connector.py_render import render_rectangular_svg as rust_render
+
+    HAVE_CONNECTOR = True
+except ImportError:  # pragma: no cover - only before maturin develop
+    HAVE_CONNECTOR = False
+
 
 WORKSPACE = pathlib.Path(__file__).parent.parent.parent
 FIXTURES_DIR = WORKSPACE / "tests" / "fixtures" / "trees"
@@ -83,6 +91,28 @@ def test_matches_golden(fixture: pathlib.Path) -> None:
     assert rendered == expected, (
         f"golden mismatch on {fixture.name}; "
         f"set UPDATE_GOLDENS=1 to regenerate if intentional"
+    )
+
+
+@pytest.mark.skipif(
+    not HAVE_CONNECTOR,
+    reason="treescape_connector not built (run maturin develop)",
+)
+@pytest.mark.parametrize("fixture", DETERMINISM_FIXTURES, ids=lambda p: p.name)
+def test_rust_matches_python_reference_bytes(fixture: pathlib.Path) -> None:
+    """Rust SVG output is byte-identical to the Python reference output.
+
+    The Python reference renderer was deliberately written to produce
+    the exact same byte stream as the Rust impl for the v0.1 default
+    options. This test enforces that contract directly — drift in
+    either path lights up here.
+    """
+    src = fixture.read_text()
+    rust_svg = rust_render(RustTree.parse_newick(src))
+    ref_svg = render_svg(build_rectangular_scene(ref_parse(src), SceneOptions()))
+    assert rust_svg == ref_svg, (
+        f"Rust/reference SVG bytes diverged on {fixture.name}: "
+        f"rust_len={len(rust_svg)} ref_len={len(ref_svg)}"
     )
 
 

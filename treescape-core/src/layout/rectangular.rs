@@ -5,7 +5,7 @@
 //! and documented in `docs/conventions.md`.
 
 use crate::layout::scene::{Canvas, Color, Scene, SceneItem, TextAnchor};
-use crate::tree::{NodeId, Tree};
+use crate::tree::Tree;
 
 /// Layout coordinates for every node, parallel-indexed by [`NodeId`].
 #[derive(Debug, Clone, Default)]
