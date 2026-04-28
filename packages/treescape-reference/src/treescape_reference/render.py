@@ -4,19 +4,19 @@ Mirrors ``treescape_core::layout::rectangular::build_rectangular_scene``
 and ``treescape_render::svg::render_svg`` line-for-line so they can be
 kept in sync. Used as the pre-Phase-4 oracle for the
 ``treescape-svg-determinism`` and ``treescape-tip-count-invariant``
-claims.
+claims, and (v0.2+) the ``treescape-text-width-vs-fontdue`` claim.
 
-v0.1 simplification: tip-label width estimated as
-``avg_glyph_width * font_size * char_count``. Real fontdue measurement
-lives only in the Rust path; this approximation is good enough for the
-canvas-bounds invariant claim, which only checks that scene coords lie
-within the declared canvas.
+v0.2: tip-label width is measured via ``treescape_reference.text``
+(fontTools HMTX read of the bundled DejaVu Sans). The Rust core does
+the same via fontdue. Both should agree to floating-point precision.
+The legacy 0.6-em monospace approximation is still reachable by
+passing ``measure=monospace_measurer`` if needed for tests.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
+from typing import Callable, List, Optional
 
 from .layout import rectangular_layout
 from .newick import Tree
@@ -29,6 +29,7 @@ from .scene import (
     Text,
     TextAnchor,
 )
+from .text import text_width as _fontdue_text_width
 
 
 @dataclass
@@ -44,9 +45,21 @@ class SceneOptions:
     label_color: Color = BLACK
 
 
-def build_rectangular_scene(tree: Tree, opts: SceneOptions | None = None) -> Scene:
+def monospace_measurer(text: str, font_size: float, *, avg_glyph_width: float = 0.6) -> float:
+    """Legacy 0.6-em fallback used by v0.1. Kept for parity testing
+    against the pre-fontdue path."""
+    return len(text) * font_size * avg_glyph_width
+
+
+def build_rectangular_scene(
+    tree: Tree,
+    opts: SceneOptions | None = None,
+    measure: Optional[Callable[[str, float], float]] = None,
+) -> Scene:
     if opts is None:
         opts = SceneOptions()
+    if measure is None:
+        measure = _fontdue_text_width
 
     if tree.root is None:
         return Scene(canvas=Canvas(0.0, 0.0), items=[])
@@ -62,9 +75,8 @@ def build_rectangular_scene(tree: Tree, opts: SceneOptions | None = None) -> Sce
     max_x = max(xs) if xs else 0.0
     max_y = max(ys) if ys else 0.0
 
-    tip_chars = [len(n.name) for n in nodes if n.is_tip()]
-    max_label_chars = max(tip_chars) if tip_chars else 0
-    max_label_px = max_label_chars * opts.font_size * opts.avg_glyph_width
+    tip_widths = [measure(n.name, opts.font_size) for n in nodes if n.is_tip()]
+    max_label_px = max(tip_widths) if tip_widths else 0.0
 
     x_span = max(max_x - min_x, 0.0)
     canvas = Canvas(

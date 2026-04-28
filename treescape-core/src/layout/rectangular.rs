@@ -90,10 +90,12 @@ pub struct SceneOptions {
     pub padding: f64,
     /// Tip label font size in pixels.
     pub font_size: f64,
-    /// Approximate average glyph width as a fraction of font size.
-    /// Used to size the canvas for tip labels. v0.1 ships a
-    /// monospace-like 0.6 default; v0.2 will swap in fontdue-measured
-    /// widths.
+    /// Average glyph width as a fraction of font size. Only consulted
+    /// by the legacy [`monospace_measurer`] fallback. v0.2 callers
+    /// should pass a real font measurer to
+    /// [`build_rectangular_scene_with_measurer`] (treescape-render
+    /// supplies a fontdue-backed one); this field is kept as a knob
+    /// for the legacy fallback path.
     pub avg_glyph_width: f64,
     /// Pixels of horizontal gap between a tip's x and the start of its
     /// label.
@@ -127,6 +129,28 @@ pub fn build_rectangular_scene(
     layout: &Layout,
     opts: &SceneOptions,
 ) -> Scene {
+    // Legacy monospace fallback that honors opts.avg_glyph_width.
+    // Treats every glyph as fixed-width — wrong for DejaVu Sans, but
+    // kept as a font-free path. v0.2 callers go via
+    // build_rectangular_scene_with_measurer + a fontdue measurer.
+    let agw = opts.avg_glyph_width;
+    let measure = move |s: &str, fs: f64| s.chars().count() as f64 * fs * agw;
+    build_rectangular_scene_with_measurer(tree, layout, opts, &measure)
+}
+
+/// Like [`build_rectangular_scene`] but takes an explicit text-width
+/// measurer. `treescape-render` injects a fontdue-backed measurer so
+/// canvas widths reflect real glyph metrics; the bare
+/// [`build_rectangular_scene`] keeps the 0.6-em fallback for callers
+/// that don't want to pull in a font.
+///
+/// Backs the `treescape-text-width-vs-fontdue` EVIDENT claim.
+pub fn build_rectangular_scene_with_measurer(
+    tree: &Tree,
+    layout: &Layout,
+    opts: &SceneOptions,
+    measure_width: &dyn Fn(&str, f64) -> f64,
+) -> Scene {
     if tree.is_empty() {
         return Scene {
             canvas: Canvas { width: 0.0, height: 0.0 },
@@ -146,16 +170,13 @@ pub fn build_rectangular_scene(
         .min(0.0);
     let max_x = layout.x.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
     let max_y = layout.y.iter().cloned().fold(0.0_f64, f64::max);
-    let max_label_chars = tree
+    let max_label_px = tree
         .name
         .iter()
         .enumerate()
         .filter(|(i, _)| tree.is_tip[*i])
-        .map(|(_, n)| n.chars().count())
-        .max()
-        .unwrap_or(0);
-    let max_label_px =
-        (max_label_chars as f64) * opts.font_size * opts.avg_glyph_width;
+        .map(|(_, n)| measure_width(n, opts.font_size))
+        .fold(0.0_f64, f64::max);
 
     let x_span = (max_x - min_x).max(0.0);
     let canvas = Canvas {

@@ -217,6 +217,46 @@ claims:
       - A library dependency injects a timestamp or version comment
         into the SVG.
 
+  - id: treescape-text-width-vs-fontdue
+    title: Rust tip-label widths via fontdue agree with Python reference within 0.5 px
+    case: cases/treescape.md
+    source: treescape-render
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#reference-shadowing
+    claim: >
+      treescape-render's tip-label widths (computed by summing
+      fontdue advance widths of the bundled DejaVu Sans at the
+      configured font size) agree with the Python reference's widths
+      (computed by reading the HMTX advance widths of the same TTF via
+      fontTools) within 0.5 px absolute on a representative string
+      battery: empty, single ASCII glyph (narrow `i`, wide `W`),
+      mixed-case ASCII, Latin-1 with accents, embedded spaces,
+      strings up to 64 chars. v0.2 supersedes the 0.6-em monospace
+      approximation that v0.1 shipped; this claim pins the new
+      behavior so the next external review can verify it.
+    evidence:
+      oracle:
+        - treescape-reference (pure-Python, this workspace)
+      tolerance: 0.5 px absolute on (sum of advance widths) per string.
+      command: pytest tests/oracle/test_text_width.py -v
+      artifact: tests/oracle/reports/text_width.json
+    assumptions:
+      - Both sides read the bundled treescape-render/src/fonts/DejaVuSans.ttf
+        at compile time / load time. No system font fallback.
+      - Latin-only, no shaping (no kerning, no ligatures, no BiDi). v0.2
+        scope is rectangular phylogenetic trees with ASCII/Latin-1 tip
+        names; downstream support lands when needed.
+      - Pinned fontTools and fontdue versions recorded in env files.
+    failure_modes:
+      - Different font file shipped for Rust vs Python (e.g. font path
+        mismatch in CI), which would diverge widths despite both impls
+        being correct.
+      - HMTX vs rasterized advance differing because of subpixel
+        rounding inside fontdue; tolerance accommodates ≤ 0.5 px
+        per-glyph drift summed over the string.
+
   - id: treescape-tip-count-invariant
     title: Rendered tip glyphs equal input tip count; coordinates within canvas
     case: cases/treescape.md

@@ -12,7 +12,9 @@ requires-python = ">=3.11"
 authors = [
     { name = "David Teschner", email = "davidteschner@googlemail.com" },
 ]
-dependencies = []
+dependencies = [
+    "fonttools>=4.50",
+]
 
 [project.optional-dependencies]
 test = [
@@ -24,3 +26,7 @@ test = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/treescape_reference"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/treescape_reference/fonts/DejaVuSans.ttf" = "treescape_reference/fonts/DejaVuSans.ttf"
+"src/treescape_reference/fonts/LICENSE.DejaVu.txt" = "treescape_reference/fonts/LICENSE.DejaVu.txt"

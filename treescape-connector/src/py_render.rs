@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 
 use treescape_core::layout::rectangular::SceneOptions as CoreSceneOptions;
 use treescape_core::layout::scene::Scene;
-use treescape_render::{build_scene, render_rectangular};
+use treescape_render::{build_scene, render_rectangular, text_width as core_text_width};
 
 use crate::py_tree::PyTree;
 
@@ -24,7 +24,6 @@ impl PySceneOptions {
         px_per_y = 18.0,
         padding = 12.0,
         font_size = 12.0,
-        avg_glyph_width = 0.6,
         label_offset = 4.0,
         stroke_width = 1.0,
     ))]
@@ -33,17 +32,20 @@ impl PySceneOptions {
         px_per_y: f64,
         padding: f64,
         font_size: f64,
-        avg_glyph_width: f64,
         label_offset: f64,
         stroke_width: f64,
     ) -> Self {
+        // v0.2 dropped the `avg_glyph_width` knob: tip-label widths
+        // are measured via fontdue against the bundled DejaVu Sans.
+        // The legacy 0.6-em fallback is still reachable via the bare
+        // `treescape_core::layout::rectangular::build_rectangular_scene`
+        // function but is not surfaced through the Python API.
         Self {
             inner: CoreSceneOptions {
                 px_per_x,
                 px_per_y,
                 padding,
                 font_size,
-                avg_glyph_width,
                 label_offset,
                 stroke_width,
                 ..CoreSceneOptions::default()
@@ -128,11 +130,20 @@ fn build_rectangular_scene(tree: &PyTree, opts: Option<&PySceneOptions>) -> PySc
     }
 }
 
+/// Width in pixels of `text` rendered at `font_size`, using fontdue
+/// against the bundled DejaVu Sans. Exposed primarily for the
+/// `treescape-text-width-vs-fontdue` oracle test.
+#[pyfunction]
+fn text_width(text: &str, font_size: f64) -> f64 {
+    core_text_width(text, font_size)
+}
+
 #[pymodule]
 pub fn py_render(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySceneOptions>()?;
     m.add_class::<PyScene>()?;
     m.add_function(wrap_pyfunction!(render_rectangular_svg, m)?)?;
     m.add_function(wrap_pyfunction!(build_rectangular_scene, m)?)?;
+    m.add_function(wrap_pyfunction!(text_width, m)?)?;
     Ok(())
 }
