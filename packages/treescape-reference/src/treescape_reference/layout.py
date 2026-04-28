@@ -33,6 +33,7 @@ Conventions (v0.1, rectangular layout only):
 
 from __future__ import annotations
 
+import math
 from typing import Dict, List, Tuple
 
 from .newick import Node, Tree
@@ -112,4 +113,70 @@ def _postorder(root: Node) -> List[Node]:
     return out
 
 
-__all__ = ["Coords", "rectangular_layout", "tips_by_name"]
+def circular_layout(
+    tree: Tree,
+    *,
+    start_angle: float = math.pi / 2,
+    sweep_total: float = 2 * math.pi,
+) -> Dict[int, Coords]:
+    """Compute (r, θ) for every node in a circular phylogram.
+
+    Per ``docs/conventions.md``: r is cumulative branch length from
+    root (matching rectangular's x). θ for tips is
+    ``start_angle - (i / N) * sweep_total`` for tip ``i`` in pre-order
+    leaf traversal — clockwise from ``start_angle`` so the natural
+    "reading" direction holds. θ for internal nodes is the wrap-aware
+    arithmetic mean of children's angles, computed in vector space to
+    avoid the 0-vs-2π discontinuity.
+
+    Defaults: ``start_angle = π/2`` (12 o'clock), ``sweep_total = 2π``
+    (full circle, default for circular phylograms; pass smaller values
+    for fan layouts).
+
+    Pure function: does not mutate ``tree``.
+    """
+    if tree.root is None:
+        return {}
+
+    preorder = _preorder(tree.root)
+
+    r: Dict[int, float] = {id(tree.root): 0.0}
+    for node in preorder:
+        for child in node.children:
+            r[id(child)] = r[id(node)] + child.branch_length
+
+    tips = [n for n in preorder if n.is_tip()]
+    n_tips = len(tips)
+    theta: Dict[int, float] = {}
+    if n_tips == 0:
+        theta[id(tree.root)] = start_angle
+        return {key: (r[key], theta[key]) for key in r}
+    if n_tips == 1:
+        # Degenerate circle: one tip, place at start_angle.
+        theta[id(tips[0])] = start_angle
+    else:
+        for i, tip in enumerate(tips):
+            theta[id(tip)] = start_angle - (i / n_tips) * sweep_total
+
+    for node in _postorder(tree.root):
+        if node.is_tip():
+            continue
+        if not node.children:
+            theta[id(node)] = start_angle
+            continue
+        # Wrap-aware mean: convert each child θ to its unit vector,
+        # average, then atan2. Equivalent to arithmetic mean when
+        # children's angles span less than π.
+        sx = sum(math.cos(theta[id(c)]) for c in node.children)
+        sy = sum(math.sin(theta[id(c)]) for c in node.children)
+        theta[id(node)] = math.atan2(sy, sx)
+
+    return {key: (r[key], theta[key]) for key in r}
+
+
+__all__ = [
+    "Coords",
+    "circular_layout",
+    "rectangular_layout",
+    "tips_by_name",
+]

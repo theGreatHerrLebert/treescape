@@ -43,6 +43,42 @@ v0.1 shipped a 0.6-em monospace approximation: `width = N_chars * font_size * 0.
 
 This convention shift bumps the canvas width on every fixture (label area widens to fit real glyph widths). Existing SVG goldens were regenerated when this convention landed; the byte-determinism claim still holds, just over different bytes.
 
+## treescape conventions (v0.2, circular layout)
+
+The Python reference at `packages/treescape-reference/src/treescape_reference/layout.py::circular_layout` is the canonical convention owner. The Rust port in `treescape-core/src/layout/circular.rs` is held to match within `1e-9`.
+
+The circular layout is a polar transform of the rectangular layout. Each node has a `(r, θ)` pair; the SVG renderer projects to Cartesian via `(cx + r·cos(θ), cy − r·sin(θ))` (the y-flip is because SVG's y-axis grows downward and we want θ=π/2 to mean "up").
+
+### r — radius (cumulative branch length)
+
+- Identical rule to rectangular's x: root has `r = 0`; every other node has `r = parent.r + node.branch_length`.
+- Negative branch lengths are legal Newick but produce an unintuitive "inside-the-root" radius; documented and not specially handled.
+
+### θ — tip angles
+
+- Tips at angles `θ_i = start_angle + (i / N) · sweep_total` for `i = 0, 1, …, N-1` in **pre-order traversal of leaves** (same order rectangular uses for y).
+- **`start_angle` default:** `π/2` (90°, 12 o'clock). The first tip in pre-order points straight up. Most published phylogenies orient this way.
+- **`sweep_total` default:** `2π` (full circle). Configurable for fan layouts (e.g. `π` produces a half-fan from 12 o'clock, sweeping clockwise back through east).
+- **Sweep direction:** **clockwise** as `i` increases. So with default `start_angle = π/2` and `sweep_total = 2π`, tip 0 is at 12 o'clock and tip `N-1` is just before 12 o'clock again, having swept right (east), down (south), left (west), and back around.
+
+  Note: this is *clockwise* on a clock face but *negative-θ* in math convention. We track it by writing `θ_i = start_angle − (i / N) · sweep_total` internally — the minus sign encodes the direction. Choosing clockwise matches the natural "reading direction" for left-to-right languages: tip 0 at top, tip 1 to its right, and so on around the circle.
+
+### θ — internal nodes
+
+- `θ = arithmetic mean of immediate children's θ`, computed in the **arc-aware sense**: if children's angles wrap (e.g. one at `0.1` rad and one at `2π − 0.1`), the mean is taken on the shorter arc, not the linear average. v0.2 trees with `sweep_total = 2π` can have a root whose children straddle the wrap point; the wrap-aware mean is essential there.
+
+  Implementation: convert each child's θ to `(cos(θ), sin(θ))`, take the vector mean, then `atan2(mean_y, mean_x)`. Ill-defined only if children's angles are diametrically opposed (vector mean is the origin); for monophyletic clades this is impossible because the tip angles span less than 2π by construction.
+
+### Cartesian projection (SVG)
+
+- Canvas is square: `2 · (max_r · px_per_r + padding + max_label_width)` per side.
+- Center `(cx, cy)` at canvas midpoint.
+- Project: `x_svg = cx + r · cos(θ);  y_svg = cy − r · sin(θ)`.
+- Branches: each parent→child edge becomes a **radial line segment** from `(parent.r, child.θ)` to `(child.r, child.θ)`, plus a **circular arc** at `r = parent.r` spanning the children's θ-range. The arc is drawn as an SVG `<path>` with an `A` (elliptical-arc) command.
+- Tip labels: positioned at `(r_max + label_offset, θ_tip)` with `text-anchor` chosen so the label reads outward — `start` for tips on the right half, `end` for the left, with rotation transform `rotate(deg, x, y)` to keep text radial.
+
+This is a clean isomorphism with rectangular: `(r, θ) ↔ (x_rect, y_rect)` via `r = x_rect, θ = start_angle − (y_rect / max_y_plus_one) · sweep_total`. The "rectangular and circular layouts are the same data under a polar transform" property is the basis for the `treescape-circular-self-consistent-with-rectangular` invariant claim.
+
 ## Convention gaps vs external oracles
 
 | Convention | treescape | ete3 | Biopython.Phylo | ggtree |

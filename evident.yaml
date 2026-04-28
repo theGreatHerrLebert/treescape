@@ -257,6 +257,85 @@ claims:
         rounding inside fontdue; tolerance accommodates ≤ 0.5 px
         per-glyph drift summed over the string.
 
+  - id: treescape-circular-layout-vs-ete3
+    title: Circular layout agrees with ete3 (mode "c") within 1e-4 on (r, θ)
+    case: cases/treescape.md
+    source: treescape-core
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#oracle-comparison
+    claim: >
+      treescape's circular layout — radius and angle per node — agrees
+      with ete3's circular-mode coordinates (`TreeStyle(mode="c")`)
+      within 1e-4 absolute on `(r, θ)` per tip on small and medium
+      fixtures, after the convention adjustments documented in
+      `docs/conventions.md`. ete3 may use a different start angle
+      (typically west / 9 o'clock) and/or sweep direction; the test
+      applies the documented transforms before comparing — same pattern
+      the rectangular Biopython oracle uses for its 1-based offset.
+    evidence:
+      oracle:
+        - ete3 (pinned)
+      tolerance: >
+        1e-4 absolute on (r, θ) per tip after documented convention
+        transforms. Looser than rectangular's 1e-6 because ete3's
+        circular renderer rounds intermediate angles to floats during
+        layout.
+      command: pytest tests/oracle/test_circular_layout_vs_ete3.py -v
+      artifact: tests/oracle/reports/circular_layout_vs_ete3.json
+    assumptions:
+      - ete3's coordinate output is read from its layout module, not
+        from rendered pixel positions.
+      - First end-to-end run of this claim will surface convention
+        divergences (start angle, sweep direction, ladderize default).
+        Each is documented in docs/conventions.md before any tolerance
+        is touched. This is the same discipline that surfaced
+        ggtree's default ladderize during v0.1.
+    failure_modes:
+      - ete3 silently changes its mode="c" defaults across versions;
+        oracle catches this only via the version pin.
+      - Convention adjustment is overfitted to one fixture's quirk
+        rather than a general transform.
+
+  - id: treescape-circular-layout-vs-ggtree
+    title: Circular layout agrees with R/ggtree (layout="circular") within 1e-3 on (r, θ)
+    case: cases/treescape.md
+    source: treescape-core
+    tier: release
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#oracle-comparison
+    claim: >
+      treescape's circular layout — radius and angle per node — agrees
+      with `ggtree(tree, layout="circular")` coordinates within 1e-3
+      absolute on `(r, θ)` per tip on small and medium fixtures, after
+      the convention adjustments documented in `docs/conventions.md`.
+      Tier release because it requires R + Bioconductor; runs inside
+      `workflow/Dockerfile.evident-release` before any release tag.
+    evidence:
+      oracle:
+        - R 4.x + Bioconductor + ggtree (pinned)
+      tolerance: >
+        1e-3 absolute on (r, θ) per tip after documented convention
+        transforms. Looser than rectangular ggtree's 1e-4 because
+        ggtree's circular layout adds an extra normalization step
+        (angle scaling to fit ggplot2's polar coord) that introduces
+        additional float drift.
+      command: pytest tests/oracle/test_circular_layout_vs_ggtree.py -v -m release_only
+      artifact: tests/oracle/reports/circular_layout_vs_ggtree.json
+    assumptions:
+      - R + Bioconductor + ggtree are available in the release runner.
+      - workflow/scripts/oracle_ggtree.R supports a `--circular` flag
+        (Phase 2 deliverable) that emits ggtree's circular coordinates
+        with `ladderize = FALSE`.
+    failure_modes:
+      - ggtree's circular coordinate output normalizes radius to
+        [0, 1] internally; oracle test must un-normalize before
+        comparing.
+      - Convention adjustment misses an asymmetric reorder (the
+        ladderize trap from v0.1 ggtree, but applied to angles).
+
   - id: treescape-tip-count-invariant
     title: Rendered tip glyphs equal input tip count; coordinates within canvas
     case: cases/treescape.md
