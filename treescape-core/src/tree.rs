@@ -74,6 +74,23 @@ impl Tree {
         out
     }
 
+    /// Iterative preorder (parent before children, leftmost child first).
+    /// Empty tree returns empty.
+    pub fn preorder(&self) -> Vec<NodeId> {
+        let mut out = Vec::with_capacity(self.len());
+        let Some(root) = self.root else {
+            return out;
+        };
+        let mut stack = vec![root];
+        while let Some(id) = stack.pop() {
+            out.push(id);
+            for &c in self.children[id].iter().rev() {
+                stack.push(c);
+            }
+        }
+        out
+    }
+
     /// Order-invariant Merkle-style hash of structure + names.
     /// Branch lengths are intentionally excluded — they have their
     /// own comparison in the round-trip claim.

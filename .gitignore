@@ -19,3 +19,4 @@ docs/_build/
 docs/site/
 tests/oracle/reports/
 .claude/settings.local.json
+.codex

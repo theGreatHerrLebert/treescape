@@ -25,6 +25,9 @@ pub enum NewickError {
     UnterminatedQuote,
     UnterminatedComment,
     InvalidNumber(String),
+    MissingSemicolon,
+    TrailingContent,
+    MultipleRoots,
 }
 
 impl std::fmt::Display for NewickError {
@@ -35,6 +38,9 @@ impl std::fmt::Display for NewickError {
             Self::UnterminatedQuote => write!(f, "unterminated quoted name"),
             Self::UnterminatedComment => write!(f, "unterminated comment"),
             Self::InvalidNumber(s) => write!(f, "invalid number: {}", s),
+            Self::MissingSemicolon => write!(f, "missing trailing semicolon"),
+            Self::TrailingContent => write!(f, "trailing content after semicolon"),
+            Self::MultipleRoots => write!(f, "multiple top-level roots; expected exactly one"),
         }
     }
 }
@@ -160,6 +166,7 @@ pub fn parse(input: &str) -> Result<Tree, NewickError> {
     let mut tree = Tree::default();
     let mut stack: Vec<NodeId> = Vec::new();
     let mut current: Option<NodeId> = None;
+    let mut seen_semi = false;
 
     let attach_to_parent = |tree: &mut Tree, stack: &[NodeId], child: NodeId| {
         if let Some(&p) = stack.last() {
@@ -174,7 +181,8 @@ pub fn parse(input: &str) -> Result<Tree, NewickError> {
         id
     };
 
-    for tok in tokens {
+    let mut iter = tokens.into_iter();
+    while let Some(tok) = iter.next() {
         match tok {
             Token::Open => {
                 let id = tree.add_node();
@@ -193,6 +201,10 @@ pub fn parse(input: &str) -> Result<Tree, NewickError> {
                 if !stack.is_empty() {
                     return Err(NewickError::UnclosedParen);
                 }
+                if iter.next().is_some() {
+                    return Err(NewickError::TrailingContent);
+                }
+                seen_semi = true;
                 break;
             }
             Token::Name(s) => {
@@ -208,9 +220,25 @@ pub fn parse(input: &str) -> Result<Tree, NewickError> {
         }
     }
 
-    if !tree.parent.is_empty() {
-        tree.root = Some(0);
+    if tree.parent.is_empty() {
+        // Empty input (no tokens) or just `;`. Both are tolerated as
+        // empty trees. A non-empty input that produced no nodes (e.g.
+        // only whitespace) is also empty.
+        if !seen_semi && !tree.parent.is_empty() {
+            return Err(NewickError::MissingSemicolon);
+        }
+        return Ok(tree);
     }
+
+    if !seen_semi {
+        return Err(NewickError::MissingSemicolon);
+    }
+
+    let root_count = tree.parent.iter().filter(|p| p.is_none()).count();
+    if root_count != 1 {
+        return Err(NewickError::MultipleRoots);
+    }
+    tree.root = Some(0);
     tree.finalize();
     Ok(tree)
 }
@@ -439,5 +467,37 @@ mod tests {
             parse("('a:1.0);").unwrap_err(),
             NewickError::UnterminatedQuote
         ));
+    }
+
+    #[test]
+    fn errors_on_trailing_content() {
+        assert!(matches!(
+            parse("(a:1.0);(b:1.0);").unwrap_err(),
+            NewickError::TrailingContent
+        ));
+    }
+
+    #[test]
+    fn errors_on_missing_semicolon() {
+        assert!(matches!(
+            parse("(a:1.0,b:1.0)").unwrap_err(),
+            NewickError::MissingSemicolon
+        ));
+    }
+
+    #[test]
+    fn errors_on_multiple_roots() {
+        assert!(matches!(
+            parse("a,b;").unwrap_err(),
+            NewickError::MultipleRoots
+        ));
+    }
+
+    #[test]
+    fn empty_input_is_empty_tree() {
+        let t = parse("").unwrap();
+        assert!(t.is_empty());
+        let t = parse(";").unwrap();
+        assert!(t.is_empty());
     }
 }

@@ -134,29 +134,35 @@ def _tokenize(s: str) -> List[Token]:
 
 
 def parse(s: str) -> Tree:
-    """Parse a Newick string into a :class:`Tree`."""
+    """Parse a Newick string into a :class:`Tree`.
+
+    Strict: requires a trailing ``;``; rejects trailing content; rejects
+    multiple top-level roots (e.g. ``a,b;``). Empty input and a bare
+    ``;`` both return an empty tree.
+    """
     tokens = _tokenize(s)
     if not tokens:
         return Tree(root=None)
 
     stack: List[Node] = []
     current: Optional[Node] = None
-    root: Optional[Node] = None
+    roots: List[Node] = []
 
     def attach(child: Node) -> None:
-        nonlocal root
         if stack:
             child.parent = stack[-1]
             stack[-1].children.append(child)
-        elif root is None:
-            root = child
+        else:
+            roots.append(child)
 
     def new_sibling() -> Node:
         node = Node()
         attach(node)
         return node
 
-    for tok in tokens:
+    seen_semi = False
+    iterator = iter(enumerate(tokens))
+    for idx, tok in iterator:
         if tok == "(":
             n = Node()
             attach(n)
@@ -171,6 +177,9 @@ def parse(s: str) -> Tree:
         elif tok == ";":
             if stack:
                 raise ValueError("unclosed parenthesis")
+            if idx + 1 < len(tokens):
+                raise ValueError("trailing content after semicolon")
+            seen_semi = True
             break
         else:
             kind, val = tok  # type: ignore[misc]
@@ -181,7 +190,13 @@ def parse(s: str) -> Tree:
             elif kind == "len":
                 current.branch_length = val  # type: ignore[assignment]
 
-    return Tree(root=root)
+    if not roots:
+        return Tree(root=None)
+    if not seen_semi:
+        raise ValueError("missing trailing semicolon")
+    if len(roots) != 1:
+        raise ValueError("multiple top-level roots; expected exactly one")
+    return Tree(root=roots[0])
 
 
 # ----- Writer ---------------------------------------------------------------
