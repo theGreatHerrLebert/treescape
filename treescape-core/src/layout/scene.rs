@@ -43,6 +43,17 @@ pub enum TextAnchor {
 
 #[derive(Debug, Clone)]
 pub enum SceneItem {
+    /// A filled rectangle. Used by Phase-3 clade highlighting; v0.2
+    /// only ships fill (no stroke) but the field is here for forward
+    /// compatibility. Emitted before lines so highlights render
+    /// behind branches.
+    Rect {
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+        fill: Color,
+    },
     Line {
         x1: f64,
         y1: f64,
@@ -107,6 +118,14 @@ impl Scene {
         let h = self.canvas.height + eps;
         for item in &self.items {
             match item {
+                SceneItem::Rect { x, y, width, height, .. } => {
+                    if *x < -eps || *x + *width > w {
+                        return false;
+                    }
+                    if *y < -eps || *y + *height > h {
+                        return false;
+                    }
+                }
                 SceneItem::Line { x1, y1, x2, y2, .. } => {
                     for &c in &[*x1, *x2] {
                         if c < -eps || c > w {

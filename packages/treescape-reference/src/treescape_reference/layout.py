@@ -79,6 +79,64 @@ def rectangular_layout(tree: Tree) -> Dict[int, Coords]:
     return {key: (x[key], y[key]) for key in x}
 
 
+def find_mrca(tree: Tree, tip_names: List[str]) -> Node:
+    """Most-recent-common-ancestor of the given tip names.
+
+    Raises ``KeyError`` if any name isn't found, ``ValueError`` if
+    ``tip_names`` is empty. With a single tip name, returns that tip
+    (its own MRCA).
+    """
+    if not tip_names:
+        raise ValueError("find_mrca requires at least one tip name")
+    if tree.root is None:
+        raise ValueError("find_mrca on an empty tree")
+
+    requested = list(tip_names)
+    node_for: Dict[str, Node] = {}
+    for n in _postorder(tree.root):
+        if n.is_tip() and n.name in requested and n.name not in node_for:
+            node_for[n.name] = n
+    missing = [t for t in requested if t not in node_for]
+    if missing:
+        raise KeyError(f"tip(s) not found: {missing}")
+
+    parent_of: Dict[int, Node] = {}
+    for n in _postorder(tree.root):
+        for c in n.children:
+            parent_of[id(c)] = n
+
+    def ancestors(n: Node) -> List[Node]:
+        out = [n]
+        while id(out[-1]) in parent_of:
+            out.append(parent_of[id(out[-1])])
+        return out
+
+    if len(requested) == 1:
+        return node_for[requested[0]]
+
+    iter_names = iter(requested)
+    common = set(id(a) for a in ancestors(node_for[next(iter_names)]))
+    for name in iter_names:
+        common &= set(id(a) for a in ancestors(node_for[name]))
+    # Pick the deepest common ancestor: traverse from the first tip
+    # upward and return the first ancestor in `common`.
+    for a in ancestors(node_for[requested[0]]):
+        if id(a) in common:
+            return a
+    raise AssertionError("no common ancestor — should be unreachable for a connected tree")
+
+
+def clade_tips(tree: Tree, mrca: Node) -> List[Node]:
+    """All tips in the subtree rooted at ``mrca``, in pre-order."""
+    if mrca.is_tip():
+        return [mrca]
+    out: List[Node] = []
+    for n in _preorder(mrca):
+        if n.is_tip():
+            out.append(n)
+    return out
+
+
 def tips_by_name(tree: Tree, coords: Dict[int, Coords]) -> Dict[str, Coords]:
     """Project ``coords`` to ``{tip_name: (x, y)}``. Skips empty names."""
     out: Dict[str, Coords] = {}
@@ -177,6 +235,8 @@ def circular_layout(
 __all__ = [
     "Coords",
     "circular_layout",
+    "clade_tips",
+    "find_mrca",
     "rectangular_layout",
     "tips_by_name",
 ]

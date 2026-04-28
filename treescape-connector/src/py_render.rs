@@ -4,11 +4,17 @@
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
+use std::collections::HashMap;
+
 use treescape_core::layout::circular::CircularSceneOptions as CoreCircularSceneOptions;
-use treescape_core::layout::rectangular::SceneOptions as CoreSceneOptions;
-use treescape_core::layout::scene::Scene;
+use treescape_core::layout::rectangular::{
+    build_rectangular_scene_with_style, CladeHighlight, SceneOptions as CoreSceneOptions,
+    StyleSpec as CoreStyleSpec,
+};
+use treescape_core::layout::scene::{Color as CoreColor, Scene};
+use treescape_core::layout::rectangular::rectangular_layout;
 use treescape_render::{
-    build_circular_scene_, build_scene, render_circular, render_rectangular,
+    build_circular_scene_, build_scene, render_circular, render_rectangular, render_svg,
     text_width as core_text_width,
 };
 
@@ -124,6 +130,51 @@ fn render_rectangular_svg(tree: &PyTree, opts: Option<&PySceneOptions>) -> PyRes
         .map_err(|e| PyRuntimeError::new_err(e.to_string()))
 }
 
+/// `(r, g, b, a)` color spec passed from Python. Avoids the
+/// type-complexity lint on the styled-render signatures below.
+type Rgba = (u8, u8, u8, u8);
+/// `(tip_names, color)` highlight spec.
+type HighlightSpec = (Vec<String>, Rgba);
+
+/// Render rectangular SVG with v0.2 Phase-3 styling: clade highlights
+/// and per-tip color overrides. `highlights` is a list of
+/// `(tip_names, (r, g, b, a))`; `tip_colors` is `{tip_name: (r,g,b,a)}`.
+///
+/// Backs the user-facing `TreePlot.highlight_clade` and
+/// `TreePlot.color_tips` grammar.
+#[pyfunction]
+#[pyo3(signature = (tree, opts = None, highlights = Vec::new(), tip_colors = HashMap::new()))]
+fn render_rectangular_styled_svg(
+    tree: &PyTree,
+    opts: Option<&PySceneOptions>,
+    highlights: Vec<HighlightSpec>,
+    tip_colors: HashMap<String, Rgba>,
+) -> PyResult<String> {
+    let default_opts = CoreSceneOptions::default();
+    let opts_ref = opts.map(|o| &o.inner).unwrap_or(&default_opts);
+
+    let mut style = CoreStyleSpec::default();
+    for (tip_names, (r, g, b, a)) in highlights {
+        style.highlights.push(CladeHighlight {
+            tip_names,
+            fill: CoreColor::rgba(r, g, b, a),
+        });
+    }
+    for (name, (r, g, b, a)) in tip_colors {
+        style.tip_colors.insert(name, CoreColor::rgba(r, g, b, a));
+    }
+
+    let layout = rectangular_layout(&tree.inner);
+    let scene = build_rectangular_scene_with_style(
+        &tree.inner,
+        &layout,
+        opts_ref,
+        &core_text_width,
+        &style,
+    );
+    render_svg(&scene).map_err(|e| PyRuntimeError::new_err(e.to_string()))
+}
+
 #[pyfunction]
 #[pyo3(signature = (tree, opts = None))]
 fn build_rectangular_scene(tree: &PyTree, opts: Option<&PySceneOptions>) -> PyScene {
@@ -236,6 +287,7 @@ pub fn py_render(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCircularSceneOptions>()?;
     m.add_class::<PyScene>()?;
     m.add_function(wrap_pyfunction!(render_rectangular_svg, m)?)?;
+    m.add_function(wrap_pyfunction!(render_rectangular_styled_svg, m)?)?;
     m.add_function(wrap_pyfunction!(build_rectangular_scene, m)?)?;
     m.add_function(wrap_pyfunction!(render_circular_svg, m)?)?;
     m.add_function(wrap_pyfunction!(build_circular_scene, m)?)?;

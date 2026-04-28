@@ -9,3 +9,4 @@ pub mod newick;
 pub mod traversal;
 pub mod ladderize;
 pub mod layout;
+pub mod clades;

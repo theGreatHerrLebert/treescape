@@ -26,9 +26,42 @@ from treescape_connector.py_render import (
     CircularSceneOptions,
     SceneOptions,
     render_circular_svg,
+    render_rectangular_styled_svg,
     render_rectangular_svg,
 )
 from treescape_connector.py_tree import Tree as _RustTree
+
+
+def _parse_color(spec: Union[str, tuple]) -> tuple:
+    """Normalize a user color spec to ``(r, g, b, a)`` 0–255 ints.
+
+    Accepts:
+    * ``"#rrggbb"`` or ``"#rrggbbaa"``
+    * ``(r, g, b)`` or ``(r, g, b, a)`` tuples (0–255 each)
+    """
+    if isinstance(spec, str):
+        s = spec.lstrip("#")
+        if len(s) == 6:
+            r, g, b = int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16)
+            return (r, g, b, 255)
+        if len(s) == 8:
+            r, g, b, a = (
+                int(s[0:2], 16),
+                int(s[2:4], 16),
+                int(s[4:6], 16),
+                int(s[6:8], 16),
+            )
+            return (r, g, b, a)
+        raise ValueError(f"hex color must be #rrggbb or #rrggbbaa; got {spec!r}")
+    if isinstance(spec, tuple):
+        if len(spec) == 3:
+            r, g, b = spec
+            return (int(r), int(g), int(b), 255)
+        if len(spec) == 4:
+            r, g, b, a = spec
+            return (int(r), int(g), int(b), int(a))
+        raise ValueError(f"color tuple must be (r,g,b) or (r,g,b,a); got {spec!r}")
+    raise TypeError(f"color must be str or tuple, got {type(spec).__name__}")
 
 
 class TreePlot:
@@ -50,6 +83,10 @@ class TreePlot:
         self._layout: str = "rectangular"
         self._scene_opts = SceneOptions()
         self._circular_opts = CircularSceneOptions()
+        # v0.2 Phase-3 styling state. Lists/dicts kept order-preserving
+        # so the styling-determinism claim holds across runs.
+        self._highlights: list[tuple[list[str], tuple[int, int, int, int]]] = []
+        self._tip_colors: dict[str, tuple[int, int, int, int]] = {}
 
     def layout(self, kind: str) -> "TreePlot":
         if kind not in self._SUPPORTED_LAYOUTS:
@@ -112,11 +149,61 @@ class TreePlot:
         self._scene_opts = SceneOptions(**kwargs)
         return self
 
+    def highlight_clade(
+        self,
+        tips: list,
+        color: Union[str, tuple] = "#e07b00",
+        alpha: float = 0.3,
+    ) -> "TreePlot":
+        """Highlight the clade rooted at ``MRCA(tips)`` with a
+        translucent rectangle behind the branches.
+
+        v0.2 Phase 3: rectangular layouts only. Calling this with
+        ``.layout("circular")`` raises ``NotImplementedError`` at
+        :meth:`to_svg`-time.
+
+        ``alpha`` overrides the alpha component of ``color`` if the
+        latter is fully opaque. If ``color`` already encodes alpha
+        (e.g. ``"#rrggbbaa"`` or 4-tuple), that takes precedence.
+        """
+        if not tips:
+            raise ValueError("highlight_clade requires at least one tip name")
+        r, g, b, a = _parse_color(color)
+        # If user passed an opaque hex/3-tuple AND a non-default alpha,
+        # apply alpha. Otherwise the spec wins.
+        if a == 255 and alpha != 1.0:
+            a = max(0, min(255, int(round(alpha * 255))))
+        self._highlights.append((list(tips), (r, g, b, a)))
+        return self
+
+    def color_tips(self, mapping: dict) -> "TreePlot":
+        """Override tip-label color per name. ``mapping`` is
+        ``{tip_name: color}`` where color is ``"#rrggbb"`` /
+        ``"#rrggbbaa"`` or an ``(r,g,b)`` / ``(r,g,b,a)`` tuple.
+        Tips not in ``mapping`` keep the default label color."""
+        for name, spec in mapping.items():
+            self._tip_colors[name] = _parse_color(spec)
+        return self
+
     def to_svg(self) -> str:
         """Render and return the SVG bytes as a UTF-8 string."""
+        styled = bool(self._highlights) or bool(self._tip_colors)
         if self._layout == "rectangular":
+            if styled:
+                return render_rectangular_styled_svg(
+                    self._tree,
+                    self._scene_opts,
+                    list(self._highlights),
+                    dict(self._tip_colors),
+                )
             return render_rectangular_svg(self._tree, self._scene_opts)
         if self._layout == "circular":
+            if styled:
+                raise NotImplementedError(
+                    "circular layout does not yet support .highlight_clade or "
+                    ".color_tips; v0.3 will lift this. Drop styling or switch "
+                    "to .layout('rectangular')."
+                )
             return render_circular_svg(self._tree, self._circular_opts)
         raise AssertionError(f"unreachable: layout {self._layout!r}")
 

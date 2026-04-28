@@ -336,6 +336,40 @@ claims:
       - Convention adjustment misses an asymmetric reorder (the
         ladderize trap from v0.1 ggtree, but applied to angles).
 
+  - id: treescape-styling-determinism
+    title: Same styled input produces byte-identical SVG across runs
+    case: cases/treescape.md
+    source: treescape-render
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#property-based-testing
+    claim: >
+      For any tree + scene options + style configuration (clade
+      highlights, per-tip color overrides), repeated renders produce
+      byte-identical SVG. Style metadata is encoded into the scene
+      graph via Rect items (behind branches) and per-Text/per-Line
+      color overrides; ordering and serialization are deterministic.
+      Extends `treescape-svg-determinism` (rectangular and circular
+      layouts) to the styled-render path that v0.2 Phase 3 adds.
+    evidence:
+      oracle:
+        - self (repeated render)
+      tolerance: Exact byte equality across five repeated renders.
+      command: pytest tests/oracle/test_styling_determinism.py -v
+      artifact: tests/oracle/reports/styling_determinism.json
+    assumptions:
+      - Style configuration is pure data (no callables, no random
+        defaults); user-supplied colors are normalized into the same
+        Color value across runs.
+    failure_modes:
+      - Iteration over a Python dict / Rust HashMap leaks order into
+        the scene-item list (currently the impls iterate user-ordered
+        lists, but a future refactor could regress).
+      - User passes a style spec that resolves to a different Color
+        across runs (e.g. callable, time-dependent), which would
+        rightly fail this claim.
+
   - id: treescape-tip-count-invariant
     title: Rendered tip glyphs equal input tip count; coordinates within canvas
     case: cases/treescape.md

@@ -52,6 +52,24 @@ pub fn render_svg(scene: &Scene) -> Result<String, SvgError> {
 
     for item in &scene.items {
         match item {
+            SceneItem::Rect {
+                x,
+                y,
+                width,
+                height,
+                fill,
+            } => {
+                writeln!(
+                    &mut out,
+                    "  <rect fill=\"{fill}\" height=\"{h}\" width=\"{w}\" x=\"{x}\" y=\"{y}\"/>",
+                    fill = fmt_color(*fill),
+                    h = fmt_f(*height),
+                    w = fmt_f(*width),
+                    x = fmt_f(*x),
+                    y = fmt_f(*y),
+                )
+                .map_err(|e| SvgError::Format(e.to_string()))?;
+            }
             SceneItem::Line {
                 x1,
                 y1,

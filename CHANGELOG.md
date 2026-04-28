@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased] — v0.2 (in progress)
 
+### Phase 3 — clade highlighting + per-tip color overrides
+
+- **`TreePlot.highlight_clade(tips=[...], color=, alpha=)`** — chainable. The MRCA of the named tips is computed and a translucent rectangle is drawn behind branches and labels, spanning from the MRCA's branch point to the canvas right edge, covering all rows in the clade.
+- **`TreePlot.color_tips({name: color, ...})`** — chainable. Overrides per-tip label color; tips not in the map keep `SceneOptions.label_color`.
+- Color specs accept `"#rrggbb"`, `"#rrggbbaa"`, `(r, g, b)`, or `(r, g, b, a)` (0–255 ints). Validated up front by `_parse_color`.
+- **New EVIDENT claim** `treescape-styling-determinism` (ci-tier, property-style): same input + same styling → byte-identical SVG, across 4 fixtures × 3 modes (repeated render, golden snapshot, Rust↔Python ref bytes) = 12 tests.
+- New scene types: `Rect(x, y, width, height, fill)` in both Python and Rust, emitted as `<rect>` before lines/arcs/text so highlights render behind branches.
+- New helpers: `find_mrca(tree, tip_names)` and `clade_tips(tree, mrca)` in both `treescape-reference` and `treescape-core`. Mismatched / missing tip names raise cleanly.
+- Rust scene builder: `build_rectangular_scene_with_style(...)` extends `..._with_measurer` with a `&StyleSpec` parameter; the previously-public `_with_measurer` now delegates with an empty `StyleSpec` so existing rectangular SVG bytes are unchanged.
+- Python ref: `build_rectangular_scene(tree, opts, measure, style=None)` — same shape, default `None` style preserves prior bytes.
+- Connector: new `render_rectangular_styled_svg(tree, opts, highlights, tip_colors)` PyO3 function.
+- **Cuts deferred to v0.3:** circular layout + clade highlighting (raises `NotImplementedError` cleanly); metadata-driven color (`color_branches_by(metadata_col=...)` requires the `join_metadata` API which is a separate v0.2 deliverable); branch-color overrides; node shape styling.
+
 ### Phase 2 — circular layout (part 2: rendering + oracles)
 
 - **Circular SVG rendering.** New `Arc` scene-graph item (Python + Rust) emitted as SVG `<path d="M ... A r r 0 large sweep ...">`; new `rotation_deg` field on `Text` emitted as `transform="rotate(...)"`. The circular scene builder combines radial branch lines, arc spines (one per internal node with ≥2 children, at radius=parent.r), and rotated tip labels with hemisphere-flipped anchor so labels read outward.

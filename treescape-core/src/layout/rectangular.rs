@@ -4,8 +4,26 @@
 //! `packages/treescape-reference/src/treescape_reference/layout.py`
 //! and documented in `docs/conventions.md`.
 
+use std::collections::HashMap;
+
+use crate::clades::{clade_tips, find_mrca};
 use crate::layout::scene::{Canvas, Color, Scene, SceneItem, TextAnchor};
 use crate::tree::Tree;
+
+/// One clade-highlight rectangle to draw behind the branches.
+#[derive(Debug, Clone)]
+pub struct CladeHighlight {
+    pub tip_names: Vec<String>,
+    pub fill: Color,
+}
+
+/// Style overrides that the renderer applies on top of the geometric
+/// scene. Default = no styling (existing rectangular SVG bytes).
+#[derive(Debug, Default, Clone)]
+pub struct StyleSpec {
+    pub highlights: Vec<CladeHighlight>,
+    pub tip_colors: HashMap<String, Color>,
+}
 
 /// Layout coordinates for every node, parallel-indexed by [`NodeId`].
 #[derive(Debug, Clone, Default)]
@@ -138,18 +156,33 @@ pub fn build_rectangular_scene(
     build_rectangular_scene_with_measurer(tree, layout, opts, &measure)
 }
 
-/// Like [`build_rectangular_scene`] but takes an explicit text-width
-/// measurer. `treescape-render` injects a fontdue-backed measurer so
-/// canvas widths reflect real glyph metrics; the bare
-/// [`build_rectangular_scene`] keeps the 0.6-em fallback for callers
-/// that don't want to pull in a font.
-///
-/// Backs the `treescape-text-width-vs-fontdue` EVIDENT claim.
 pub fn build_rectangular_scene_with_measurer(
     tree: &Tree,
     layout: &Layout,
     opts: &SceneOptions,
     measure_width: &dyn Fn(&str, f64) -> f64,
+) -> Scene {
+    build_rectangular_scene_with_style(tree, layout, opts, measure_width, &StyleSpec::default())
+}
+
+/// Like [`build_rectangular_scene`] but takes an explicit text-width
+/// measurer **and** a [`StyleSpec`] for clade-highlight rectangles
+/// and per-tip color overrides. The measurer is what
+/// `treescape-render` injects (fontdue against the bundled font). The
+/// styling is what the v0.2 Phase-3 user-facing grammar
+/// (`TreePlot.highlight_clade`, `TreePlot.color_tips`) routes through.
+///
+/// Highlight rectangles are emitted **first** so they render behind
+/// branches and labels.
+///
+/// Backs the `treescape-text-width-vs-fontdue` and
+/// `treescape-styling-determinism` EVIDENT claims.
+pub fn build_rectangular_scene_with_style(
+    tree: &Tree,
+    layout: &Layout,
+    opts: &SceneOptions,
+    measure_width: &dyn Fn(&str, f64) -> f64,
+    style: &StyleSpec,
 ) -> Scene {
     if tree.is_empty() {
         return Scene {
@@ -187,6 +220,36 @@ pub fn build_rectangular_scene_with_measurer(
     let to_px_x = |xv: f64| opts.padding + (xv - min_x) * opts.px_per_x;
 
     let mut items = Vec::new();
+
+    // Highlight rectangles emitted FIRST so they render behind
+    // branches and tip labels.
+    for h in &style.highlights {
+        let tip_refs: Vec<&str> = h.tip_names.iter().map(String::as_str).collect();
+        let mrca = match find_mrca(tree, &tip_refs) {
+            Ok(m) => m,
+            Err(_) => continue, // empty list / missing tip — skip silently; CLI surface validates upstream
+        };
+        let tips = clade_tips(tree, mrca);
+        if tips.is_empty() {
+            continue;
+        }
+        let tip_ys: Vec<f64> = tips.iter().map(|&i| layout.y[i]).collect();
+        let min_ty = tip_ys.iter().cloned().fold(f64::INFINITY, f64::min);
+        let max_ty = tip_ys.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+
+        let half_row = opts.px_per_y * 0.5;
+        let rx = to_px_x(layout.x[mrca]);
+        let ry = opts.padding + min_ty * opts.px_per_y - half_row;
+        let rw = canvas.width - rx - opts.padding;
+        let rh = (max_ty - min_ty) * opts.px_per_y + 2.0 * half_row;
+        items.push(SceneItem::Rect {
+            x: rx,
+            y: ry,
+            width: rw.max(0.0),
+            height: rh.max(0.0),
+            fill: h.fill,
+        });
+    }
 
     // Branches: for every internal node with children, draw a vertical
     // spine from min child y to max child y at the parent's x, plus a
@@ -233,12 +296,17 @@ pub fn build_rectangular_scene_with_measurer(
         }
         let tx = to_px_x(layout.x[id]) + opts.label_offset;
         let ty = opts.padding + layout.y[id] * opts.px_per_y + opts.font_size * 0.35;
+        let label_color = style
+            .tip_colors
+            .get(&tree.name[id])
+            .copied()
+            .unwrap_or(opts.label_color);
         items.push(SceneItem::Text {
             x: tx,
             y: ty,
             text: tree.name[id].clone(),
             font_size: opts.font_size,
-            color: opts.label_color,
+            color: label_color,
             anchor: TextAnchor::Start,
             is_tip_label: true,
             rotation_deg: 0.0,

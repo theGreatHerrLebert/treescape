@@ -19,8 +19,10 @@ from dataclasses import dataclass
 from typing import Callable, List, Optional
 
 import math
+from dataclasses import dataclass, field
+from typing import Dict, List as ListT
 
-from .layout import circular_layout, rectangular_layout
+from .layout import circular_layout, clade_tips, find_mrca, rectangular_layout
 from .newick import Tree
 from .scene import (
     BLACK,
@@ -28,11 +30,33 @@ from .scene import (
     Canvas,
     Color,
     Line,
+    Rect,
     Scene,
     Text,
     TextAnchor,
 )
 from .text import text_width as _fontdue_text_width
+
+
+@dataclass(frozen=True)
+class CladeHighlight:
+    tip_names: tuple
+    fill: Color
+
+
+@dataclass
+class StyleSpec:
+    """Style overrides for the rectangular scene builder. Default =
+    no styling; existing rectangular SVG bytes unchanged.
+
+    `highlights` is a list (order-preserving — first highlight emits
+    first, draws underneath any later highlights at the same location).
+    `tip_colors` is a name→color map; missing names fall back to
+    SceneOptions.label_color.
+    """
+
+    highlights: ListT[CladeHighlight] = field(default_factory=list)
+    tip_colors: Dict[str, Color] = field(default_factory=dict)
 
 
 @dataclass
@@ -58,11 +82,14 @@ def build_rectangular_scene(
     tree: Tree,
     opts: SceneOptions | None = None,
     measure: Optional[Callable[[str, float], float]] = None,
+    style: StyleSpec | None = None,
 ) -> Scene:
     if opts is None:
         opts = SceneOptions()
     if measure is None:
         measure = _fontdue_text_width
+    if style is None:
+        style = StyleSpec()
 
     if tree.root is None:
         return Scene(canvas=Canvas(0.0, 0.0), items=[])
@@ -91,6 +118,33 @@ def build_rectangular_scene(
         return opts.padding + (xv - min_x) * opts.px_per_x
 
     items: List[object] = []
+
+    # Highlight rectangles emitted first so they render behind branches.
+    for h in style.highlights:
+        try:
+            mrca = find_mrca(tree, list(h.tip_names))
+        except (KeyError, ValueError):
+            continue
+        clade = clade_tips(tree, mrca)
+        if not clade:
+            continue
+        tip_ys = [coords[id(n)][1] for n in clade]
+        min_ty = min(tip_ys)
+        max_ty = max(tip_ys)
+        half_row = opts.px_per_y * 0.5
+        rx = to_px_x(coords[id(mrca)][0])
+        ry = opts.padding + min_ty * opts.px_per_y - half_row
+        rw = canvas.width - rx - opts.padding
+        rh = (max_ty - min_ty) * opts.px_per_y + 2.0 * half_row
+        items.append(
+            Rect(
+                x=rx,
+                y=ry,
+                width=max(rw, 0.0),
+                height=max(rh, 0.0),
+                fill=h.fill,
+            )
+        )
 
     # Branches: pre-order so parents are visited before children
     preorder = _preorder(tree.root)
@@ -133,13 +187,14 @@ def build_rectangular_scene(
             continue
         tx = to_px_x(coords[id(node)][0]) + opts.label_offset
         ty = opts.padding + coords[id(node)][1] * opts.px_per_y + opts.font_size * 0.35
+        label_color = style.tip_colors.get(node.name, opts.label_color)
         items.append(
             Text(
                 x=tx,
                 y=ty,
                 text=node.name,
                 font_size=opts.font_size,
-                color=opts.label_color,
+                color=label_color,
                 anchor=TextAnchor.START,
                 is_tip_label=True,
             )
@@ -302,7 +357,15 @@ def render_svg(scene: Scene) -> str:
         f'xmlns="http://www.w3.org/2000/svg">\n'
     )
     for item in scene.items:
-        if isinstance(item, Line):
+        if isinstance(item, Rect):
+            out.append(
+                f'  <rect fill="{_fmt_color(item.fill)}" '
+                f'height="{_fmt_f(item.height)}" '
+                f'width="{_fmt_f(item.width)}" '
+                f'x="{_fmt_f(item.x)}" '
+                f'y="{_fmt_f(item.y)}"/>\n'
+            )
+        elif isinstance(item, Line):
             out.append(
                 f'  <line stroke="{_fmt_color(item.stroke)}" '
                 f'stroke-width="{_fmt_f(item.stroke_width)}" '

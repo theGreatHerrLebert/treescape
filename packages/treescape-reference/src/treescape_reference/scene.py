@@ -33,6 +33,18 @@ class TextAnchor(Enum):
 
 
 @dataclass(frozen=True)
+class Rect:
+    """Filled rectangle. Emitted before Line/Arc/Text so highlights
+    render behind branches and labels."""
+
+    x: float
+    y: float
+    width: float
+    height: float
+    fill: Color
+
+
+@dataclass(frozen=True)
 class Line:
     x1: float
     y1: float
@@ -88,7 +100,12 @@ class Scene:
     def coords_within_canvas(self, eps: float = 1e-6) -> bool:
         w, h = self.canvas.width + eps, self.canvas.height + eps
         for item in self.items:
-            if isinstance(item, (Line, Arc)):
+            if isinstance(item, Rect):
+                if item.x < -eps or item.x + item.width > w:
+                    return False
+                if item.y < -eps or item.y + item.height > h:
+                    return False
+            elif isinstance(item, (Line, Arc)):
                 for c in (item.x1, item.x2):
                     if c < -eps or c > w:
                         return False
@@ -106,6 +123,7 @@ __all__ = [
     "BLACK",
     "Canvas",
     "TextAnchor",
+    "Rect",
     "Line",
     "Arc",
     "Text",

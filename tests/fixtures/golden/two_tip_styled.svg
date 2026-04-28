@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg height="42" version="1.1" viewBox="0 0 155.6172 42" width="155.6172" xmlns="http://www.w3.org/2000/svg">
+  <rect fill="rgba(224,123,0,0.298)" height="18" width="71.6172" x="72" y="3"/>
+  <line stroke="#000000" stroke-width="1" x1="12" x2="12" y1="12" y2="30"/>
+  <line stroke="#000000" stroke-width="1" x1="12" x2="72" y1="12" y2="12"/>
+  <line stroke="#000000" stroke-width="1" x1="12" x2="132" y1="30" y2="30"/>
+  <text fill="#ff0000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="start" x="76" y="16.2">a</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="start" x="136" y="34.2">b</text>
+</svg>
