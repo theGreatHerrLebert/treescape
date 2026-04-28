@@ -1,0 +1,13 @@
+[package]
+name = "treescape-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Tree model, parsers, traversal, layout, and scene graph for treescape."
+
+[lib]
+name = "treescape_core"
+
+[dependencies]
+fxhash = "0.2"

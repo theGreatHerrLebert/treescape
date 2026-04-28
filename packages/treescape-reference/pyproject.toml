@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "treescape-reference"
+version = "0.1.0"
+description = "Slow, readable pure-Python reference implementations that serve as the EVIDENT oracles for treescape's Rust core."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [
+    { name = "David Teschner", email = "davidteschner@googlemail.com" },
+]
+dependencies = []
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/treescape_reference"]

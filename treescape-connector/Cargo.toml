@@ -1,0 +1,16 @@
+[package]
+name = "treescape-connector"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "PyO3 bindings exposing treescape Rust crates to Python."
+
+[lib]
+name = "treescape_connector"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.23.3", features = ["extension-module"] }
+treescape-core = { path = "../treescape-core", version = "0.1.0" }
+treescape-render = { path = "../treescape-render", version = "0.1.0" }

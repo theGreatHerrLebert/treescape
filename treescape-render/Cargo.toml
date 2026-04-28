@@ -1,0 +1,13 @@
+[package]
+name = "treescape-render"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Deterministic SVG emitter and themes for treescape scene graphs."
+
+[lib]
+name = "treescape_render"
+
+[dependencies]
+treescape-core = { path = "../treescape-core", version = "0.1.0" }

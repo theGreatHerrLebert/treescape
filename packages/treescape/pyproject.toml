@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "treescape"
+version = "0.1.0"
+description = "Python-native phylogenetic tree visualization with a Rust core."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [
+    { name = "David Teschner", email = "davidteschner@googlemail.com" },
+]
+dependencies = [
+    "pandas>=2.1",
+    "numpy>=1.24",
+    "treescape_connector>=0.1.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/treescape"]

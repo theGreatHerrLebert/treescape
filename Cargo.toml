@@ -1,0 +1,20 @@
+[workspace]
+members = [
+    "treescape-core",
+    "treescape-render",
+    "treescape-connector",
+]
+
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/theGreatHerrLebert/treescape"
+
+[profile.release]
+debug = true
+overflow-checks = true
+lto = "thin"
+panic = "abort"

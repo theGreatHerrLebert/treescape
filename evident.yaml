@@ -1,0 +1,240 @@
+version: 0.1
+claims:
+  - id: treescape-newick-roundtrip
+    title: Newick parser round-trips and matches Biopython on canonical fixtures
+    case: cases/treescape.md
+    source: treescape-core
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#oracle-comparison
+    claim: >
+      The treescape Newick parser and writer round-trip every canonical
+      fixture (parse -> write -> reparse) with exact equality on topology
+      hash and branch lengths. On the small and medium fixture sets, the
+      parsed tree agrees with Biopython.Phylo within 1e-9 on branch
+      lengths and exactly on topology.
+    evidence:
+      oracle:
+        - Biopython.Phylo (pinned >=1.84,<2)
+        - self (round-trip)
+      tolerance: >
+        Round-trip: exact equality on topology hash and branch lengths.
+        Biopython parity: 1e-9 absolute on branch lengths, exact on
+        topology, on small/* and medium/* fixtures. Edge fixtures are
+        excluded with a documented reason.
+      command: pytest tests/oracle/test_newick_roundtrip.py -v
+      artifact: tests/oracle/reports/newick_roundtrip.json
+    assumptions:
+      - Biopython parses negative branch lengths and NHX comments with
+        conventions that may differ from ours; those edge fixtures are
+        excluded and documented in tests/fixtures/trees/FIXTURES.md.
+      - Pinned Biopython version recorded in the test environment.
+    failure_modes:
+      - Round-trip silently normalizes formatting, masking parser bugs.
+      - Quoted names with embedded parentheses parsed as structure.
+      - NHX annotations dropped on write without a warning.
+
+  - id: treescape-layout-rust-vs-reference
+    title: Rust rectangular layout agrees with the Python reference within 1e-9
+    case: cases/treescape.md
+    source: treescape-core
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#reference-shadowing
+    claim: >
+      Rectangular layout coordinates produced by treescape-core agree
+      with the readable Python reference in treescape-reference within
+      1e-9 absolute on every small and medium fixture. This proves
+      Rust<->Python parity, NOT correctness in absolute terms; it must
+      hold alongside layout-vs-ete3, layout-vs-biopython, and
+      layout-vs-ggtree.
+    evidence:
+      oracle:
+        - treescape-reference (pure-Python, this workspace)
+      tolerance: 1e-9 absolute on (x, y) per node.
+      command: pytest tests/oracle/test_layout_vs_reference.py -v
+      artifact: tests/oracle/reports/layout_rust_vs_reference.json
+    assumptions:
+      - The Python reference is the canonical convention owner; if its
+        conventions are wrong, this claim still passes. Hence the three
+        external-oracle claims that follow.
+    failure_modes:
+      - Both implementations drift in lockstep because they share an
+        author and a fixture set (the closest local Agreement Trap).
+      - Rust impl computes correctly but FFI string handling reorders
+        children, producing identical structure with permuted indices.
+
+  - id: treescape-layout-vs-ete3
+    title: Rectangular layout agrees with ete3 within 1e-6 (CSIC lineage oracle)
+    case: cases/treescape.md
+    source: treescape-core
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#oracle-comparison
+    claim: >
+      treescape rectangular layout coordinates agree with ete3's
+      coordinate output within 1e-6 absolute on a curated subset of
+      small and medium fixtures. Convention notes in
+      docs/conventions.md document tip-spacing, internal-x, and root-x
+      conventions matched or deliberately diverged.
+    evidence:
+      oracle:
+        - ete3 (pinned)
+      tolerance: 1e-6 absolute, looser to absorb ete3 internal pixel rounding.
+      command: pytest tests/oracle/test_layout_vs_ete3.py -v
+      artifact: tests/oracle/reports/layout_vs_ete3.json
+    assumptions:
+      - Ete3 coordinate output is read directly from its layout module,
+        not from rendered pixel positions.
+      - Pinned ete3 version recorded in the test environment.
+    failure_modes:
+      - Ete3 changes its tip-ordering convention in a minor release and
+        we silently bump the tolerance.
+      - Fixture chosen because it happens to match, hiding a systematic
+        gap on harder topologies.
+
+  - id: treescape-layout-vs-biopython
+    title: Rectangular layout agrees with Biopython.Phylo within 1e-6 (Biopython lineage oracle)
+    case: cases/treescape.md
+    source: treescape-core
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#oracle-comparison
+    claim: >
+      treescape rectangular layout coordinates agree with the x/y
+      positions returned by Biopython.Phylo._get_x_positions and
+      _get_y_positions within 1e-6 absolute on small and medium
+      fixtures. This oracle is independent of ete3 — different parser,
+      different traversal, different coordinate construction.
+    evidence:
+      oracle:
+        - Biopython.Phylo (pinned >=1.84,<2)
+      tolerance: 1e-6 absolute on (x, y) per node.
+      command: pytest tests/oracle/test_layout_vs_biopython.py -v
+      artifact: tests/oracle/reports/layout_vs_biopython.json
+    assumptions:
+      - Bio.Phylo's _get_*_positions are private but stable — version pin
+        records the SHA we tested against.
+      - Independence from ete3 holds because the two libraries derive
+        from different code lineages with no shared layout heritage.
+    failure_modes:
+      - Biopython's underscore-prefixed positions API breaks across a
+        version bump and we paper over with a workaround instead of
+        surfacing the regression.
+
+  - id: treescape-layout-vs-ggtree
+    title: Rectangular layout agrees with R/ggtree within 1e-4 (ggplot2 lineage oracle)
+    case: cases/treescape.md
+    source: treescape-core
+    tier: release
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#oracle-comparison
+    claim: >
+      treescape rectangular layout coordinates agree with R ggtree's
+      x/y output within 1e-4 absolute on small and medium fixtures.
+      Tier release because it requires R + Bioconductor; runs inside
+      workflow/Dockerfile.evident-release before any release tag.
+    evidence:
+      oracle:
+        - R 4.x + Bioconductor + ggtree (pinned)
+      tolerance: >
+        1e-4 absolute on (x, y) per node. Looser than ete3/Biopython
+        because ggplot's internal scaling introduces float drift not
+        present in the other oracles.
+      command: pytest tests/oracle/test_layout_vs_ggtree.py -v
+      artifact: tests/oracle/reports/layout_vs_ggtree.json
+    assumptions:
+      - R + Bioconductor + ggtree are available in the release runner;
+        pytest skips with a clear message otherwise.
+      - workflow/scripts/oracle_ggtree.R emits a deterministic CSV of
+        (node_id, x, y) for a given fixture path.
+    failure_modes:
+      - R/ggtree convention drift across Bioconductor releases not
+        caught by version pin.
+      - CSV column ordering changes silently; pytest reads by name.
+
+  - id: treescape-ladderize-order
+    title: Ladderization tip order matches ete3 with a documented tie-break
+    case: cases/treescape.md
+    source: treescape-core
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#oracle-comparison
+    claim: >
+      Tip order after ladderize() matches ete3's order exactly on
+      fixtures where the documented tie-break rule is unambiguous.
+      On topologies where multiple valid orderings exist, the claim
+      degrades to topology-equivalent ordering and the exact tie-break
+      treescape implements is recorded.
+    evidence:
+      oracle:
+        - ete3 (pinned)
+      tolerance: Exact tip-order equality where tie-break is unambiguous.
+      command: pytest tests/oracle/test_ladderize_order.py -v
+      artifact: tests/oracle/reports/ladderize_order.json
+    assumptions:
+      - Documented tie-break in docs/conventions.md is part of the claim.
+    failure_modes:
+      - Subtle stable-sort difference between Rust slice::sort_by and
+        ete3's Python sorted() on equal-key elements.
+
+  - id: treescape-svg-determinism
+    title: SVG output is byte-identical for fixed input and options
+    case: cases/treescape.md
+    source: treescape-render
+    tier: ci
+    trust_strategy:
+      - proof
+      - validation
+    pattern: evident/patterns/README.md#property-based-testing
+    claim: >
+      For a fixed tree and a fixed options struct, render_svg() produces
+      byte-identical output across runs and platforms. Sorted attribute
+      emission, fixed float formatting (e.g. "{:.6}"), no timestamps,
+      no HashMap iteration order leakage.
+    evidence:
+      oracle:
+        - self (snapshot golden SVGs checked into tests/fixtures/golden/)
+      tolerance: Byte-exact equality.
+      command: pytest tests/oracle/test_svg_determinism.py -v
+      artifact: tests/oracle/reports/svg_determinism.json
+    assumptions:
+      - All randomness in the render path is seeded or eliminated.
+      - Float formatting locale-independent.
+    failure_modes:
+      - HashMap iteration order leaks into attribute order.
+      - Float formatting "{:.}" differs across platforms or locales.
+      - A library dependency injects a timestamp or version comment
+        into the SVG.
+
+  - id: treescape-tip-count-invariant
+    title: Rendered tip glyphs equal input tip count; coordinates within canvas
+    case: cases/treescape.md
+    source: treescape-render
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#property-based-testing
+    claim: >
+      For any tree with N tips, the rendered scene graph contains
+      exactly N tip glyphs and all rendered (x, y) coordinates lie
+      within the declared canvas bounds. Property-style invariant
+      checked across hypothesis-generated trees.
+    evidence:
+      oracle:
+        - hypothesis-generated random trees
+      tolerance: Exact equality on tip glyph count; <= and >= on bounds.
+      command: pytest tests/oracle/test_invariants.py -v --hypothesis-profile=ci
+      artifact: tests/oracle/reports/tip_count_invariant.json
+    assumptions:
+      - Hypothesis profile ci runs at least 200 examples.
+    failure_modes:
+      - Layout overflow on extreme aspect ratios silently clips tips,
+        but a tip count check still passes because clipping happens in
+        the renderer.
