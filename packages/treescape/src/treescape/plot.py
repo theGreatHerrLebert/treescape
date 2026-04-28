@@ -395,19 +395,25 @@ class TreePlot:
         if palette is not None and cmap is not None:
             raise ValueError("color_branches_by accepts palette= or cmap=, not both")
 
-        # Each call fully redefines the metadata-driven branch coloring
-        # state. Without this clear, a prior .color_branches_by("clade")
-        # call leaves stale colors on branches that the current call
-        # leaves at default (e.g., paraphyletic-by-current-column or
-        # all-missing). Width state lives in a separate map and is
-        # untouched here.
-        self._branch_colors.clear()
-
+        # Atomic assignment (round-2 review fix): build into a local map
+        # and assign at the end so a failed validation — bad cmap name,
+        # missing palette entry, etc. — leaves prior styling intact.
+        # Each successful call fully redefines the metadata-driven
+        # branch coloring on its dimension; width state lives in a
+        # separate map and is not touched here.
         if self._is_continuous(column, palette, cmap):
-            self._apply_continuous_branch_colors(column, cmap, vmin, vmax)
+            new_colors = self._compute_continuous_branch_colors(column, cmap, vmin, vmax)
+            self._branch_colors = new_colors
             return self
 
+        # Discrete path. _resolve_discrete_palette can raise when the
+        # user-supplied palette is missing a value or when the default
+        # Tableau-10 can't cover >10 values. Both paths exit before
+        # touching self._branch_colors.
         discrete_palette = self._resolve_discrete_palette(column, palette)
+
+        new_colors: dict = {}
+        deferred_warnings: list[str] = []
         root = self._tree.root
         # v0.4 Phase 3 lifted v0.3's "internal branches only" rule.
         # Terminal branches now participate: a 1-tip subtree is
@@ -425,7 +431,7 @@ class TreePlot:
                 if value not in distinct:
                     distinct.append(value)
             if len(distinct) == 1 and len(observed) == len(tips):
-                self._branch_colors[node_id] = _parse_color(discrete_palette[distinct[0]])
+                new_colors[node_id] = _parse_color(discrete_palette[distinct[0]])
                 continue
             if not observed:
                 # All descendants missing this column. Default + silent —
@@ -434,12 +440,19 @@ class TreePlot:
                 # terminal branches whose tip is absent from the joined
                 # frame, where warning would just be noise.
                 continue
-            warnings.warn(
+            deferred_warnings.append(
                 f"branch {self._branch_label(node_id)} is not monophyletic for metadata column "
-                f"{column!r}; leaving default branch color",
-                TreescapeStyleWarning,
-                stacklevel=2,
+                f"{column!r}; leaving default branch color"
             )
+
+        # All validation passed — assign, then emit warnings. Warnings
+        # emitting first wouldn't change correctness, but emitting them
+        # only after a successful assign keeps the user-visible signal
+        # consistent: "this call mutated state AND warned about these
+        # branches."
+        self._branch_colors = new_colors
+        for msg in deferred_warnings:
+            warnings.warn(msg, TreescapeStyleWarning, stacklevel=2)
         return self
 
     def width_branches_by(
@@ -468,9 +481,10 @@ class TreePlot:
         if column not in self._metadata_columns:
             raise ValueError(f"metadata column {column!r} has not been joined")
 
-        # Validate width-bound args before doing any work. Negative
-        # widths produce nonsensical SVG; non-finite (NaN/inf) values
-        # would silently emit invalid stroke-width="nan" attributes.
+        # Atomic assignment (round-2 review fix): validate everything
+        # first, build into a local map, then assign at the end.
+        # Failed validation — non-numeric column, NaN observed value,
+        # negative width, etc. — must leave prior styling intact.
         wlo, whi = float(wmin), float(wmax)
         if not (math.isfinite(wlo) and math.isfinite(whi)):
             raise ValueError(
@@ -485,18 +499,16 @@ class TreePlot:
         if vmax is not None and not math.isfinite(float(vmax)):
             raise ValueError(f"width_branches_by vmax must be finite; got {vmax!r}")
 
-        # Each call fully redefines the metadata-driven width state, so
-        # entries from a prior .width_branches_by call don't survive
-        # when the current call leaves a branch at default (e.g.,
-        # all-missing subtree, or column with no observed values).
-        self._branch_widths.clear()
-
         observed = [
             self._metadata_rows.get(tip, {}).get(column) for tip in self._tree.tip_order()
         ]
         observed_present = [v for v in observed if v is not None]
         if not observed_present:
-            return self  # nothing to scale; keep all defaults
+            # No data → no metadata-driven widths. Successful call:
+            # assign empty so a prior .width_branches_by call is fully
+            # superseded.
+            self._branch_widths = {}
+            return self
         if not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in observed_present):
             raise ValueError(
                 f"width_branches_by({column!r}) requires a numeric column; "
@@ -509,6 +521,7 @@ class TreePlot:
             )
 
         lo, hi = self._column_value_range(column, vmin, vmax)
+        new_widths: dict = {}
         root = self._tree.root
         for node_id in self._tree.preorder():
             if node_id == root:
@@ -520,7 +533,8 @@ class TreePlot:
                 continue  # no data → keep default stroke_width, silent
             mean_value = sum(numeric) / len(numeric)
             t = self._normalize(mean_value, lo, hi)
-            self._branch_widths[node_id] = wlo + t * (whi - wlo)
+            new_widths[node_id] = wlo + t * (whi - wlo)
+        self._branch_widths = new_widths
         return self
 
     def _is_continuous(
@@ -599,16 +613,21 @@ class TreePlot:
             out[tip] = cmap_fn(t)
         return out
 
-    def _apply_continuous_branch_colors(
+    def _compute_continuous_branch_colors(
         self,
         column: str,
         cmap: Optional[Union[str, "callable"]],
         vmin: Optional[float],
         vmax: Optional[float],
-    ) -> None:
+    ) -> dict:
+        """Build the per-branch color map for a continuous column.
+        Pure: does not touch self._branch_colors. Caller assigns at the
+        end of the parent method so failed validation (e.g., bad cmap
+        name) leaves prior state untouched (round-2 review fix)."""
         cmap_fn = self._resolve_cmap(cmap)
         lo, hi = self._column_value_range(column, vmin, vmax)
         root = self._tree.root
+        new_colors: dict = {}
         # v0.4 Phase 3 lifts the is_tip skip — terminals participate.
         # subtree-of-one mean = the tip's own value, so terminal-branch
         # color matches its tip's color when both color_tips_by and
@@ -623,7 +642,8 @@ class TreePlot:
                 continue  # no data → keep default, silent
             mean_value = sum(numeric) / len(numeric)
             t = self._normalize(mean_value, lo, hi)
-            self._branch_colors[node_id] = _parse_color(cmap_fn(t))
+            new_colors[node_id] = _parse_color(cmap_fn(t))
+        return new_colors
 
     def _resolve_discrete_palette(self, column: str, palette: Optional[dict]) -> dict:
         values = []

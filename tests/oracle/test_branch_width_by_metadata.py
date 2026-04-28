@@ -197,6 +197,36 @@ def test_non_finite_or_negative_widths_raise() -> None:
         plot.width_branches_by("support", wmin=1.0, wmax=-2.0)
 
 
+def test_failed_width_call_leaves_prior_state_intact() -> None:
+    """v0.4 review round 2 (F4): a failing .width_branches_by call must
+    not mutate _branch_widths. The round-1 fix cleared the map at the
+    top — that wiped prior widths on validation raises (non-numeric,
+    NaN, negative width). Round-2: build into a local, assign at the
+    end."""
+    df1 = pl.DataFrame({"tip": ["a", "b", "c", "d"], "support": [0.5, 0.7, 0.85, 0.95]})
+    df2 = pl.DataFrame({"tip": ["a", "b", "c", "d"], "clade": ["x", "x", "y", "y"]})
+
+    plot = TreePlot(TREE).join_metadata(df1, on="tip").join_metadata(df2, on="tip")
+    plot.width_branches_by("support")
+    svg_before = plot.to_svg()
+    widths_before = sorted(set(_stroke_widths(svg_before)))
+
+    # Discrete column raises after only the wmin/wmax/vmin/vmax checks
+    # have passed; observed-value validation is what catches it.
+    with pytest.raises(ValueError, match="numeric column"):
+        plot.width_branches_by("clade")
+
+    # Negative wmax raises in the bound-args check, even before the
+    # column type is examined.
+    with pytest.raises(ValueError, match="non-negative"):
+        plot.width_branches_by("support", wmax=-1.0)
+
+    svg_after = plot.to_svg()
+    widths_after = sorted(set(_stroke_widths(svg_after)))
+    assert svg_after == svg_before, "failed call clobbered prior widths"
+    assert widths_before == widths_after
+
+
 def test_chained_width_calls_clear_stale_state() -> None:
     """v0.4 review round 1 (F1): .width_branches_by must fully redefine
     width state. A second call where some branch becomes default-width
