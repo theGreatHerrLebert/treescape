@@ -123,19 +123,24 @@ class TreePlot:
         """Override scene-build options. Any value left as ``None`` keeps
         the current default.
 
+        Shared knobs (``padding``, ``font_size``, ``label_offset``,
+        ``stroke_width``) and ``px_per_x`` (which maps to ``px_per_r``
+        for circular layouts since both axes carry cumulative branch
+        length) are applied to both the rectangular and circular option
+        structs. ``px_per_y`` is rectangular-only.
+
         v0.2 dropped the ``avg_glyph_width`` parameter: tip-label widths
         are measured via fontdue against the bundled DejaVu Sans. See
         ``docs/conventions.md`` for the full convention.
         """
-        defaults = {
+        rect_kwargs = {
             "px_per_x": self._scene_opts.px_per_x,
             "px_per_y": self._scene_opts.px_per_y,
             "padding": self._scene_opts.padding,
             "font_size": self._scene_opts.font_size,
-            "label_offset": 4.0,
-            "stroke_width": 1.0,
+            "label_offset": self._scene_opts.label_offset,
+            "stroke_width": self._scene_opts.stroke_width,
         }
-        kwargs = dict(defaults)
         for key, value in (
             ("px_per_x", px_per_x),
             ("px_per_y", px_per_y),
@@ -145,8 +150,28 @@ class TreePlot:
             ("stroke_width", stroke_width),
         ):
             if value is not None:
-                kwargs[key] = value
-        self._scene_opts = SceneOptions(**kwargs)
+                rect_kwargs[key] = value
+        self._scene_opts = SceneOptions(**rect_kwargs)
+
+        circ_kwargs = {
+            "px_per_r": self._circular_opts.px_per_r,
+            "padding": self._circular_opts.padding,
+            "font_size": self._circular_opts.font_size,
+            "label_offset": self._circular_opts.label_offset,
+            "stroke_width": self._circular_opts.stroke_width,
+            "start_angle": self._circular_opts.start_angle,
+            "sweep_total": self._circular_opts.sweep_total,
+        }
+        for key, value in (
+            ("px_per_r", px_per_x),
+            ("padding", padding),
+            ("font_size", font_size),
+            ("label_offset", label_offset),
+            ("stroke_width", stroke_width),
+        ):
+            if value is not None:
+                circ_kwargs[key] = value
+        self._circular_opts = CircularSceneOptions(**circ_kwargs)
         return self
 
     def highlight_clade(

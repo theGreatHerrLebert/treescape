@@ -4,12 +4,13 @@ Working notes for resuming v0.2 ship work. Delete or merge into CHANGELOG once t
 
 ## Where we are
 
-v0.2 phases 1–3 are **landed on main but not tagged**. CI is green again after three fixes today.
+v0.2 phases 1–3 are **landed on main but not tagged**. CI is green. External review round 1 is **done; fixes are on disk but uncommitted** — see "Review round 1" below before tagging.
 
 ```
 phases:    1✓ 2✓ 3✓
+review:    round 1 ✓ (5 findings: 2×P1, 3×P2 — all fixed, uncommitted)
 claims:    11 pinned + green (was 8 in v0.1)
-tests:     42 core + 11 render Rust unit; 166 pytest pass + 8 release_only deselected
+tests:     42 core + 11 render Rust unit; tests/oracle: 45 pass + 121 skip + 8 release_only deselected (no connector in env)
 manifest:  validate_manifest.py green
 clippy:    clean (-D warnings)
 ci/cd:     ✓ Rust workspace, ✓ ci-tier oracle claims, release-tier skipped (fires on tag push only)
@@ -32,20 +33,53 @@ Three independent failures had to be unstuck before the post-v0.1.0 commits coul
 
 If anything similar surfaces, the same three places are the usual suspects.
 
+## Review round 1 (done — uncommitted on disk)
+
+Five findings, all addressed. Files touched (all tracked, none new):
+
+```
+docs/conventions.md                       # P2: tip-angle formula sign
+packages/treescape/src/treescape/plot.py  # P1: circular opts; P2: chained-options bug
+tests/oracle/test_text_width.py           # P2: importorskip guard
+treescape-connector/src/py_render.rs      # getters for label_offset/stroke_width on both PyO3 option classes
+treescape-render/src/lib.rs               # P1: render_circular honors start_angle/sweep_total
+```
+
+Findings, in the order the reviewer raised them:
+
+1. **P1** `treescape-render/src/lib.rs:39` — `render_circular` and `build_circular_scene_` called `circular_layout(tree)` (defaults), so `CircularSceneOptions(sweep_total=π)` rendered a full circle. Fixed by switching both to `circular_layout_with(tree, opts.start_angle, opts.sweep_total)`. Default behavior unchanged.
+2. **P1** `packages/treescape/src/treescape/plot.py:114` — `TreePlot.options(...)` only updated `_scene_opts`; `_circular_opts` was never touched, so `.layout("circular").options(font_size=24)` was a silent no-op. Fixed: `.options()` now updates both, mapping `px_per_x → px_per_r` (per the convention that both axes carry cumulative branch length); `start_angle`/`sweep_total` preserved across reconstruction.
+3. **P2** `docs/conventions.md:59` — tip formula was written `θ_i = start_angle + (i / N) · sweep_total` while implementation, tests, and the note at `:64` use `−` for clockwise sweep. Fixed the sign and added a forward pointer to *Sweep direction* so the minus sign isn't a surprise.
+4. **P2** `tests/oracle/test_text_width.py:25` — hard-imported `treescape_connector`, so `pytest -q tests/oracle` failed at collection in a checkout without `pip install -e ./treescape-connector`. Wrapped in `try/except ImportError → HAVE_CONNECTOR` and `@pytest.mark.skipif`, matching the pattern in `test_styling_determinism.py` / `test_svg_determinism.py`.
+5. **P2 (round-2 follow-up)** `packages/treescape/src/treescape/plot.py:141, 161` — after fix #2 landed, `.options()` still reconstructed both option structs with hardcoded `label_offset=4.0` / `stroke_width=1.0`, so chained calls like `.options(label_offset=12).options(font_size=18)` clobbered the first override. Fixed by adding `#[getter]` for `label_offset` and `stroke_width` to `PySceneOptions` and `PyCircularSceneOptions`, then reading from the existing struct in Python instead of hardcoding.
+
+Verification at the end of round 2:
+
+```
+cargo build --workspace                      ✓
+cargo test --workspace                       ✓ (42 core + 11 render)
+pytest -q tests/oracle -m "not release_only" ✓ (45 pass, 121 skip, 8 deselected)
+```
+
+Reviewer's parting note after round 2: "The previous four findings are addressed."
+
 ## Two next steps before tagging v0.2.0
 
 ```bash
-# 1. External review of the v0.2 changes (per the cadence memory:
-#    review per phase, address findings before any release tag).
-#    Target: the four post-v0.1.0 commits — fontdue widths, circular
-#    coords, circular rendering+oracles, clade highlighting+styling.
-#    Recurring v0.1 review findings to look for:
-#      - claim overstatement vs what the test actually checks
-#      - undeclared test deps (the fontTools / hypothesis lineage)
-#      - silent tolerance bumps where a documented convention gap belongs
-git log --oneline 7b5a6f8..HEAD   # commits to review
+# 1. Commit the uncommitted review fixes. Two commits feels right:
+#    one for the P1s (lib.rs + plot.py circular path) and one for the
+#    P2s (docs sign, importorskip, getters + chained-options fix).
+#    Or one bundled "review round 1 fixes" — judgment call.
+git status   # five tracked files modified, no untracked
+git diff --stat
 
-# 2. Once findings are closed: tag.
+# 2. Optional: a second external review pass on the round-1 diff —
+#    the cadence memory's recurring findings (claim overstatement,
+#    undeclared test deps, silent tolerance bumps) are not the
+#    failure mode this round caught, so a fresh pair of eyes might
+#    spot a different class. Skip if you trust the closure note.
+
+# 3. Tag.
 git tag -a v0.2.0 -m "treescape v0.2.0 — see CHANGELOG.md"
 git push origin main v0.2.0
 # CI on the tag push runs the release-tier ggtree jobs (rectangular +

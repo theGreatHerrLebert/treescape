@@ -22,8 +22,14 @@ import time
 
 import pytest
 
-from treescape_connector.py_render import text_width as rust_text_width  # type: ignore[import-not-found]
 from treescape_reference.text import text_width as ref_text_width
+
+try:
+    from treescape_connector.py_render import text_width as rust_text_width
+
+    HAVE_CONNECTOR = True
+except ImportError:  # pragma: no cover
+    HAVE_CONNECTOR = False
 
 
 REPORT_DIR = pathlib.Path(__file__).parent / "reports"
@@ -51,6 +57,10 @@ CASES = [
 SIZES = [8.0, 10.0, 12.0, 16.0, 24.0]
 
 
+@pytest.mark.skipif(
+    not HAVE_CONNECTOR,
+    reason="treescape_connector not built (run pip install -e ./treescape-connector)",
+)
 @pytest.mark.parametrize("font_size", SIZES, ids=lambda v: f"{v}px")
 @pytest.mark.parametrize("name,text", CASES, ids=[c[0] for c in CASES])
 def test_text_width_rust_matches_reference(name: str, text: str, font_size: float) -> None:

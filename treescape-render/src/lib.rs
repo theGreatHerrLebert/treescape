@@ -9,7 +9,7 @@ pub use style::default_theme;
 pub use text::text_width;
 
 use treescape_core::layout::circular::{
-    build_circular_scene_with_measurer, circular_layout, CircularSceneOptions,
+    build_circular_scene_with_measurer, circular_layout_with, CircularSceneOptions,
 };
 use treescape_core::layout::rectangular::{
     build_rectangular_scene_with_measurer, rectangular_layout, SceneOptions,
@@ -35,14 +35,16 @@ pub fn build_scene(tree: &Tree, opts: &SceneOptions) -> Scene {
     build_rectangular_scene_with_measurer(tree, &layout, opts, &text_width)
 }
 
-/// Circular layout + scene + SVG bytes in one call.
+/// Circular layout + scene + SVG bytes in one call. Honors
+/// `opts.start_angle` and `opts.sweep_total` so fan layouts (e.g.
+/// `sweep_total = π`) actually sweep less than a full circle.
 pub fn render_circular(tree: &Tree, opts: &CircularSceneOptions) -> Result<String, SvgError> {
-    let layout = circular_layout(tree);
+    let layout = circular_layout_with(tree, opts.start_angle, opts.sweep_total);
     let scene = build_circular_scene_with_measurer(tree, &layout, opts, &text_width);
     render_svg(&scene)
 }
 
 pub fn build_circular_scene_(tree: &Tree, opts: &CircularSceneOptions) -> Scene {
-    let layout = circular_layout(tree);
+    let layout = circular_layout_with(tree, opts.start_angle, opts.sweep_total);
     build_circular_scene_with_measurer(tree, &layout, opts, &text_width)
 }

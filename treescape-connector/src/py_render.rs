@@ -79,6 +79,14 @@ impl PySceneOptions {
     fn font_size(&self) -> f64 {
         self.inner.font_size
     }
+    #[getter]
+    fn label_offset(&self) -> f64 {
+        self.inner.label_offset
+    }
+    #[getter]
+    fn stroke_width(&self) -> f64 {
+        self.inner.stroke_width
+    }
 }
 
 #[pyclass(name = "Scene", module = "treescape_connector.py_render")]
@@ -245,6 +253,14 @@ impl PyCircularSceneOptions {
     #[getter]
     fn font_size(&self) -> f64 {
         self.inner.font_size
+    }
+    #[getter]
+    fn label_offset(&self) -> f64 {
+        self.inner.label_offset
+    }
+    #[getter]
+    fn stroke_width(&self) -> f64 {
+        self.inner.stroke_width
     }
     #[getter]
     fn start_angle(&self) -> f64 {
