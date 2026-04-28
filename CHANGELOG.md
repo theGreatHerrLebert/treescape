@@ -4,7 +4,15 @@ All notable changes to treescape are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — v0.2 (in progress)
+## [0.2.0] — 2026-04-28
+
+### Fixes (review round 1, post-phase-3)
+
+- **`render_circular` honors `CircularSceneOptions.start_angle` / `sweep_total`.** Previously both `treescape_render::render_circular` and `build_circular_scene_` called `circular_layout(tree)` with hardcoded defaults, so a fan request via the connector (`CircularSceneOptions(sweep_total=π)`) silently rendered a full circle. Both now route through `circular_layout_with(tree, opts.start_angle, opts.sweep_total)`. Default behavior unchanged.
+- **`TreePlot.options(...)` now updates the circular option struct.** It previously only mutated `_scene_opts`, so `.layout("circular").options(font_size=24, padding=…)` was a silent no-op on the circular render path. Shared knobs (`padding`, `font_size`, `label_offset`, `stroke_width`) and `px_per_x → px_per_r` are applied to both option structs; `start_angle` / `sweep_total` are preserved across reconstruction.
+- **Chained `.options()` calls preserve prior overrides.** The reconstruction step previously hardcoded `label_offset=4.0` and `stroke_width=1.0`, so `.options(label_offset=12).options(font_size=18)` reset `label_offset` back to default. Added `#[getter]` for `label_offset` and `stroke_width` on `PySceneOptions` and `PyCircularSceneOptions`; Python now reads from the existing struct instead of hardcoding.
+- **`docs/conventions.md` tip-angle formula sign.** The body wrote `θ_i = start_angle + (i / N) · sweep_total` while implementation, tests, and the note immediately below it use `−` to encode the clockwise sweep. Sign corrected; forward pointer to *Sweep direction* added so the minus sign isn't a surprise.
+- **`tests/oracle/test_text_width.py` no longer fails collection without the connector.** Hard `from treescape_connector.py_render import …` replaced with `try/except ImportError → @pytest.mark.skipif`, matching `test_styling_determinism.py` / `test_svg_determinism.py`.
 
 ### Phase 3 — clade highlighting + per-tip color overrides
 
