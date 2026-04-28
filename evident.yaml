@@ -501,11 +501,14 @@ claims:
       For each branch (internal AND terminal as of v0.4 Phase 3) and
       discrete metadata column, `TreePlot.color_branches_by(column)`
       colors the branch iff every descendant tip in the child subtree
-      has the same non-None metadata value. Mixed or missing values
-      leave the branch at the default stroke color and emit
-      `TreescapeStyleWarning` naming the branch and column. Branch
-      color overrides are serialized through the existing
-      deterministic styled SVG path. v0.4 Phase 1 extended coverage to
+      has the same non-None metadata value. Mixed values, or
+      partial-data clades (some descendants have values, others are
+      missing), leave the branch at the default stroke color and emit
+      `TreescapeStyleWarning` naming the branch and column. **All-
+      missing subtrees default silently — no warning** (v0.4
+      review-round-1 refinement; matches the continuous-color path's
+      silent-on-no-data convention). Branch color overrides are
+      serialized through the existing deterministic styled SVG path. v0.4 Phase 1 extended coverage to
       circular layouts under the convention locked in
       docs/conventions.md (v0.4 Phase 1, circular tip + branch
       coloring): the radial parent→child Line gets the color while

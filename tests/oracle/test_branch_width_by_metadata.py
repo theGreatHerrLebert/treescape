@@ -168,6 +168,52 @@ def test_unjoined_column_raises() -> None:
         plot.width_branches_by("support")
 
 
+def test_non_finite_observed_value_raises() -> None:
+    """v0.4 review round 1 (F2): NaN / inf in observed values would
+    silently emit invalid stroke-width="nan" SVG. Reject up-front."""
+    df = pl.DataFrame({"tip": ["a", "b", "c", "d"], "support": [0.5, float("nan"), 0.85, 0.95]})
+    plot = TreePlot(TREE).join_metadata(df, on="tip")
+    with pytest.raises(ValueError, match="finite"):
+        plot.width_branches_by("support")
+
+
+def test_non_finite_vmin_vmax_raises() -> None:
+    df = pl.DataFrame({"tip": ["a", "b", "c", "d"], "support": [0.5, 0.7, 0.85, 0.95]})
+    plot = TreePlot(TREE).join_metadata(df, on="tip")
+    with pytest.raises(ValueError, match="vmin must be finite"):
+        plot.width_branches_by("support", vmin=float("inf"))
+    with pytest.raises(ValueError, match="vmax must be finite"):
+        plot.width_branches_by("support", vmax=float("nan"))
+
+
+def test_non_finite_or_negative_widths_raise() -> None:
+    df = pl.DataFrame({"tip": ["a", "b", "c", "d"], "support": [0.5, 0.7, 0.85, 0.95]})
+    plot = TreePlot(TREE).join_metadata(df, on="tip")
+    with pytest.raises(ValueError, match="finite"):
+        plot.width_branches_by("support", wmin=float("inf"), wmax=2.0)
+    with pytest.raises(ValueError, match="non-negative"):
+        plot.width_branches_by("support", wmin=-1.0, wmax=2.0)
+    with pytest.raises(ValueError, match="non-negative"):
+        plot.width_branches_by("support", wmin=1.0, wmax=-2.0)
+
+
+def test_chained_width_calls_clear_stale_state() -> None:
+    """v0.4 review round 1 (F1): .width_branches_by must fully redefine
+    width state. A second call where some branch becomes default-width
+    must drop the previous call's width entry there."""
+    df1 = pl.DataFrame({"tip": ["a", "b", "c", "d"], "support": [0.5, 0.7, 0.85, 0.95]})
+    df2 = pl.DataFrame({"tip": ["a", "b", "c", "d"], "alt": [None, None, None, None]})
+    plot = TreePlot(TREE).join_metadata(df1, on="tip").join_metadata(df2, on="tip")
+    plot.width_branches_by("support")
+    plot.width_branches_by("alt")  # all-missing → no widths set; previous must be cleared
+
+    svg = plot.to_svg()
+    widths = _stroke_widths(svg)
+    # All widths should now be the default 1.0 (the "alt" call cleared
+    # the prior support-derived widths and set nothing).
+    assert all(w == 1.0 for w in widths), f"expected only default widths after clear, got {sorted(set(widths))}"
+
+
 def test_circular_width_branches_by_works() -> None:
     """v0.4 Phase 3 width applies on circular too — radial Line gets
     the width override; arc spine stays at default stroke_width."""

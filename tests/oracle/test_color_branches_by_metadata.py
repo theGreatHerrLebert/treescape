@@ -54,15 +54,26 @@ def test_branch_coloring_paraphyletic_clade_warns_and_leaves_default() -> None:
     assert 'stroke="#000000"' in svg  # left_node paraphyletic default + spines
 
 
-def test_branch_coloring_missing_value_warns_and_leaves_default() -> None:
-    """v0.4 Phase 3: terminal whose value is None keeps default; other
-    terminals carry their own values."""
+def test_branch_coloring_missing_value_warns_only_on_partial_data_clades() -> None:
+    """v0.4 review round 1: warn iff the branch is paraphyletic AND has
+    at least one observed value. Internal left_node has [a:left, b:None]
+    (partial data) → warns. Terminal b has all-missing data → silent
+    default (matches the continuous-color "no data" convention)."""
     df = pl.DataFrame({"tip": ["a", "c", "d"], "clade": ["left", "right", "right"]})
-    with pytest.warns(TreescapeStyleWarning, match="left_node"):
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
         svg = TreePlot(TREE).join_metadata(df, on="tip").color_branches_by(
             "clade",
             palette=PALETTE,
         ).to_svg()
+
+    style_warnings = [w for w in record if issubclass(w.category, TreescapeStyleWarning)]
+    matched = [str(w.message) for w in style_warnings]
+    assert len(matched) == 1, f"expected exactly one TreescapeStyleWarning, got {matched}"
+    assert "left_node" in matched[0]
+    assert all("branch b " not in m for m in matched), (
+        "terminal b is all-missing → must default silently, not warn"
+    )
 
     assert 'stroke="#0000ff"' in svg  # right_node + c/d terminals
     assert 'stroke="#ff0000"' in svg  # terminal a (its own value=left)
@@ -116,6 +127,32 @@ def test_branch_coloring_circular_paraphyletic_warns_and_leaves_default() -> Non
     assert 'stroke="#ff0000"' in svg  # terminal a (v0.4 Phase 3 lift)
     # circular default stroke is also #000000; left_node + arc spines
     assert 'stroke="#000000"' in svg
+
+
+def test_branch_coloring_chained_call_clears_stale_state() -> None:
+    """v0.4 review round 1 (F1): a second .color_branches_by call must
+    fully redefine the metadata-driven branch coloring. Without the
+    explicit clear, branches that were monophyletic under the FIRST
+    call but not under the SECOND would silently retain stale colors."""
+    df1 = pl.DataFrame({"tip": ["a", "b", "c", "d"], "clade": ["left", "left", "right", "right"]})
+    df2 = pl.DataFrame({"tip": ["a", "b", "c", "d"], "host": ["h1", "h2", "h2", "h2"]})
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", TreescapeStyleWarning)
+        svg = (
+            TreePlot(TREE)
+            .join_metadata(df1, on="tip")
+            .join_metadata(df2, on="tip")
+            .color_branches_by("clade", palette=PALETTE)
+            .color_branches_by("host", palette={"h1": "#aabbcc", "h2": "#ddeeff"})
+            .to_svg()
+        )
+
+    # After the second call, only host-derived colors should appear.
+    # Clade colors from the first call must have been cleared.
+    assert "#aabbcc" in svg or "#ddeeff" in svg, "host palette did not apply"
+    assert "#ff0000" not in svg, "stale clade red survived from first .color_branches_by"
+    assert "#0000ff" not in svg, "stale clade blue survived from first .color_branches_by"
 
 
 @pytest.fixture(scope="session", autouse=True)

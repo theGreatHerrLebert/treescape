@@ -123,7 +123,8 @@ The Python reference at `packages/treescape-reference/src/treescape_reference/me
 ### Discrete branch coloring by metadata
 
 - `TreePlot.color_branches_by(column, palette=...)` colors rectangular internal branches only. The branch is identified by its child internal node id; the horizontal parent→child segment receives the color while the vertical connector spine stays at the default stroke color.
-- A branch is colored iff every descendant tip under that child node has the same non-None value for `column`. Mixed values or missing values leave the branch at the default color and emit `TreescapeStyleWarning`.
+- A branch is colored iff every descendant tip under that child node has the same non-None value for `column`. Mixed values, or partial-data clades (some descendants have a value, others are missing), leave the branch at the default color and emit `TreescapeStyleWarning`.
+- **All-missing subtrees default silently — no warning.** A branch whose descendants all carry no metadata for the given column is treated as "no data," not "miscoloring." This matches the continuous-color path's silent default on no-data subtrees and is the v0.4 review-round-1 refinement: pre-fix, terminal branches whose tip was absent from the joined frame would warn for every such tip (noise), even though the user simply hadn't provided data there.
 - Palette rules match `color_tips_by`: user palettes must cover observed non-None values; omitted palettes use Tableau-10 in first occurrence order over tree tips.
 - Terminal branches are out of scope for v0.3's monophyly claim. They remain default-colored until a separate terminal-branch styling API lands.
 

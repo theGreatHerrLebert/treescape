@@ -18,6 +18,7 @@ Example:
 
 from __future__ import annotations
 
+import math
 import os
 import warnings
 from pathlib import Path
@@ -394,6 +395,14 @@ class TreePlot:
         if palette is not None and cmap is not None:
             raise ValueError("color_branches_by accepts palette= or cmap=, not both")
 
+        # Each call fully redefines the metadata-driven branch coloring
+        # state. Without this clear, a prior .color_branches_by("clade")
+        # call leaves stale colors on branches that the current call
+        # leaves at default (e.g., paraphyletic-by-current-column or
+        # all-missing). Width state lives in a separate map and is
+        # untouched here.
+        self._branch_colors.clear()
+
         if self._is_continuous(column, palette, cmap):
             self._apply_continuous_branch_colors(column, cmap, vmin, vmax)
             return self
@@ -417,6 +426,13 @@ class TreePlot:
                     distinct.append(value)
             if len(distinct) == 1 and len(observed) == len(tips):
                 self._branch_colors[node_id] = _parse_color(discrete_palette[distinct[0]])
+                continue
+            if not observed:
+                # All descendants missing this column. Default + silent —
+                # matches the continuous-color path's "no data is not
+                # paraphyletic miscoloring" convention. Mainly affects
+                # terminal branches whose tip is absent from the joined
+                # frame, where warning would just be noise.
                 continue
             warnings.warn(
                 f"branch {self._branch_label(node_id)} is not monophyletic for metadata column "
@@ -452,6 +468,29 @@ class TreePlot:
         if column not in self._metadata_columns:
             raise ValueError(f"metadata column {column!r} has not been joined")
 
+        # Validate width-bound args before doing any work. Negative
+        # widths produce nonsensical SVG; non-finite (NaN/inf) values
+        # would silently emit invalid stroke-width="nan" attributes.
+        wlo, whi = float(wmin), float(wmax)
+        if not (math.isfinite(wlo) and math.isfinite(whi)):
+            raise ValueError(
+                f"width_branches_by wmin/wmax must be finite; got ({wmin!r}, {wmax!r})"
+            )
+        if wlo < 0.0 or whi < 0.0:
+            raise ValueError(
+                f"width_branches_by wmin/wmax must be non-negative; got ({wmin!r}, {wmax!r})"
+            )
+        if vmin is not None and not math.isfinite(float(vmin)):
+            raise ValueError(f"width_branches_by vmin must be finite; got {vmin!r}")
+        if vmax is not None and not math.isfinite(float(vmax)):
+            raise ValueError(f"width_branches_by vmax must be finite; got {vmax!r}")
+
+        # Each call fully redefines the metadata-driven width state, so
+        # entries from a prior .width_branches_by call don't survive
+        # when the current call leaves a branch at default (e.g.,
+        # all-missing subtree, or column with no observed values).
+        self._branch_widths.clear()
+
         observed = [
             self._metadata_rows.get(tip, {}).get(column) for tip in self._tree.tip_order()
         ]
@@ -463,9 +502,13 @@ class TreePlot:
                 f"width_branches_by({column!r}) requires a numeric column; "
                 "discrete-by-width is out of v0.4 scope"
             )
+        if not all(math.isfinite(float(v)) for v in observed_present):
+            raise ValueError(
+                f"width_branches_by({column!r}) values must be finite; "
+                "NaN / inf are rejected"
+            )
 
         lo, hi = self._column_value_range(column, vmin, vmax)
-        wlo, whi = float(wmin), float(wmax)
         root = self._tree.root
         for node_id in self._tree.preorder():
             if node_id == root:
