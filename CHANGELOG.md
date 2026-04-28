@@ -4,6 +4,79 @@ All notable changes to treescape are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-04-28
+
+The complete-the-styling-story release. v0.3 shipped metadata-driven coloring on rectangular layouts and circular `highlight_clade` via annular sectors. v0.4 lifts every remaining `NotImplementedError` on circular layouts so they reach feature parity with rectangular for everything v0.3+v0.4 covers, adds **width** to the metadata-driven styling vocabulary, and lifts v0.3's "internal branches only" restriction so terminal branches participate in styling. After v0.4, "I want to publish this figure" should not hit a `NotImplementedError` for any combination of layout + metadata-driven attribute the trio covers. Two EVIDENT claims added, one amended, three extended; 219 / 31 / 8 oracle suite green; cargo workspace 46 + 11 green.
+
+### Phase 1 — circular `.color_tips` / `.color_tips_by` / `.color_branches_by`
+
+Lifts the v0.3 `NotImplementedError` for tip and branch coloring on `.layout("circular")`. Same metadata-driven semantics as rectangular; the only circular-specific convention is which scene primitive carries the branch color.
+
+- **Tip color** is per-`Text` `fill`, identical to the rectangular convention. No new scene primitive.
+- **Branch color: which scene primitive carries it.** Locked: the **radial parent→child `Line`** receives the color; the **arc spine** (which connects siblings, not parent-to-child) stays at the default stroke color. Polar analogue of v0.3 rectangular's "horizontal segment colored, vertical spine default."
+- **Monophyly + warn** semantics unchanged from v0.3; `TreescapeStyleWarning` names the offending branch and column on paraphyletic clades.
+- **Continuous (subtree-mean viridis)** unchanged from v0.3 rectangular; tip and branch coloring share `(vmin, vmax)` by construction so the scales stay coherent on the same column.
+- **Three EVIDENT claims extended** (no new claim IDs — same precedent v0.3 Phase 3 set when extending `treescape-styling-determinism` to circular highlights):
+  - `treescape-color-tips-by-discrete-roundtrip` now covers rectangular AND circular. Rust↔ref byte parity holds because `tip_colors` is keyed by name (portable).
+  - `treescape-color-branches-by-monophyly` now covers rectangular AND circular under the same monophyly + warn semantics.
+  - `treescape-color-by-continuous-determinism` now covers rectangular AND circular with the same byte-determinism property and the same viridis LUT endpoints.
+
+### Phase 2 — circular `.scale_bar` + `.support_labels`
+
+Closes the last two `NotImplementedError` gates on circular. Both annotations reuse the same scene primitives the rectangular path uses (`Line` + `Text`); only positioning differs.
+
+- **`.scale_bar` on circular: bottom-right radial bar.** Right endpoint anchored at `canvas_width − padding`; bar extends leftward by `length · px_per_r`. `bar_y = canvas_height − padding − font_size · 1.2`. Ticks + label same as rectangular. Bottom-right corner is reliably empty space outside the tree's inscribed circle on the square canvas.
+- **Calibration-ring alternative explicitly rejected.** A circle's circumference is angular, not branch-length — using a ring as "scale" would visually suggest the wrong metric.
+- **`.support_labels` on circular: upright text** (`rotation_deg = 0`, `anchor = Middle`) at the projected internal-node position. Tip labels rotate; support labels do not — short numerics like `95` or `0.97` stay legible at any tree position. Same `min_value` filter API as rectangular. Crowding at the tree's inner regions is a label-collision problem, deferred to v0.5+.
+- **New EVIDENT claim** `treescape-circular-annotation-determinism` (ci-tier, property-style): same tree + same `(scale_bar, support_labels)` config → byte-identical SVG on the circular path. Includes convention assertions: scale-bar `bar_x2 == canvas_width − padding`; support-label `rotation_deg == 0` and `anchor == Middle`. One claim covers both annotations because they share the determinism property and the test fixture set.
+
+### Phase 3 — `.width_branches_by` + terminal-branch coloring
+
+v0.3 styling shipped color along the metadata-driven pipeline; v0.4 Phase 3 adds **width** to the same vocabulary, plus lifts v0.3's "internal branches only" rule so terminals participate.
+
+- **`.width_branches_by(column, wmin=1.0, wmax=4.0, vmin=None, vmax=None)`** — numeric only. Linear interpolation onto `[wmin, wmax]` over `[vmin, vmax]`. Internal branch = subtree mean (matches `.color_branches_by` continuous); terminal branch = tip's own value (subtree of one). Subtrees with no observed values keep `SceneOptions.stroke_width` silently — same convention the continuous-color path uses for "no data is not paraphyletic miscoloring."
+- **Default range** `(1.0, 4.0)` px chosen so the lower bound matches `SceneOptions.stroke_width`'s default — "minimum" width branches read visually identical to unstyled. User can override.
+- **Default `(vmin, vmax)`** is the column's observed min/max so width and color stay coherent when applied to the same column. Out-of-range values clamped, not extrapolated. Degenerate range (`vmin == vmax` or all-equal values) deterministically maps every branch to width `(wmin + wmax) / 2`.
+- **No discrete-by-width.** `.width_branches_by` raises `ValueError` on non-numeric columns. Width-by-discrete is rare and the `palette`/`cmap` symmetry doesn't translate cleanly to width; deferred unless a real fixture argues otherwise.
+- **Terminal-branch coloring (lift on `.color_branches_by`).** v0.3 / v0.4 Phase 1 explicitly excluded terminal branches from `.color_branches_by`. Phase 3 lifts that exclusion: terminals participate in monophyly (trivially: one tip, one value, no warning) and in continuous mean (the tip's own value through `cmap`). When users call both `.color_tips_by("col")` and `.color_branches_by("col")` on the same column, the terminal branch and its tip carry the same color — what users expect from ggtree-style figures, what v0.3 quietly didn't deliver.
+- **New EVIDENT claim** `treescape-branch-width-by-numeric-determinism` (ci-tier, property-style): byte-determinism for fixed inputs; subtree-mean rule on internal branches; tip-value rule on terminals; default-on-missing; clamp-on-outliers; raise-on-non-numeric.
+- **Amended claim** `treescape-color-branches-by-monophyly`: claim text now covers internal AND terminal branches under the same monophyly + warn semantics.
+
+### Gallery
+
+`assets/gallery/` extended with three new files showing the v0.4 surface (per the plan's gallery success criterion):
+
+- `11_circular_color_tips_by_clade.svg` — circular discrete tip color (Phase 1).
+- `12_circular_scale_bar.svg` — circular bottom-right radial scale bar (Phase 2). The primates fixture has no internal-node names so a circular `.support_labels` example would be a no-op; we focus on the scale bar.
+- `13_branch_width_by_support.svg` — branch-stroke width by numeric metadata (Phase 3). Subtree-mean on internals, tip-value on terminals, default range `(1.0, 4.0)` px.
+
+Two existing gallery files regenerated under v0.4 Phase 3:
+
+- `06_color_branches_by_clade.svg` — terminal branches now colored by their own monophyly-trivial value.
+- `08_color_branches_by_support.svg` — same; terminals carry their tip's continuous value.
+
+### EVIDENT manifest
+
+- **18 claims pinned, all green.** v0.3 baseline was 16; v0.4 adds 2 new (`treescape-circular-annotation-determinism`, `treescape-branch-width-by-numeric-determinism`), amends 1 (`treescape-color-branches-by-monophyly` covers terminal branches), and extends 3 to circular layouts (`color-tips-by-discrete-roundtrip`, `color-branches-by-monophyly`, `color-by-continuous-determinism`).
+
+### Backwards compatibility
+
+- **v0.3 byte-determinism unchanged on existing test goldens.** No v0.3 fixture in `tests/fixtures/golden/` regenerated. The `test_styling_determinism.py` `STYLE_SPECS` use highlights + tip_colors only — the surfaces v0.4 changed (`color_branches_by` terminal lift, `width_branches_by` adding stroke widths) don't intersect those goldens.
+- **Gallery 06 and 08 regenerated** because they exercise `.color_branches_by` and the terminal lift now applies. The gallery is documentation, not pinned bytes; users who pinned local bytes against those filenames need to re-render.
+- **v0.3 styling claims still green over identical bytes** for fixtures that don't exercise terminal-branch coloring (which is everything in `STYLE_SPECS`).
+- **No new runtime deps.** Polars is the only one on the styling path, already shipped in v0.3.
+
+### Cuts deferred to v0.5+
+
+- **PDF export.** Same scene graph, new emitter. Standalone enough to ship as v0.4.x or v0.5 Phase 1.
+- **Nexus and PhyloXML parsers.** Each is ~1 phase; defer.
+- **Node shape styling.** Would add a new `Marker(x, y, kind, size, fill, stroke)` scene type — net-new geometry. Considered for v0.4, deferred to keep Phase 3 scoped.
+- **`.scale_bar` calibration-ring alternative on circular.** Rejected up-front in v0.4 Phase 2; not a deferred decision.
+- **Discrete `.width_branches_by`.** Deferred unless a real fixture argues for it.
+- **`treescape-cli` / `treeplot` console.** Surface design needs its own pass.
+- **Label collision avoidance** (the GPU-pays-off case). Only matters at >10k tips; needs a real fixture to motivate.
+- **Force-directed unrooted layout, kerning + non-Latin shaping, columnar-FFI variant for >50k tips × dense metadata.** Same v0.4-deferred list as v0.3.
+
 ## [0.3.0] — 2026-04-28
 
 The metadata-driven-styling release. v0.2 shipped explicit dict-based `.color_tips({...})` and rectangular-only `.highlight_clade(...)`. v0.3 makes those automatic from joined metadata, adds continuous coloring, and lifts the circular-layout `NotImplementedError` for `.highlight_clade` via annular sectors. Five EVIDENT claims added or extended; 187 / 31 / 8 oracle suite green; cargo workspace 46 + 11 green.
