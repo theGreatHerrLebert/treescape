@@ -11,3 +11,4 @@ name = "treescape_render"
 
 [dependencies]
 treescape-core = { path = "../treescape-core", version = "0.1.0" }
+fontdue = "0.9"

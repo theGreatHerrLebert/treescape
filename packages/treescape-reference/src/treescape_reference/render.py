@@ -1,0 +1,213 @@
+"""Readable rectangular phylogram renderer + deterministic SVG writer.
+
+Mirrors ``treescape_core::layout::rectangular::build_rectangular_scene``
+and ``treescape_render::svg::render_svg`` line-for-line so they can be
+kept in sync. Used as the pre-Phase-4 oracle for the
+``treescape-svg-determinism`` and ``treescape-tip-count-invariant``
+claims.
+
+v0.1 simplification: tip-label width estimated as
+``avg_glyph_width * font_size * char_count``. Real fontdue measurement
+lives only in the Rust path; this approximation is good enough for the
+canvas-bounds invariant claim, which only checks that scene coords lie
+within the declared canvas.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import List
+
+from .layout import rectangular_layout
+from .newick import Tree
+from .scene import (
+    BLACK,
+    Canvas,
+    Color,
+    Line,
+    Scene,
+    Text,
+    TextAnchor,
+)
+
+
+@dataclass
+class SceneOptions:
+    px_per_x: float = 60.0
+    px_per_y: float = 18.0
+    padding: float = 12.0
+    font_size: float = 12.0
+    avg_glyph_width: float = 0.6
+    label_offset: float = 4.0
+    stroke: Color = BLACK
+    stroke_width: float = 1.0
+    label_color: Color = BLACK
+
+
+def build_rectangular_scene(tree: Tree, opts: SceneOptions | None = None) -> Scene:
+    if opts is None:
+        opts = SceneOptions()
+
+    if tree.root is None:
+        return Scene(canvas=Canvas(0.0, 0.0), items=[])
+
+    coords = rectangular_layout(tree)
+    nodes = tree.postorder()
+
+    xs = [coords[id(n)][0] for n in nodes]
+    ys = [coords[id(n)][1] for n in nodes]
+    max_x = max(xs) if xs else 0.0
+    max_y = max(ys) if ys else 0.0
+
+    tip_chars = [len(n.name) for n in nodes if n.is_tip()]
+    max_label_chars = max(tip_chars) if tip_chars else 0
+    max_label_px = max_label_chars * opts.font_size * opts.avg_glyph_width
+
+    canvas = Canvas(
+        width=opts.padding * 2 + max_x * opts.px_per_x + opts.label_offset + max_label_px,
+        height=opts.padding * 2 + max_y * opts.px_per_y,
+    )
+
+    items: List[object] = []
+
+    # Branches: pre-order so parents are visited before children
+    preorder = _preorder(tree.root)
+    for node in preorder:
+        if not node.children:
+            continue
+        parent_x = opts.padding + coords[id(node)][0] * opts.px_per_x
+        child_ys = [coords[id(c)][1] for c in node.children]
+        min_cy = min(child_ys)
+        max_cy = max(child_ys)
+
+        items.append(
+            Line(
+                x1=parent_x,
+                y1=opts.padding + min_cy * opts.px_per_y,
+                x2=parent_x,
+                y2=opts.padding + max_cy * opts.px_per_y,
+                stroke=opts.stroke,
+                stroke_width=opts.stroke_width,
+            )
+        )
+
+        for child in node.children:
+            cx = opts.padding + coords[id(child)][0] * opts.px_per_x
+            cy = opts.padding + coords[id(child)][1] * opts.px_per_y
+            items.append(
+                Line(
+                    x1=parent_x,
+                    y1=cy,
+                    x2=cx,
+                    y2=cy,
+                    stroke=opts.stroke,
+                    stroke_width=opts.stroke_width,
+                )
+            )
+
+    # Tip labels in pre-order
+    for node in preorder:
+        if not node.is_tip() or not node.name:
+            continue
+        tx = opts.padding + coords[id(node)][0] * opts.px_per_x + opts.label_offset
+        ty = opts.padding + coords[id(node)][1] * opts.px_per_y + opts.font_size * 0.35
+        items.append(
+            Text(
+                x=tx,
+                y=ty,
+                text=node.name,
+                font_size=opts.font_size,
+                color=opts.label_color,
+                anchor=TextAnchor.START,
+                is_tip_label=True,
+            )
+        )
+
+    return Scene(canvas=canvas, items=items)
+
+
+SVG_VERSION = "1.1"
+FONT_FAMILY = "DejaVu Sans, sans-serif"
+
+
+def render_svg(scene: Scene) -> str:
+    """Emit deterministic SVG bytes from a scene graph.
+
+    Determinism rules — must match the Rust impl byte-for-byte where
+    possible (the floating-point trim and color formatting routines
+    are aligned).
+    """
+    out: List[str] = []
+    out.append('<?xml version="1.0" encoding="UTF-8"?>\n')
+    out.append(
+        f'<svg height="{_fmt_f(scene.canvas.height)}" '
+        f'version="{SVG_VERSION}" '
+        f'viewBox="0 0 {_fmt_f(scene.canvas.width)} {_fmt_f(scene.canvas.height)}" '
+        f'width="{_fmt_f(scene.canvas.width)}" '
+        f'xmlns="http://www.w3.org/2000/svg">\n'
+    )
+    for item in scene.items:
+        if isinstance(item, Line):
+            out.append(
+                f'  <line stroke="{_fmt_color(item.stroke)}" '
+                f'stroke-width="{_fmt_f(item.stroke_width)}" '
+                f'x1="{_fmt_f(item.x1)}" '
+                f'x2="{_fmt_f(item.x2)}" '
+                f'y1="{_fmt_f(item.y1)}" '
+                f'y2="{_fmt_f(item.y2)}"/>\n'
+            )
+        elif isinstance(item, Text):
+            out.append(
+                f'  <text fill="{_fmt_color(item.color)}" '
+                f'font-family="{FONT_FAMILY}" '
+                f'font-size="{_fmt_f(item.font_size)}" '
+                f'text-anchor="{item.anchor.value}" '
+                f'x="{_fmt_f(item.x)}" '
+                f'y="{_fmt_f(item.y)}">{_xml_escape(item.text)}</text>\n'
+            )
+    out.append("</svg>\n")
+    return "".join(out)
+
+
+def _fmt_f(v: float) -> str:
+    s = f"{v:.4f}"
+    if "." in s:
+        s = s.rstrip("0").rstrip(".")
+        if s in ("", "-"):
+            s = "0"
+    if s == "-0":
+        s = "0"
+    return s
+
+
+def _fmt_color(c: Color) -> str:
+    if c.a == 255:
+        return f"#{c.r:02x}{c.g:02x}{c.b:02x}"
+    return f"rgba({c.r},{c.g},{c.b},{c.a / 255:.3f})"
+
+
+_XML_ESCAPES = {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;"}
+
+
+def _xml_escape(s: str) -> str:
+    return "".join(_XML_ESCAPES.get(c, c) for c in s)
+
+
+def _preorder(root) -> list:
+    out = []
+    stack = [root]
+    while stack:
+        n = stack.pop()
+        out.append(n)
+        for c in reversed(n.children):
+            stack.append(c)
+    return out
+
+
+__all__ = [
+    "SceneOptions",
+    "build_rectangular_scene",
+    "render_svg",
+    "FONT_FAMILY",
+    "SVG_VERSION",
+]

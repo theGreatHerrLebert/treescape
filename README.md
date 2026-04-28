@@ -32,8 +32,8 @@ The manifest is pinned today; the oracle test runners turn green progressively a
 | treescape-layout-vs-biopython | ci | Phase 2 | green |
 | treescape-layout-vs-ggtree | release | Phase 2 (skips on `ci`) | implemented; skips when ggtree absent |
 | treescape-ladderize-order | ci | Phase 2 | green |
-| treescape-svg-determinism | ci | Phase 3 | not yet implemented |
-| treescape-tip-count-invariant | ci | Phase 3 | not yet implemented |
+| treescape-svg-determinism | ci | Phase 3 | green |
+| treescape-tip-count-invariant | ci | Phase 3 | green |
 
 ## License
 
