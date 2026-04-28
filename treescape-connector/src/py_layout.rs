@@ -3,12 +3,10 @@
 use pyo3::prelude::*;
 
 use treescape_core::layout::circular::{
-    circular_layout as core_circular_layout,
-    circular_layout_with as core_circular_layout_with, CircularLayout,
+    circular_layout as core_circular_layout, circular_layout_with as core_circular_layout_with,
+    CircularLayout,
 };
-use treescape_core::layout::rectangular::{
-    rectangular_layout as core_rectangular_layout, Layout,
-};
+use treescape_core::layout::rectangular::{rectangular_layout as core_rectangular_layout, Layout};
 
 use crate::py_tree::PyTree;
 
@@ -91,12 +89,8 @@ fn circular_layout(
     let inner = match (start_angle, sweep_total) {
         (None, None) => core_circular_layout(&tree.inner),
         (Some(s), Some(t)) => core_circular_layout_with(&tree.inner, s, t),
-        (Some(s), None) => {
-            core_circular_layout_with(&tree.inner, s, std::f64::consts::TAU)
-        }
-        (None, Some(t)) => {
-            core_circular_layout_with(&tree.inner, std::f64::consts::FRAC_PI_2, t)
-        }
+        (Some(s), None) => core_circular_layout_with(&tree.inner, s, std::f64::consts::TAU),
+        (None, Some(t)) => core_circular_layout_with(&tree.inner, std::f64::consts::FRAC_PI_2, t),
     };
     PyCircularLayout { inner }
 }

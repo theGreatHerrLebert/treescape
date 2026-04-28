@@ -1,11 +1,11 @@
 //! treescape-render: deterministic SVG emitter + themes.
 
-pub mod svg;
 pub mod style;
+pub mod svg;
 pub mod text;
 
-pub use svg::{render_svg, SvgError};
 pub use style::default_theme;
+pub use svg::{render_svg, SvgError};
 pub use text::text_width;
 
 use treescape_core::layout::circular::{

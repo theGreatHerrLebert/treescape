@@ -59,12 +59,20 @@ mod tests {
     fn width_scales_linearly_with_font_size() {
         let small = text_width("Hello", 12.0);
         let large = text_width("Hello", 24.0);
-        assert!((large - 2.0 * small).abs() < 0.01, "{} vs 2 * {}", large, small);
+        assert!(
+            (large - 2.0 * small).abs() < 0.01,
+            "{} vs 2 * {}",
+            large,
+            small
+        );
     }
 
     #[test]
     fn multi_char_is_sum_of_chars() {
-        let parts: f64 = "abc".chars().map(|c| text_width(&c.to_string(), 12.0)).sum();
+        let parts: f64 = "abc"
+            .chars()
+            .map(|c| text_width(&c.to_string(), 12.0))
+            .sum();
         let whole = text_width("abc", 12.0);
         assert!((parts - whole).abs() < 1e-9);
     }

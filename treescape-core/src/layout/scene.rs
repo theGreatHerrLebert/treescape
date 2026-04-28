@@ -106,7 +106,15 @@ impl Scene {
     pub fn count_tip_labels(&self) -> usize {
         self.items
             .iter()
-            .filter(|i| matches!(i, SceneItem::Text { is_tip_label: true, .. }))
+            .filter(|i| {
+                matches!(
+                    i,
+                    SceneItem::Text {
+                        is_tip_label: true,
+                        ..
+                    }
+                )
+            })
             .count()
     }
 
@@ -118,7 +126,13 @@ impl Scene {
         let h = self.canvas.height + eps;
         for item in &self.items {
             match item {
-                SceneItem::Rect { x, y, width, height, .. } => {
+                SceneItem::Rect {
+                    x,
+                    y,
+                    width,
+                    height,
+                    ..
+                } => {
                     if *x < -eps || *x + *width > w {
                         return false;
                     }

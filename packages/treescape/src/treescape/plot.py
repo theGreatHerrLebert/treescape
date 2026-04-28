@@ -19,6 +19,7 @@ Example:
 from __future__ import annotations
 
 import os
+import warnings
 from pathlib import Path
 from typing import Optional, Union
 
@@ -64,6 +65,24 @@ def _parse_color(spec: Union[str, tuple]) -> tuple:
     raise TypeError(f"color must be str or tuple, got {type(spec).__name__}")
 
 
+_TABLEAU_10 = (
+    "#4e79a7",
+    "#f28e2b",
+    "#e15759",
+    "#76b7b2",
+    "#59a14f",
+    "#edc948",
+    "#b07aa1",
+    "#ff9da7",
+    "#9c755f",
+    "#bab0ac",
+)
+
+
+class TreescapeStyleWarning(UserWarning):
+    """Warning raised when metadata-driven styling cannot be applied cleanly."""
+
+
 class TreePlot:
     """Declarative phylogenetic tree plot.
 
@@ -87,6 +106,12 @@ class TreePlot:
         # so the styling-determinism claim holds across runs.
         self._highlights: list[tuple[list[str], tuple[int, int, int, int]]] = []
         self._tip_colors: dict[str, tuple[int, int, int, int]] = {}
+        self._scale_bar: Optional[tuple[float, str]] = None
+        self._support_labels: bool = False
+        self._support_min: Optional[float] = None
+        self._metadata_rows: dict[str, dict] = {}
+        self._metadata_columns: set[str] = set()
+        self._branch_colors: dict[int, tuple[int, int, int, int]] = {}
 
     def layout(self, kind: str) -> "TreePlot":
         if kind not in self._SUPPORTED_LAYOUTS:
@@ -210,9 +235,173 @@ class TreePlot:
             self._tip_colors[name] = _parse_color(spec)
         return self
 
+    def join_metadata(self, df, on: str) -> "TreePlot":
+        """Join a Polars DataFrame onto tree tips.
+
+        ``on`` names the column whose values match Newick tip names.
+        Extra rows, duplicate keys, and metadata-column collisions raise
+        ``ValueError``.
+        """
+        try:
+            import polars as pl
+        except ImportError as exc:  # pragma: no cover - dependency packaging guard
+            raise ImportError("join_metadata requires polars") from exc
+
+        if not isinstance(df, pl.DataFrame):
+            raise TypeError("join_metadata expects a polars.DataFrame")
+        if on not in df.columns:
+            raise ValueError(f"metadata join column {on!r} not found")
+
+        metadata_columns = [c for c in df.columns if c != on]
+        collisions = sorted(c for c in metadata_columns if c in self._metadata_columns)
+        if collisions:
+            raise ValueError(f"metadata column collision(s): {collisions}")
+
+        tip_names = set(self._tree.tip_order())
+        keys = df[on].to_list()
+        seen = set()
+        duplicates = []
+        for key in keys:
+            if key in seen and key not in duplicates:
+                duplicates.append(key)
+            seen.add(key)
+        if duplicates:
+            raise ValueError(f"duplicate metadata key(s): {duplicates}")
+
+        extras = [key for key in keys if key not in tip_names]
+        if extras:
+            preview = extras[:5]
+            raise ValueError(
+                f"metadata has {len(extras)} row(s) whose {on!r} value is not a tree tip: {preview}"
+            )
+
+        rows = {row[on]: row for row in df.to_dicts()}
+        for tip in tip_names:
+            current = dict(self._metadata_rows.get(tip, {}))
+            source = rows.get(tip)
+            for column in metadata_columns:
+                current[column] = None if source is None else source[column]
+            self._metadata_rows[tip] = current
+        self._metadata_columns.update(metadata_columns)
+        return self
+
+    def _metadata_for(self, tip_name: str) -> Optional[dict]:
+        if not self._metadata_columns:
+            return None
+        return dict(self._metadata_rows.get(tip_name, {}))
+
+    def color_tips_by(self, column: str, palette: Optional[dict] = None) -> "TreePlot":
+        """Color tip labels by a joined categorical metadata column."""
+        if column not in self._metadata_columns:
+            raise ValueError(f"metadata column {column!r} has not been joined")
+        palette = self._resolve_discrete_palette(column, palette)
+
+        mapping = {}
+        for tip in self._tree.tip_order():
+            value = self._metadata_rows.get(tip, {}).get(column)
+            if value is not None:
+                mapping[tip] = palette[value]
+        return self.color_tips(mapping)
+
+    def color_branches_by(self, column: str, palette: Optional[dict] = None) -> "TreePlot":
+        """Color internal branches by monophyletic discrete metadata values.
+
+        A branch is colored when every descendant tip under its child node
+        has the same non-missing value for ``column``. Mixed or missing
+        values leave the branch at the default color and raise
+        ``TreescapeStyleWarning``.
+        """
+        if column not in self._metadata_columns:
+            raise ValueError(f"metadata column {column!r} has not been joined")
+        palette = self._resolve_discrete_palette(column, palette)
+
+        root = self._tree.root
+        for node_id in self._tree.preorder():
+            if node_id == root or self._tree.is_tip(node_id):
+                continue
+            tips = self._descendant_tips(node_id)
+            values = [self._metadata_rows.get(tip, {}).get(column) for tip in tips]
+            observed = [value for value in values if value is not None]
+            distinct = []
+            for value in observed:
+                if value not in distinct:
+                    distinct.append(value)
+            if len(distinct) == 1 and len(observed) == len(tips):
+                self._branch_colors[node_id] = _parse_color(palette[distinct[0]])
+                continue
+            warnings.warn(
+                f"branch {self._branch_label(node_id)} is not monophyletic for metadata column "
+                f"{column!r}; leaving default branch color",
+                TreescapeStyleWarning,
+                stacklevel=2,
+            )
+        return self
+
+    def _resolve_discrete_palette(self, column: str, palette: Optional[dict]) -> dict:
+        values = []
+        for tip in self._tree.tip_order():
+            value = self._metadata_rows.get(tip, {}).get(column)
+            if value is not None and value not in values:
+                values.append(value)
+
+        if palette is None:
+            if len(values) > len(_TABLEAU_10):
+                raise ValueError("default categorical palette supports at most 10 values")
+            return {value: _TABLEAU_10[i] for i, value in enumerate(values)}
+
+        missing = [value for value in values if value not in palette]
+        if missing:
+            raise ValueError(f"palette missing value(s) for {column!r}: {missing}")
+        return palette
+
+    def _descendant_tips(self, node_id: int) -> list[str]:
+        out = []
+        stack = [node_id]
+        while stack:
+            current = stack.pop()
+            if self._tree.is_tip(current):
+                name = self._tree.name(current)
+                if name:
+                    out.append(name)
+            else:
+                stack.extend(reversed(self._tree.children(current)))
+        return out
+
+    def _branch_label(self, node_id: int) -> str:
+        name = self._tree.name(node_id)
+        return name if name else f"node {node_id}"
+
+    def scale_bar(self, length: float, label: Optional[str] = None) -> "TreePlot":
+        """Draw a branch-length scale bar below a rectangular tree.
+
+        ``length`` is in the same branch-length units as the Newick edge
+        lengths. If ``label`` is omitted, the numeric length is used.
+        """
+        length = float(length)
+        if length <= 0:
+            raise ValueError("scale_bar length must be positive")
+        self._scale_bar = (length, str(length) if label is None else str(label))
+        return self
+
+    def support_labels(self, min_value: Optional[float] = None) -> "TreePlot":
+        """Render internal node names as support labels.
+
+        If ``min_value`` is provided, internal node names must parse as
+        numbers and meet the threshold to render.
+        """
+        self._support_labels = True
+        self._support_min = None if min_value is None else float(min_value)
+        return self
+
     def to_svg(self) -> str:
         """Render and return the SVG bytes as a UTF-8 string."""
-        styled = bool(self._highlights) or bool(self._tip_colors)
+        styled = (
+            bool(self._highlights)
+            or bool(self._tip_colors)
+            or bool(self._branch_colors)
+            or self._scale_bar is not None
+            or self._support_labels
+        )
         if self._layout == "rectangular":
             if styled:
                 return render_rectangular_styled_svg(
@@ -220,14 +409,19 @@ class TreePlot:
                     self._scene_opts,
                     list(self._highlights),
                     dict(self._tip_colors),
+                    self._scale_bar,
+                    self._support_labels,
+                    self._support_min,
+                    list(self._branch_colors.items()),
                 )
             return render_rectangular_svg(self._tree, self._scene_opts)
         if self._layout == "circular":
             if styled:
                 raise NotImplementedError(
                     "circular layout does not yet support .highlight_clade or "
-                    ".color_tips; v0.3 will lift this. Drop styling or switch "
-                    "to .layout('rectangular')."
+                    ".color_tips or .color_branches_by or .scale_bar or "
+                    ".support_labels; v0.3 will lift this. Drop styling or "
+                    "switch to .layout('rectangular')."
                 )
             return render_circular_svg(self._tree, self._circular_opts)
         raise AssertionError(f"unreachable: layout {self._layout!r}")

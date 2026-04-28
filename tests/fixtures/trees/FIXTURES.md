@@ -24,4 +24,8 @@ Every fixture used by an EVIDENT claim lives here. Fixtures are versioned with t
 
 `medium/` currently contains a single demo fixture (`primates.nwk`) used as the README screenshot — its branch lengths are illustrative, not literature-derived, so it isn't an oracle target.
 
-Larger and biologically real fixtures (NCBI mammals, COVID lineages, etc.) land in v0.2 alongside metadata-driven styling claims. Each must arrive with a source URL, license note, and a row in the table above.
+Biologically real fixtures (NCBI mammals, COVID lineages, etc.) are deferred until a use case justifies the citation/license footprint. Each must arrive with a source URL, license note, and a row in the table above.
+
+## Metadata fixtures (v0.3)
+
+Companion CSV fixtures for `treescape-metadata-join-roundtrip` (and Phase 2's coloring claims) live at `tests/fixtures/metadata/<same-relative-path>.csv` and are documented in `tests/fixtures/metadata/FIXTURES.md`. They are independently versioned: a tree fixture here may or may not have a metadata sibling.

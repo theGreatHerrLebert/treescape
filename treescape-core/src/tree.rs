@@ -99,10 +99,7 @@ impl Tree {
         for id in self.postorder() {
             let mut hasher = fxhash::FxHasher::default();
             self.name[id].hash(&mut hasher);
-            let mut child_h: Vec<u64> = self.children[id]
-                .iter()
-                .map(|&c| node_hash[c])
-                .collect();
+            let mut child_h: Vec<u64> = self.children[id].iter().map(|&c| node_hash[c]).collect();
             child_h.sort_unstable();
             for h in &child_h {
                 h.hash(&mut hasher);

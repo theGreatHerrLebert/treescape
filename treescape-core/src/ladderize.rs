@@ -38,18 +38,13 @@ pub fn ladderize(tree: &mut Tree, ascending: bool) {
         } else {
             // Match ete3 direction=1: ties have original order reversed.
             // Achieved by sorting on (Reverse(size), Reverse(original_pos)).
-            let indexed: Vec<(usize, NodeId)> = tree.children[id]
-                .iter()
-                .copied()
-                .enumerate()
-                .collect();
+            let indexed: Vec<(usize, NodeId)> =
+                tree.children[id].iter().copied().enumerate().collect();
             let mut keyed: Vec<(usize, usize, NodeId)> = indexed
                 .into_iter()
                 .map(|(orig_pos, c)| (sizes[c], orig_pos, c))
                 .collect();
-            keyed.sort_by(|a, b| {
-                b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1))
-            });
+            keyed.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)));
             tree.children[id] = keyed.into_iter().map(|(_, _, c)| c).collect();
         }
     }

@@ -148,7 +148,9 @@ fn tokenize(input: &str) -> Result<Vec<Token>, NewickError> {
                 let start = i;
                 while i < bytes.len() {
                     let cc = bytes[i];
-                    if matches!(cc, '(' | ')' | '[' | ']' | ',' | ':' | ';' | '\'') || cc.is_whitespace() {
+                    if matches!(cc, '(' | ')' | '[' | ']' | ',' | ':' | ';' | '\'')
+                        || cc.is_whitespace()
+                    {
                         break;
                     }
                     i += 1;
@@ -457,8 +459,14 @@ mod tests {
 
     #[test]
     fn errors_on_unbalanced() {
-        assert!(matches!(parse("(a,b;").unwrap_err(), NewickError::UnclosedParen));
-        assert!(matches!(parse("a,b);").unwrap_err(), NewickError::UnbalancedParen));
+        assert!(matches!(
+            parse("(a,b;").unwrap_err(),
+            NewickError::UnclosedParen
+        ));
+        assert!(matches!(
+            parse("a,b);").unwrap_err(),
+            NewickError::UnbalancedParen
+        ));
     }
 
     #[test]

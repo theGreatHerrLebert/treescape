@@ -79,6 +79,54 @@ The circular layout is a polar transform of the rectangular layout. Each node ha
 
 This is a clean isomorphism with rectangular: `(r, θ) ↔ (x_rect, y_rect)` via `r = x_rect, θ = start_angle − (y_rect / max_y_plus_one) · sweep_total`. The "rectangular and circular layouts are the same data under a polar transform" property is the basis for the `treescape-circular-self-consistent-with-rectangular` invariant claim.
 
+## treescape conventions (v0.3, metadata join)
+
+The Python reference at `packages/treescape-reference/src/treescape_reference/metadata.py::join_metadata` is the canonical convention owner. There is no Rust port for v0.3 — metadata storage and lookup live entirely on the Python side. (See *Storage scope* below for why.)
+
+### Frame type
+
+- **Polars only.** `TreePlot.join_metadata(df, on=...)` accepts `polars.DataFrame`. pandas users convert via `pl.from_pandas(df)`. No `__dataframe__` interchange path; no pandas dual-test path. One supported frame type, one error surface.
+- The decision was deliberate. Dual-support and an interchange-via-`__dataframe__` compromise were considered and rejected to keep maintenance burden flat. Reconsider in a v0.x point release if user-reach demands it.
+
+### Join semantics
+
+- The `on=` argument names the column of the user's frame whose values match tree tip names. Required (no default).
+- Every tip in the tree has **at most one** row in the joined frame. Tips with no matching row carry `None` for every metadata column. This is "left-outer join from the tree's tip set onto the frame," with the tree as the authoritative tip universe.
+- **Validation, all loud:**
+  - **Extra rows** (a row whose `on=` value is not a tip in the tree) → `ValueError` listing the offending count and the first 5 unmatched names. Loud because it almost always means the user typoed a tip name or joined the wrong frame; silently dropping is the "metadata didn't apply" failure mode that's hardest to debug.
+  - **Duplicate rows** (same `on=` value appearing more than once in the frame) → `ValueError` listing the duplicated value(s). Loud because the resolution is ambiguous (first wins? last wins? error?) and the user should pick.
+  - **Empty frame** is legal — every tip ends up with all-None metadata. No warning.
+
+### Storage scope (Python-side, no FFI)
+
+- The joined frame is held on the `TreePlot` instance. Access through the internal `_metadata_for(tip_name) -> dict | None` helper, which returns the row as a plain Python `dict` (column dtypes preserved as Python scalars; `None` if the tip has no row).
+- **No metadata FFI to Rust in v0.3.** Phase 2's metadata-driven coloring resolves to `{tip_name: color}` dicts on the Python side and reuses the existing v0.2 `color_tips` / `color_branches_styled_svg` PyO3 paths. The Rust `treescape-core` crate is unchanged by Phase 1.
+- **Trade-off:** practical-N for metadata-driven plots is capped at Python dict overhead, not the Rust SoA core's actual capacity. Fine for v0.3's expected scale (≤10k tips × ≤10 columns); a user with 50k+ tips × dense metadata would feel this. Revisit in v0.4 with a columnar-FFI variant if the use case shows up.
+
+### Chained joins
+
+- `.join_metadata(df1, on="tip").join_metadata(df2, on="tip")` adds columns from `df2` to whatever was already joined from `df1`.
+- **Column-name collisions raise** `ValueError`. Silent overwrite is the "which frame won?" failure mode that's hardest to debug after the fact. The user resolves by renaming columns in the inbound frame.
+- The two frames may use the same or different `on=` columns; both are independently validated against the tree's tip set per the rules above.
+
+### Immutability
+
+- The joined frame stored on `TreePlot` is treated as immutable for the lifetime of the plot. The user mutating their original `df` after `join_metadata` does **not** affect the plot's metadata state. Polars's COW semantics make this cheap (no deep copy required); we just hold the reference and don't expose mutation paths.
+
+### Discrete tip coloring by metadata
+
+- `TreePlot.color_tips_by(column, palette=...)` is a Python-side resolver over joined metadata. It produces the same per-tip color mapping as an explicit `TreePlot.color_tips({...})` call, then reuses the existing v0.2 styled SVG path.
+- The column is treated as discrete/categorical. Missing metadata values (`None` from an unmatched tip row) are not colored and keep the default tip-label color.
+- If `palette` is provided, it must cover every observed non-None value in tree tip order; missing palette entries raise `ValueError`.
+- If `palette` is omitted, values are assigned the Tableau-10 qualitative palette in first-occurrence order over the tree's tip order. More than 10 observed values raise `ValueError`; no cycling, because cycling silently makes unrelated categories share color.
+
+### Discrete branch coloring by metadata
+
+- `TreePlot.color_branches_by(column, palette=...)` colors rectangular internal branches only. The branch is identified by its child internal node id; the horizontal parent→child segment receives the color while the vertical connector spine stays at the default stroke color.
+- A branch is colored iff every descendant tip under that child node has the same non-None value for `column`. Mixed values or missing values leave the branch at the default color and emit `TreescapeStyleWarning`.
+- Palette rules match `color_tips_by`: user palettes must cover observed non-None values; omitted palettes use Tableau-10 in first occurrence order over tree tips.
+- Terminal branches are out of scope for v0.3's monophyly claim. They remain default-colored until a separate terminal-branch styling API lands.
+
 ## Convention gaps vs external oracles
 
 | Convention | treescape | ete3 | Biopython.Phylo | ggtree |

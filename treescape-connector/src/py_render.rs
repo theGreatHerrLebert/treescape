@@ -7,12 +7,12 @@ use pyo3::prelude::*;
 use std::collections::HashMap;
 
 use treescape_core::layout::circular::CircularSceneOptions as CoreCircularSceneOptions;
+use treescape_core::layout::rectangular::rectangular_layout;
 use treescape_core::layout::rectangular::{
-    build_rectangular_scene_with_style, CladeHighlight, SceneOptions as CoreSceneOptions,
-    StyleSpec as CoreStyleSpec,
+    build_rectangular_scene_with_style, CladeHighlight, ScaleBar, SceneOptions as CoreSceneOptions,
+    StyleSpec as CoreStyleSpec, SupportLabelSpec,
 };
 use treescape_core::layout::scene::{Color as CoreColor, Scene};
-use treescape_core::layout::rectangular::rectangular_layout;
 use treescape_render::{
     build_circular_scene_, build_scene, render_circular, render_rectangular, render_svg,
     text_width as core_text_width,
@@ -134,8 +134,7 @@ impl PyScene {
 fn render_rectangular_svg(tree: &PyTree, opts: Option<&PySceneOptions>) -> PyResult<String> {
     let default = CoreSceneOptions::default();
     let opts_ref = opts.map(|o| &o.inner).unwrap_or(&default);
-    render_rectangular(&tree.inner, opts_ref)
-        .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+    render_rectangular(&tree.inner, opts_ref).map_err(|e| PyRuntimeError::new_err(e.to_string()))
 }
 
 /// `(r, g, b, a)` color spec passed from Python. Avoids the
@@ -143,6 +142,10 @@ fn render_rectangular_svg(tree: &PyTree, opts: Option<&PySceneOptions>) -> PyRes
 type Rgba = (u8, u8, u8, u8);
 /// `(tip_names, color)` highlight spec.
 type HighlightSpec = (Vec<String>, Rgba);
+/// `(child_node_id, color)` branch color spec.
+type BranchColorSpec = (usize, Rgba);
+/// `(length, label)` scale-bar spec. Length is in branch-length units.
+type ScaleBarSpec = (f64, String);
 
 /// Render rectangular SVG with v0.2 Phase-3 styling: clade highlights
 /// and per-tip color overrides. `highlights` is a list of
@@ -151,12 +154,25 @@ type HighlightSpec = (Vec<String>, Rgba);
 /// Backs the user-facing `TreePlot.highlight_clade` and
 /// `TreePlot.color_tips` grammar.
 #[pyfunction]
-#[pyo3(signature = (tree, opts = None, highlights = Vec::new(), tip_colors = HashMap::new()))]
+#[pyo3(signature = (
+    tree,
+    opts = None,
+    highlights = Vec::new(),
+    tip_colors = HashMap::new(),
+    scale_bar = None,
+    support_labels = false,
+    support_min = None,
+    branch_colors = Vec::new(),
+))]
 fn render_rectangular_styled_svg(
     tree: &PyTree,
     opts: Option<&PySceneOptions>,
     highlights: Vec<HighlightSpec>,
     tip_colors: HashMap<String, Rgba>,
+    scale_bar: Option<ScaleBarSpec>,
+    support_labels: bool,
+    support_min: Option<f64>,
+    branch_colors: Vec<BranchColorSpec>,
 ) -> PyResult<String> {
     let default_opts = CoreSceneOptions::default();
     let opts_ref = opts.map(|o| &o.inner).unwrap_or(&default_opts);
@@ -170,6 +186,19 @@ fn render_rectangular_styled_svg(
     }
     for (name, (r, g, b, a)) in tip_colors {
         style.tip_colors.insert(name, CoreColor::rgba(r, g, b, a));
+    }
+    for (node_id, (r, g, b, a)) in branch_colors {
+        style
+            .branch_colors
+            .insert(node_id, CoreColor::rgba(r, g, b, a));
+    }
+    if let Some((length, label)) = scale_bar {
+        style.scale_bar = Some(ScaleBar { length, label });
+    }
+    if support_labels {
+        style.support_labels = Some(SupportLabelSpec {
+            min_value: support_min,
+        });
     }
 
     let layout = rectangular_layout(&tree.inner);
@@ -201,7 +230,10 @@ fn text_width(text: &str, font_size: f64) -> f64 {
     core_text_width(text, font_size)
 }
 
-#[pyclass(name = "CircularSceneOptions", module = "treescape_connector.py_render")]
+#[pyclass(
+    name = "CircularSceneOptions",
+    module = "treescape_connector.py_render"
+)]
 #[derive(Clone)]
 pub struct PyCircularSceneOptions {
     pub(crate) inner: CoreCircularSceneOptions,
@@ -274,22 +306,15 @@ impl PyCircularSceneOptions {
 
 #[pyfunction]
 #[pyo3(signature = (tree, opts = None))]
-fn render_circular_svg(
-    tree: &PyTree,
-    opts: Option<&PyCircularSceneOptions>,
-) -> PyResult<String> {
+fn render_circular_svg(tree: &PyTree, opts: Option<&PyCircularSceneOptions>) -> PyResult<String> {
     let default = CoreCircularSceneOptions::default();
     let opts_ref = opts.map(|o| &o.inner).unwrap_or(&default);
-    render_circular(&tree.inner, opts_ref)
-        .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+    render_circular(&tree.inner, opts_ref).map_err(|e| PyRuntimeError::new_err(e.to_string()))
 }
 
 #[pyfunction]
 #[pyo3(signature = (tree, opts = None))]
-fn build_circular_scene(
-    tree: &PyTree,
-    opts: Option<&PyCircularSceneOptions>,
-) -> PyScene {
+fn build_circular_scene(tree: &PyTree, opts: Option<&PyCircularSceneOptions>) -> PyScene {
     let default = CoreCircularSceneOptions::default();
     let opts_ref = opts.map(|o| &o.inner).unwrap_or(&default);
     PyScene {

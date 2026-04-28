@@ -54,11 +54,7 @@ impl CircularLayout {
 /// sweep_total`. Internal nodes get the wrap-aware vector mean of
 /// their children's angles (essential when children straddle the
 /// 0/2π wrap point).
-pub fn circular_layout_with(
-    tree: &Tree,
-    start_angle: f64,
-    sweep_total: f64,
-) -> CircularLayout {
+pub fn circular_layout_with(tree: &Tree, start_angle: f64, sweep_total: f64) -> CircularLayout {
     let n = tree.len();
     let mut layout = CircularLayout {
         r: vec![0.0; n],
@@ -78,7 +74,11 @@ pub fn circular_layout_with(
         }
     }
 
-    let tips: Vec<usize> = preorder.iter().copied().filter(|&i| tree.is_tip[i]).collect();
+    let tips: Vec<usize> = preorder
+        .iter()
+        .copied()
+        .filter(|&i| tree.is_tip[i])
+        .collect();
     let n_tips = tips.len();
 
     if n_tips == 0 {
@@ -168,7 +168,10 @@ pub fn build_circular_scene_with_measurer(
 ) -> Scene {
     if tree.is_empty() || layout.is_empty() {
         return Scene {
-            canvas: Canvas { width: 0.0, height: 0.0 },
+            canvas: Canvas {
+                width: 0.0,
+                height: 0.0,
+            },
             items: Vec::new(),
         };
     }

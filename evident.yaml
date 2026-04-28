@@ -370,6 +370,131 @@ claims:
         across runs (e.g. callable, time-dependent), which would
         rightly fail this claim.
 
+  - id: treescape-metadata-join-roundtrip
+    title: join_metadata round-trips polars frames against the tree's tip universe
+    case: cases/treescape.md
+    source: packages/treescape-reference
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#oracle-comparison
+    claim: >
+      `TreePlot.join_metadata(df, on=...)` round-trips a polars DataFrame
+      against the tree's tip universe under the conventions documented in
+      `docs/conventions.md` (treescape conventions v0.3, metadata join):
+      (a) every tip in the tree, after join, is queryable via
+      `_metadata_for(tip_name)` and returns the same row data the user
+      passed in (column dtypes preserved as Python scalars); (b) tips with
+      no matching row in the frame return None for every column;
+      (c) extra rows (rows whose `on=` value is not a tip in the tree)
+      raise ValueError listing the unmatched count and first 5 names;
+      (d) duplicate `on=` values in the frame raise ValueError listing the
+      duplicated values; (e) chained join_metadata calls add columns,
+      column-name collisions raise ValueError; (f) the empty frame is
+      legal and produces all-None metadata for every tip with no warning.
+      v0.3 is Python-only — no Rust port — so this claim compares the
+      TreePlot implementation against the readable Python reference
+      (`treescape_reference.metadata.join_metadata`) plus explicit
+      failure-mode tests.
+    evidence:
+      oracle:
+        - self (round-trip + explicit raise/no-raise on each rule)
+      tolerance: Exact equality on row data per tip.
+      command: pytest tests/oracle/test_metadata_join.py -v
+      artifact: tests/oracle/reports/metadata_join.json
+    assumptions:
+      - Polars >= 1.0 (pinned in treescape-reference deps); column
+        dtypes preserved across frame storage are polars's native dtypes.
+        Round-trip equality checks compare via Python scalars after
+        `_metadata_for` lookup, not polars `Series` equality.
+      - Synthetic test fixtures at tests/fixtures/metadata/<tree_id>.csv
+        cover both monophyletic-by-column and paraphyletic-by-column
+        subtree shapes — the latter sets up Phase 2's branch-coloring
+        claim.
+      - The v0.3 storage scope (Python-side, no FFI) is the convention
+        owner; revisiting the columnar-FFI variant in v0.4+ would extend
+        this claim to a Rust↔Python parity claim. v0.3 does not.
+    failure_modes:
+      - Silent overwrite on chained-join column collision masks user
+        error — which frame's column won. The explicit-raise rule
+        guards against this.
+      - The "tips with no row → all-None" rule is implemented as "row
+        absent" but the frame may contain a row with all-None values
+        for that tip; a passing test would not distinguish those, but
+        downstream coloring code treats them identically. Documented
+        and accepted.
+      - The extra-rows-raise rule has a subtle false-negative — a row
+        whose `on=` value matches a tip name but is wrong semantically
+        (typo that happens to alias another tip) silently joins. No
+        defense against semantic typos, only structural ones.
+
+  - id: treescape-color-tips-by-discrete-roundtrip
+    title: Discrete metadata tip coloring matches explicit tip color maps
+    case: cases/treescape.md
+    source: packages/treescape
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#oracle-comparison
+    claim: >
+      For a joined categorical metadata column, `TreePlot.color_tips_by`
+      resolves to the same per-tip color mapping as an explicit
+      `TreePlot.color_tips({...})` call using the same palette. The
+      default palette is deterministic Tableau-10 ordered by first
+      occurrence in tree tip order, so repeated renders are byte
+      identical for the same tree + metadata.
+    evidence:
+      oracle:
+        - self (explicit color_tips equivalence)
+      tolerance: Exact SVG byte equality against the explicit mapping.
+      command: pytest tests/oracle/test_color_tips_by_metadata.py -v
+      artifact: tests/oracle/reports/color_tips_by_metadata.json
+    assumptions:
+      - Metadata has already passed the `join_metadata` validation
+        contract; this claim tests color resolution only.
+      - Only discrete/categorical columns are in scope. Continuous
+        numeric color maps are covered by a later v0.3 claim.
+    failure_modes:
+      - Palette assignment accidentally depends on Python dict/set
+        iteration order instead of tree tip order, making default
+        colors nondeterministic.
+      - Missing metadata values are colored as a category instead of
+        leaving the tip at the default label color.
+
+  - id: treescape-color-branches-by-monophyly
+    title: Discrete metadata branch coloring respects monophyletic clades
+    case: cases/treescape.md
+    source: packages/treescape
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#property-based-testing
+    claim: >
+      For each rectangular internal branch and discrete metadata column,
+      `TreePlot.color_branches_by(column)` colors the branch iff every
+      descendant tip in the child subtree has the same non-None metadata
+      value. Mixed or missing values leave the branch at the default
+      stroke color and emit `TreescapeStyleWarning` naming the branch and
+      column. Branch color overrides are serialized through the existing
+      deterministic styled SVG path.
+    evidence:
+      oracle:
+        - self (monophyly resolver + SVG serialization checks)
+      tolerance: Exact warning/no-warning behavior and exact SVG color fragments.
+      command: pytest tests/oracle/test_color_branches_by_metadata.py -v
+      artifact: tests/oracle/reports/color_branches_by_metadata.json
+    assumptions:
+      - >
+        v0.3 colors internal branches only: the horizontal segment from
+        parent to child internal node. Terminal branch coloring is out
+        of scope.
+      - Discrete/categorical metadata only. Continuous gradients are a
+        separate v0.3 claim.
+    failure_modes:
+      - Paraphyletic metadata silently colors an internal branch by the
+        first/last descendant tip instead of warning and leaving default.
+      - Missing metadata values are mistaken for a category and colored.
+
   - id: treescape-tip-count-invariant
     title: Rendered tip glyphs equal input tip count; coordinates within canvas
     case: cases/treescape.md

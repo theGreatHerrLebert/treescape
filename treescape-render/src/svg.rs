@@ -190,13 +190,7 @@ fn fmt_color(c: Color) -> String {
     if c.a == 255 {
         format!("#{:02x}{:02x}{:02x}", c.r, c.g, c.b)
     } else {
-        format!(
-            "rgba({},{},{},{:.3})",
-            c.r,
-            c.g,
-            c.b,
-            c.a as f64 / 255.0
-        )
+        format!("rgba({},{},{},{:.3})", c.r, c.g, c.b, c.a as f64 / 255.0)
     }
 }
 
@@ -228,8 +222,7 @@ fn xml_escape(s: &str) -> String {
 /// labels exactly. Not directly written into the SVG: the SVG
 /// references the font by family name and the consumer's renderer
 /// fetches glyphs.
-pub const DEJAVU_SANS_TTF: &[u8] =
-    include_bytes!("fonts/DejaVuSans.ttf");
+pub const DEJAVU_SANS_TTF: &[u8] = include_bytes!("fonts/DejaVuSans.ttf");
 
 #[cfg(test)]
 mod tests {
@@ -258,7 +251,10 @@ mod tests {
 
     #[test]
     fn xml_escape_handles_special_chars() {
-        assert_eq!(xml_escape("a<b>c&d\"e'f"), "a&lt;b&gt;c&amp;d&quot;e&apos;f");
+        assert_eq!(
+            xml_escape("a<b>c&d\"e'f"),
+            "a&lt;b&gt;c&amp;d&quot;e&apos;f"
+        );
     }
 
     #[test]
