@@ -13,7 +13,12 @@
 #   docker run --rm -v "$PWD:/workspace" -w /workspace treescape-release \
 #     bash -lc "pytest tests/oracle/test_layout_vs_ggtree.py -v"
 
-FROM rocker/r-ver:4.4.1
+# rocker/r-ver:4.5.3 = R 4.5.3 on Ubuntu 24.04 (noble). Noble ships
+# python3.12 in the default apt repos, matching the project's
+# requires-python >= 3.11 without needing a third-party PPA. This R
+# version is also what the bare-metal local validation runs against,
+# so the local-vs-Docker oracle results stay comparable.
+FROM rocker/r-ver:4.5.3
 
 LABEL org.opencontainers.image.title="treescape EVIDENT release runner"
 LABEL org.opencontainers.image.description="R + Bioconductor + ggtree + Python + maturin for release-tier oracle claims"
@@ -35,6 +40,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpng-dev \
         libtiff5-dev \
         libjpeg-dev \
+        libuv1-dev \
+        libcairo2-dev \
         python3.12 \
         python3.12-dev \
         python3.12-venv \
@@ -49,8 +56,12 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 RUN R -e 'install.packages("BiocManager", repos="https://cloud.r-project.org")' \
  && R -e 'BiocManager::install(c("ggtree","ape"), update=FALSE, ask=FALSE)'
 
-# Python venv with the same deps as ci
+# Python venv with the same deps as ci.
+# VIRTUAL_ENV is set explicitly (not just PATH) because maturin checks
+# $VIRTUAL_ENV / $CONDA_PREFIX / a .venv/ folder before installing —
+# an entry on PATH alone isn't enough.
 RUN python3.12 -m venv /opt/venv
+ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="/opt/venv/bin:${PATH}"
 RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir maturin pytest biopython ete3 hypothesis six PyYAML

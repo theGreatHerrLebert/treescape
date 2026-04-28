@@ -9,6 +9,16 @@ The R script at ``workflow/scripts/oracle_ggtree.R`` runs ``ggtree`` on
 a fixture and emits coordinates as CSV. We compare against the Python
 reference's tip coordinates within ``1e-4`` absolute. The tolerance is
 looser than ete3/Biopython to absorb ggplot's internal scaling drift.
+
+Convention notes (see ``docs/conventions.md``):
+
+* The R script invokes ``ggtree(tree, ladderize = FALSE)``. ggtree's
+  default ``ladderize = TRUE`` reorders children by clade size, which
+  ``treescape.rectangular_layout`` does not do implicitly. Disabling it
+  makes the comparison like-for-like.
+* ggtree's tip y is 1-based (``1..N``). treescape's is 0-based
+  (``0..N-1``). The test adds 1 to our y before comparing — same offset
+  pattern the Biopython oracle uses.
 """
 
 from __future__ import annotations
@@ -96,8 +106,9 @@ def test_layout_vs_ggtree(fixture: pathlib.Path) -> None:
         assert abs(ox - gx) < TOL, (
             f"x mismatch on {fixture.name}/{name}: ours={ox} ggtree={gx}"
         )
-        assert abs(oy - gy) < TOL, (
-            f"y mismatch on {fixture.name}/{name}: ours={oy} ggtree={gy}"
+        # ggtree y is 1-based; ours is 0-based. See docs/conventions.md.
+        assert abs((oy + 1.0) - gy) < TOL, (
+            f"y mismatch on {fixture.name}/{name}: ours+1={oy + 1.0} ggtree={gy}"
         )
 
 

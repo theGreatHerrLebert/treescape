@@ -29,7 +29,12 @@ suppressPackageStartupMessages({
 })
 
 tree <- read.tree(args[1])
-p <- ggtree(tree)
+# ladderize=FALSE: ggtree ladderizes by default (reorders children by clade
+# size). treescape's rectangular_layout does not ladderize implicitly — that
+# is a separate explicit step. Disabling the default makes the y-coordinate
+# convention comparable: ggtree's internal y is then file-order, 1-based,
+# top-to-bottom (matching ape's tip.label index). See docs/conventions.md.
+p <- ggtree(tree, ladderize = FALSE)
 d <- p$data
 
 out <- data.frame(

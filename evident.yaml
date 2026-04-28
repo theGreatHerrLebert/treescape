@@ -136,8 +136,12 @@ claims:
     pattern: evident/patterns/README.md#oracle-comparison
     claim: >
       treescape rectangular layout coordinates agree with R ggtree's
-      x/y output within 1e-4 absolute on small and medium fixtures.
-      Tier release because it requires R + Bioconductor; runs inside
+      x/y output within 1e-4 absolute on small and edge fixtures, after
+      two convention adjustments documented in docs/conventions.md: the
+      oracle invokes ggtree with ladderize=FALSE (treescape does not
+      ladderize implicitly), and the test applies a +1 offset to our y
+      to match ggtree's 1-based tip indexing. Tier release because it
+      requires R + Bioconductor; runs inside
       workflow/Dockerfile.evident-release before any release tag.
     evidence:
       oracle:
@@ -146,13 +150,13 @@ claims:
         1e-4 absolute on (x, y) per node. Looser than ete3/Biopython
         because ggplot's internal scaling introduces float drift not
         present in the other oracles.
-      command: pytest tests/oracle/test_layout_vs_ggtree.py -v
+      command: pytest tests/oracle/test_layout_vs_ggtree.py -v -m release_only
       artifact: tests/oracle/reports/layout_vs_ggtree.json
     assumptions:
       - R + Bioconductor + ggtree are available in the release runner;
         pytest skips with a clear message otherwise.
       - workflow/scripts/oracle_ggtree.R emits a deterministic CSV of
-        (node_id, x, y) for a given fixture path.
+        (node_id, x, y) for a given fixture path with ladderize=FALSE.
     failure_modes:
       - R/ggtree convention drift across Bioconductor releases not
         caught by version pin.
