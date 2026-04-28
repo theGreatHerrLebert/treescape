@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg height="804.4141" version="1.1" viewBox="0 0 804.4141 804.4141" width="804.4141" xmlns="http://www.w3.org/2000/svg">
+  <line stroke="#000000" stroke-width="1" x1="402.207" x2="438.1272" y1="402.207" y2="484.7282"/>
+  <line stroke="#000000" stroke-width="1" x1="402.207" x2="334.1896" y1="402.207" y2="343.2696"/>
+  <line stroke="#000000" stroke-width="1" x1="490.777" x2="526.205" y1="418.1868" y2="424.5787"/>
+  <line stroke="#000000" stroke-width="1" x1="353.5494" x2="304.8917" y1="477.9198" y2="553.6327"/>
+  <path d="M 353.5494 477.9198 A 90 90 0 0 0 490.777 418.1868" fill="none" stroke="#000000" stroke-width="1"/>
+  <line stroke="#000000" stroke-width="1" x1="520.2627" x2="528.6952" y1="358.1745" y2="355.0294"/>
+  <line stroke="#000000" stroke-width="1" x1="497.4315" x2="565.4489" y1="484.7195" y2="543.6569"/>
+  <path d="M 497.4315 484.7195 A 126 126 0 0 0 520.2627 358.1745" fill="none" stroke="#000000" stroke-width="1"/>
+  <line stroke="#000000" stroke-width="1" x1="490.6132" x2="499.4539" y1="300.1808" y2="289.9782"/>
+  <line stroke="#000000" stroke-width="1" x1="535.8329" x2="611.5543" y1="421.4195" y2="432.3066"/>
+  <path d="M 535.8329 421.4195 A 135 135 0 0 0 490.6132 300.1808" fill="none" stroke="#000000" stroke-width="1"/>
+  <line stroke="#000000" stroke-width="1" x1="444.0443" x2="449.1155" y1="259.7223" y2="242.4515"/>
+  <line stroke="#000000" stroke-width="1" x1="537.2874" x2="594.5942" y1="340.5179" y2="314.3468"/>
+  <path d="M 537.2874 340.5179 A 148.5 148.5 0 0 0 444.0443 259.7223" fill="none" stroke="#000000" stroke-width="1"/>
+  <line stroke="#000000" stroke-width="1" x1="402.207" x2="402.207" y1="235.707" y2="190.707"/>
+  <line stroke="#000000" stroke-width="1" x1="492.2237" x2="516.5526" y1="262.1383" y2="224.2819"/>
+  <path d="M 492.2237 262.1383 A 166.5 166.5 0 0 0 402.207 235.707" fill="none" stroke="#000000" stroke-width="1"/>
+  <line stroke="#000000" stroke-width="1" x1="402.207" x2="402.207" y1="582.207" y2="600.207"/>
+  <line stroke="#000000" stroke-width="1" x1="238.4733" x2="213.9132" y1="476.9817" y2="488.1979"/>
+  <path d="M 238.4733 476.9817 A 180 180 0 0 0 402.207 582.207" fill="none" stroke="#000000" stroke-width="1"/>
+  <line stroke="#000000" stroke-width="1" x1="457.9901" x2="473.2036" y1="592.1866" y2="643.9993"/>
+  <line stroke="#000000" stroke-width="1" x1="346.424" x2="331.2104" y1="592.1866" y2="643.9993"/>
+  <path d="M 346.424 592.1866 A 198 198 0 0 0 457.9901 592.1866" fill="none" stroke="#000000" stroke-width="1"/>
+  <line stroke="#000000" stroke-width="1" x1="245.7669" x2="211.7581" y1="537.7632" y2="567.2319"/>
+  <line stroke="#000000" stroke-width="1" x1="197.314" x2="152.772" y1="431.6662" y2="438.0704"/>
+  <path d="M 197.314 431.6662 A 207 207 0 0 0 245.7669 537.7632" fill="none" stroke="#000000" stroke-width="1"/>
+  <line stroke="#000000" stroke-width="1" x1="320.3402" x2="213.9132" y1="364.8197" y2="316.2161"/>
+  <line stroke="#000000" stroke-width="1" x1="353.5494" x2="290.2944" y1="326.4942" y2="228.0675"/>
+  <path d="M 353.5494 326.4942 A 90 90 0 0 0 320.3402 364.8197" fill="none" stroke="#000000" stroke-width="1"/>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="start" transform="rotate(-90 402.207 186.707)" x="402.207" y="186.707">Homo_sapiens</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="start" transform="rotate(-57.2727 518.7151 220.9169)" x="518.7151" y="220.9169">Pan_troglodytes</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="start" transform="rotate(-24.5455 598.2327 312.6851)" x="598.2327" y="312.6851">Gorilla_gorilla</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="start" transform="rotate(8.1818 615.5136 432.8759)" x="615.5136" y="432.8759">Pongo_abelii</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="start" transform="rotate(40.9091 568.4719 546.2764)" x="568.4719" y="546.2764">Hylobates_lar</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="start" transform="rotate(73.6364 474.3306 647.8372)" x="474.3306" y="647.8372">Macaca_mulatta</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(286.3636 330.0835 647.8372)" x="330.0835" y="647.8372">Papio_anubis</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(319.0909 208.7351 569.8514)" x="208.7351" y="569.8514">Cercopithecus_mitis</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(351.8182 148.8127 438.6396)" x="148.8127" y="438.6396">Chlorocebus_sabaeus</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(384.5455 210.2747 314.5545)" x="210.2747" y="314.5545">Callithrix_jacchus</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(417.2727 288.1318 224.7025)" x="288.1318" y="224.7025">Saimiri_sciureus</text>
+</svg>
