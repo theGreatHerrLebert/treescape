@@ -4,9 +4,13 @@
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
+use treescape_core::layout::circular::CircularSceneOptions as CoreCircularSceneOptions;
 use treescape_core::layout::rectangular::SceneOptions as CoreSceneOptions;
 use treescape_core::layout::scene::Scene;
-use treescape_render::{build_scene, render_rectangular, text_width as core_text_width};
+use treescape_render::{
+    build_circular_scene_, build_scene, render_circular, render_rectangular,
+    text_width as core_text_width,
+};
 
 use crate::py_tree::PyTree;
 
@@ -138,12 +142,103 @@ fn text_width(text: &str, font_size: f64) -> f64 {
     core_text_width(text, font_size)
 }
 
+#[pyclass(name = "CircularSceneOptions", module = "treescape_connector.py_render")]
+#[derive(Clone)]
+pub struct PyCircularSceneOptions {
+    pub(crate) inner: CoreCircularSceneOptions,
+}
+
+#[pymethods]
+impl PyCircularSceneOptions {
+    #[new]
+    #[pyo3(signature = (
+        px_per_r = 60.0,
+        padding = 12.0,
+        font_size = 12.0,
+        label_offset = 4.0,
+        stroke_width = 1.0,
+        start_angle = std::f64::consts::FRAC_PI_2,
+        sweep_total = std::f64::consts::TAU,
+    ))]
+    fn new(
+        px_per_r: f64,
+        padding: f64,
+        font_size: f64,
+        label_offset: f64,
+        stroke_width: f64,
+        start_angle: f64,
+        sweep_total: f64,
+    ) -> Self {
+        Self {
+            inner: CoreCircularSceneOptions {
+                px_per_r,
+                padding,
+                font_size,
+                label_offset,
+                stroke_width,
+                start_angle,
+                sweep_total,
+                ..CoreCircularSceneOptions::default()
+            },
+        }
+    }
+
+    #[getter]
+    fn px_per_r(&self) -> f64 {
+        self.inner.px_per_r
+    }
+    #[getter]
+    fn padding(&self) -> f64 {
+        self.inner.padding
+    }
+    #[getter]
+    fn font_size(&self) -> f64 {
+        self.inner.font_size
+    }
+    #[getter]
+    fn start_angle(&self) -> f64 {
+        self.inner.start_angle
+    }
+    #[getter]
+    fn sweep_total(&self) -> f64 {
+        self.inner.sweep_total
+    }
+}
+
+#[pyfunction]
+#[pyo3(signature = (tree, opts = None))]
+fn render_circular_svg(
+    tree: &PyTree,
+    opts: Option<&PyCircularSceneOptions>,
+) -> PyResult<String> {
+    let default = CoreCircularSceneOptions::default();
+    let opts_ref = opts.map(|o| &o.inner).unwrap_or(&default);
+    render_circular(&tree.inner, opts_ref)
+        .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+}
+
+#[pyfunction]
+#[pyo3(signature = (tree, opts = None))]
+fn build_circular_scene(
+    tree: &PyTree,
+    opts: Option<&PyCircularSceneOptions>,
+) -> PyScene {
+    let default = CoreCircularSceneOptions::default();
+    let opts_ref = opts.map(|o| &o.inner).unwrap_or(&default);
+    PyScene {
+        inner: build_circular_scene_(&tree.inner, opts_ref),
+    }
+}
+
 #[pymodule]
 pub fn py_render(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySceneOptions>()?;
+    m.add_class::<PyCircularSceneOptions>()?;
     m.add_class::<PyScene>()?;
     m.add_function(wrap_pyfunction!(render_rectangular_svg, m)?)?;
     m.add_function(wrap_pyfunction!(build_rectangular_scene, m)?)?;
+    m.add_function(wrap_pyfunction!(render_circular_svg, m)?)?;
+    m.add_function(wrap_pyfunction!(build_circular_scene, m)?)?;
     m.add_function(wrap_pyfunction!(text_width, m)?)?;
     Ok(())
 }

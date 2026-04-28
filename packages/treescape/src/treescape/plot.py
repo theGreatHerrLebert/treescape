@@ -23,7 +23,9 @@ from pathlib import Path
 from typing import Optional, Union
 
 from treescape_connector.py_render import (
+    CircularSceneOptions,
     SceneOptions,
+    render_circular_svg,
     render_rectangular_svg,
 )
 from treescape_connector.py_tree import Tree as _RustTree
@@ -41,18 +43,19 @@ class TreePlot:
     Methods chain — each returns ``self``.
     """
 
-    _SUPPORTED_LAYOUTS = ("rectangular",)
+    _SUPPORTED_LAYOUTS = ("rectangular", "circular")
 
     def __init__(self, source: Union[str, Path]) -> None:
         self._tree = _load_tree(source)
         self._layout: str = "rectangular"
         self._scene_opts = SceneOptions()
+        self._circular_opts = CircularSceneOptions()
 
     def layout(self, kind: str) -> "TreePlot":
         if kind not in self._SUPPORTED_LAYOUTS:
             raise ValueError(
-                f"v0.1 supports {self._SUPPORTED_LAYOUTS}; got {kind!r}. "
-                "Circular and radial layouts are a v0.2 deliverable."
+                f"supported layouts: {self._SUPPORTED_LAYOUTS}; got {kind!r}. "
+                "Radial / unrooted layouts are a v0.3 deliverable."
             )
         self._layout = kind
         return self
@@ -113,6 +116,8 @@ class TreePlot:
         """Render and return the SVG bytes as a UTF-8 string."""
         if self._layout == "rectangular":
             return render_rectangular_svg(self._tree, self._scene_opts)
+        if self._layout == "circular":
+            return render_circular_svg(self._tree, self._circular_opts)
         raise AssertionError(f"unreachable: layout {self._layout!r}")
 
     def save(self, path: Union[str, Path]) -> "TreePlot":

@@ -241,6 +241,7 @@ pub fn build_rectangular_scene_with_measurer(
             color: opts.label_color,
             anchor: TextAnchor::Start,
             is_tip_label: true,
+            rotation_deg: 0.0,
         });
     }
 

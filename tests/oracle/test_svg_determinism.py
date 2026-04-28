@@ -30,13 +30,17 @@ import pytest
 from treescape_reference.newick import parse as ref_parse
 from treescape_reference.render import (
     SceneOptions,
+    build_circular_scene,
     build_rectangular_scene,
     render_svg,
 )
 
 try:
     from treescape_connector.py_tree import Tree as RustTree
-    from treescape_connector.py_render import render_rectangular_svg as rust_render
+    from treescape_connector.py_render import (
+        render_circular_svg as rust_render_circular,
+        render_rectangular_svg as rust_render,
+    )
 
     HAVE_CONNECTOR = True
 except ImportError:  # pragma: no cover - only before maturin develop
@@ -112,6 +116,59 @@ def test_rust_matches_python_reference_bytes(fixture: pathlib.Path) -> None:
     ref_svg = render_svg(build_rectangular_scene(ref_parse(src), SceneOptions()))
     assert rust_svg == ref_svg, (
         f"Rust/reference SVG bytes diverged on {fixture.name}: "
+        f"rust_len={len(rust_svg)} ref_len={len(ref_svg)}"
+    )
+
+
+def _render_circular(fixture: pathlib.Path) -> str:
+    src = fixture.read_text()
+    tree = ref_parse(src)
+    scene = build_circular_scene(tree, SceneOptions())
+    return render_svg(scene)
+
+
+@pytest.mark.parametrize("fixture", DETERMINISM_FIXTURES, ids=lambda p: p.name)
+def test_circular_repeated_render_byte_identical(fixture: pathlib.Path) -> None:
+    """Five circular renders produce identical bytes (Python ref)."""
+    first = _render_circular(fixture)
+    for _ in range(4):
+        assert _render_circular(fixture) == first, f"circular render drift on {fixture.name}"
+
+
+@pytest.mark.parametrize("fixture", DETERMINISM_FIXTURES, ids=lambda p: p.name)
+def test_circular_matches_golden(fixture: pathlib.Path) -> None:
+    """Current circular render bytes match checked-in golden."""
+    rendered = _render_circular(fixture)
+    golden = GOLDEN_DIR / f"{fixture.stem}_circular.svg"
+    if os.environ.get("UPDATE_GOLDENS") == "1":
+        GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
+        golden.write_text(rendered)
+        pytest.skip(f"updated golden {golden.name}")
+    if not golden.exists():
+        GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
+        golden.write_text(rendered)
+        pytest.fail(
+            f"golden {golden.name} did not exist; created it. Re-run to validate."
+        )
+    expected = golden.read_text()
+    assert rendered == expected, (
+        f"circular golden mismatch on {fixture.name}; "
+        f"set UPDATE_GOLDENS=1 to regenerate if intentional"
+    )
+
+
+@pytest.mark.skipif(
+    not HAVE_CONNECTOR,
+    reason="treescape_connector not built (run maturin develop)",
+)
+@pytest.mark.parametrize("fixture", DETERMINISM_FIXTURES, ids=lambda p: p.name)
+def test_rust_circular_matches_python_reference_bytes(fixture: pathlib.Path) -> None:
+    """Rust circular SVG byte-identical to Python reference."""
+    src = fixture.read_text()
+    rust_svg = rust_render_circular(RustTree.parse_newick(src))
+    ref_svg = render_svg(build_circular_scene(ref_parse(src), SceneOptions()))
+    assert rust_svg == ref_svg, (
+        f"Rust/ref circular SVG diverged on {fixture.name}: "
         f"rust_len={len(rust_svg)} ref_len={len(ref_svg)}"
     )
 

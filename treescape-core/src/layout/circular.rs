@@ -11,6 +11,7 @@
 
 use std::f64::consts::PI;
 
+use crate::layout::scene::{Canvas, Color, Scene, SceneItem, TextAnchor};
 use crate::tree::Tree;
 
 /// Polar coordinates for every node, parallel-indexed by node id.
@@ -116,6 +117,193 @@ pub fn circular_layout_with(
 /// Defaults: `start_angle = π/2` (12 o'clock), `sweep_total = 2π`.
 pub fn circular_layout(tree: &Tree) -> CircularLayout {
     circular_layout_with(tree, PI / 2.0, 2.0 * PI)
+}
+
+/// Knobs for [`build_circular_scene`]. Reuses fields from the
+/// rectangular [`crate::layout::rectangular::SceneOptions`] where the
+/// meaning is the same — `px_per_x` is reused as pixels per unit
+/// radius, since both axes carry cumulative branch length.
+#[derive(Debug, Clone)]
+pub struct CircularSceneOptions {
+    pub px_per_r: f64,
+    pub padding: f64,
+    pub font_size: f64,
+    pub label_offset: f64,
+    pub stroke: Color,
+    pub stroke_width: f64,
+    pub label_color: Color,
+    pub start_angle: f64,
+    pub sweep_total: f64,
+}
+
+impl Default for CircularSceneOptions {
+    fn default() -> Self {
+        Self {
+            px_per_r: 60.0,
+            padding: 12.0,
+            font_size: 12.0,
+            label_offset: 4.0,
+            stroke: Color::black(),
+            stroke_width: 1.0,
+            label_color: Color::black(),
+            start_angle: PI / 2.0,
+            sweep_total: 2.0 * PI,
+        }
+    }
+}
+
+/// Build a circular phylogram scene: radial branch segments, arc
+/// spines connecting children of internal nodes, and rotated tip
+/// labels. The renderer projects polar `(r, θ)` to Cartesian via
+/// `x = cx + r·cos(θ); y = cy − r·sin(θ)`.
+///
+/// `measure_width` measures tip-label widths in pixels — pass the
+/// fontdue-backed measurer from `treescape-render` for proper canvas
+/// sizing.
+pub fn build_circular_scene_with_measurer(
+    tree: &Tree,
+    layout: &CircularLayout,
+    opts: &CircularSceneOptions,
+    measure_width: &dyn Fn(&str, f64) -> f64,
+) -> Scene {
+    if tree.is_empty() || layout.is_empty() {
+        return Scene {
+            canvas: Canvas { width: 0.0, height: 0.0 },
+            items: Vec::new(),
+        };
+    }
+
+    let max_r = layout
+        .r
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| tree.is_tip[*i])
+        .map(|(_, &r)| r)
+        .fold(0.0_f64, f64::max);
+
+    let max_label_px = tree
+        .name
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| tree.is_tip[*i])
+        .map(|(_, n)| measure_width(n, opts.font_size))
+        .fold(0.0_f64, f64::max);
+
+    let radius_px = max_r * opts.px_per_r;
+    let half = opts.padding + radius_px + opts.label_offset + max_label_px;
+    let canvas_size = 2.0 * half;
+    let canvas = Canvas {
+        width: canvas_size,
+        height: canvas_size,
+    };
+    let cx = half;
+    let cy = half;
+
+    let project = |r: f64, theta: f64| -> (f64, f64) {
+        (
+            cx + r * opts.px_per_r * theta.cos(),
+            cy - r * opts.px_per_r * theta.sin(),
+        )
+    };
+
+    let mut items = Vec::new();
+
+    for id in tree.preorder() {
+        let cs = &tree.children[id];
+        if cs.is_empty() {
+            continue;
+        }
+        let parent_r = layout.r[id];
+
+        for &child in cs {
+            let cr = layout.r[child];
+            let cth = layout.theta[child];
+            let (x1, y1) = project(parent_r, cth);
+            let (x2, y2) = project(cr, cth);
+            items.push(SceneItem::Line {
+                x1,
+                y1,
+                x2,
+                y2,
+                stroke: opts.stroke,
+                stroke_width: opts.stroke_width,
+            });
+        }
+
+        if parent_r > 0.0 && cs.len() >= 2 {
+            let mut min_th = f64::INFINITY;
+            let mut max_th = f64::NEG_INFINITY;
+            for &c in cs {
+                let th = layout.theta[c];
+                if th < min_th {
+                    min_th = th;
+                }
+                if th > max_th {
+                    max_th = th;
+                }
+            }
+            let span = max_th - min_th;
+            let (x1, y1) = project(parent_r, min_th);
+            let (x2, y2) = project(parent_r, max_th);
+            items.push(SceneItem::Arc {
+                x1,
+                y1,
+                x2,
+                y2,
+                radius: parent_r * opts.px_per_r,
+                large_arc: span > PI,
+                // Increasing θ from min to max = CCW visually in our
+                // SVG projection (since y = cy − r·sin θ). SVG sweep=0
+                // (sweep_clockwise=false) selects the CCW arc.
+                sweep_clockwise: false,
+                stroke: opts.stroke,
+                stroke_width: opts.stroke_width,
+            });
+        }
+    }
+
+    for id in tree.preorder() {
+        if !tree.is_tip[id] || tree.name[id].is_empty() {
+            continue;
+        }
+        let r = layout.r[id];
+        let theta = layout.theta[id];
+        let ux = theta.cos();
+        let uy = -theta.sin();
+        let (px, py) = project(r, theta);
+        let tx = px + opts.label_offset * ux;
+        let ty = py + opts.label_offset * uy;
+        let deg = theta.to_degrees();
+        let (anchor, rotation_deg) = if ux >= 0.0 {
+            (TextAnchor::Start, -deg)
+        } else {
+            (TextAnchor::End, -deg + 180.0)
+        };
+        items.push(SceneItem::Text {
+            x: tx,
+            y: ty,
+            text: tree.name[id].clone(),
+            font_size: opts.font_size,
+            color: opts.label_color,
+            anchor,
+            is_tip_label: true,
+            rotation_deg,
+        });
+    }
+
+    Scene { canvas, items }
+}
+
+/// Convenience: 0.6-em monospace fallback measurer baked in for
+/// callers that don't want to pull a font. Same legacy fallback
+/// pattern as [`crate::layout::rectangular::build_rectangular_scene`].
+pub fn build_circular_scene(
+    tree: &Tree,
+    layout: &CircularLayout,
+    opts: &CircularSceneOptions,
+) -> Scene {
+    let measure = |s: &str, fs: f64| s.chars().count() as f64 * fs * 0.6;
+    build_circular_scene_with_measurer(tree, layout, opts, &measure)
 }
 
 #[cfg(test)]

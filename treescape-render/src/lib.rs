@@ -8,6 +8,9 @@ pub use svg::{render_svg, SvgError};
 pub use style::default_theme;
 pub use text::text_width;
 
+use treescape_core::layout::circular::{
+    build_circular_scene_with_measurer, circular_layout, CircularSceneOptions,
+};
 use treescape_core::layout::rectangular::{
     build_rectangular_scene_with_measurer, rectangular_layout, SceneOptions,
 };
@@ -30,4 +33,16 @@ pub fn render_rectangular(tree: &Tree, opts: &SceneOptions) -> Result<String, Sv
 pub fn build_scene(tree: &Tree, opts: &SceneOptions) -> Scene {
     let layout = rectangular_layout(tree);
     build_rectangular_scene_with_measurer(tree, &layout, opts, &text_width)
+}
+
+/// Circular layout + scene + SVG bytes in one call.
+pub fn render_circular(tree: &Tree, opts: &CircularSceneOptions) -> Result<String, SvgError> {
+    let layout = circular_layout(tree);
+    let scene = build_circular_scene_with_measurer(tree, &layout, opts, &text_width);
+    render_svg(&scene)
+}
+
+pub fn build_circular_scene_(tree: &Tree, opts: &CircularSceneOptions) -> Scene {
+    let layout = circular_layout(tree);
+    build_circular_scene_with_measurer(tree, &layout, opts, &text_width)
 }

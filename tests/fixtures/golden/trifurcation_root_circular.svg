@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg height="167.2344" version="1.1" viewBox="0 0 167.2344 167.2344" width="167.2344" xmlns="http://www.w3.org/2000/svg">
+  <line stroke="#000000" stroke-width="1" x1="83.6172" x2="83.6172" y1="83.6172" y2="23.6172"/>
+  <line stroke="#000000" stroke-width="1" x1="83.6172" x2="135.5787" y1="83.6172" y2="113.6172"/>
+  <line stroke="#000000" stroke-width="1" x1="83.6172" x2="31.6557" y1="83.6172" y2="113.6172"/>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="start" transform="rotate(-90 83.6172 19.6172)" x="83.6172" y="19.6172">a</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="start" transform="rotate(30 139.0428 115.6172)" x="139.0428" y="115.6172">b</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(330 28.1916 115.6172)" x="28.1916" y="115.6172">c</text>
+</svg>

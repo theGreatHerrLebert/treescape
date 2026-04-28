@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg height="527.2344" version="1.1" viewBox="0 0 527.2344 527.2344" width="527.2344" xmlns="http://www.w3.org/2000/svg">
+  <line stroke="#000000" stroke-width="1" x1="263.6172" x2="290.8566" y1="263.6172" y2="317.0776"/>
+  <line stroke="#000000" stroke-width="1" x1="263.6172" x2="35.3636" y1="263.6172" y2="189.4531"/>
+  <line stroke="#000000" stroke-width="1" x1="323.6172" x2="383.6172" y1="263.6172" y2="263.6172"/>
+  <line stroke="#000000" stroke-width="1" x1="228.3501" x2="122.5487" y1="312.1582" y2="457.7813"/>
+  <path d="M 228.3501 312.1582 A 60 60 0 0 0 323.6172 263.6172" fill="none" stroke="#000000" stroke-width="1"/>
+  <line stroke="#000000" stroke-width="1" x1="334.1514" x2="369.4185" y1="166.5351" y2="117.9941"/>
+  <line stroke="#000000" stroke-width="1" x1="334.1514" x2="404.6856" y1="360.6992" y2="457.7813"/>
+  <path d="M 334.1514 360.6992 A 120 120 0 0 0 334.1514 166.5351" fill="none" stroke="#000000" stroke-width="1"/>
+  <line stroke="#000000" stroke-width="1" x1="263.6172" x2="263.6172" y1="83.6172" y2="23.6172"/>
+  <line stroke="#000000" stroke-width="1" x1="434.8074" x2="491.8708" y1="207.9941" y2="189.4531"/>
+  <path d="M 434.8074 207.9941 A 180 180 0 0 0 263.6172 83.6172" fill="none" stroke="#000000" stroke-width="1"/>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="start" transform="rotate(-90 263.6172 19.6172)" x="263.6172" y="19.6172">a</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="start" transform="rotate(-18 495.675 188.217)" x="495.675" y="188.217">b</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="start" transform="rotate(54 407.0368 461.0173)" x="407.0368" y="461.0173">c</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(306 120.1976 461.0173)" x="120.1976" y="461.0173">d</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(378 31.5594 188.217)" x="31.5594" y="188.217">e</text>
+</svg>

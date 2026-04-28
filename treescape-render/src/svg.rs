@@ -72,6 +72,35 @@ pub fn render_svg(scene: &Scene) -> Result<String, SvgError> {
                 )
                 .map_err(|e| SvgError::Format(e.to_string()))?;
             }
+            SceneItem::Arc {
+                x1,
+                y1,
+                x2,
+                y2,
+                radius,
+                large_arc,
+                sweep_clockwise,
+                stroke,
+                stroke_width,
+            } => {
+                let large_flag: u8 = if *large_arc { 1 } else { 0 };
+                let sweep_flag: u8 = if *sweep_clockwise { 1 } else { 0 };
+                let r = fmt_f(*radius);
+                writeln!(
+                    &mut out,
+                    "  <path d=\"M {x1} {y1} A {r} {r} 0 {la} {sw} {x2} {y2}\" fill=\"none\" stroke=\"{stroke}\" stroke-width=\"{swt}\"/>",
+                    x1 = fmt_f(*x1),
+                    y1 = fmt_f(*y1),
+                    x2 = fmt_f(*x2),
+                    y2 = fmt_f(*y2),
+                    r = r,
+                    la = large_flag,
+                    sw = sweep_flag,
+                    stroke = fmt_color(*stroke),
+                    swt = fmt_f(*stroke_width),
+                )
+                .map_err(|e| SvgError::Format(e.to_string()))?;
+            }
             SceneItem::Text {
                 x,
                 y,
@@ -80,19 +109,36 @@ pub fn render_svg(scene: &Scene) -> Result<String, SvgError> {
                 color,
                 anchor,
                 is_tip_label: _,
+                rotation_deg,
             } => {
-                writeln!(
-                    &mut out,
-                    "  <text fill=\"{fill}\" font-family=\"{family}\" font-size=\"{size}\" text-anchor=\"{anchor}\" x=\"{x}\" y=\"{y}\">{escaped}</text>",
-                    fill = fmt_color(*color),
-                    family = FONT_FAMILY,
-                    size = fmt_f(*font_size),
-                    anchor = fmt_anchor(*anchor),
-                    x = fmt_f(*x),
-                    y = fmt_f(*y),
-                    escaped = xml_escape(text),
-                )
-                .map_err(|e| SvgError::Format(e.to_string()))?;
+                if rotation_deg.abs() < 1e-9 {
+                    writeln!(
+                        &mut out,
+                        "  <text fill=\"{fill}\" font-family=\"{family}\" font-size=\"{size}\" text-anchor=\"{anchor}\" x=\"{x}\" y=\"{y}\">{escaped}</text>",
+                        fill = fmt_color(*color),
+                        family = FONT_FAMILY,
+                        size = fmt_f(*font_size),
+                        anchor = fmt_anchor(*anchor),
+                        x = fmt_f(*x),
+                        y = fmt_f(*y),
+                        escaped = xml_escape(text),
+                    )
+                    .map_err(|e| SvgError::Format(e.to_string()))?;
+                } else {
+                    writeln!(
+                        &mut out,
+                        "  <text fill=\"{fill}\" font-family=\"{family}\" font-size=\"{size}\" text-anchor=\"{anchor}\" transform=\"rotate({deg} {x} {y})\" x=\"{x}\" y=\"{y}\">{escaped}</text>",
+                        fill = fmt_color(*color),
+                        family = FONT_FAMILY,
+                        size = fmt_f(*font_size),
+                        anchor = fmt_anchor(*anchor),
+                        deg = fmt_f(*rotation_deg),
+                        x = fmt_f(*x),
+                        y = fmt_f(*y),
+                        escaped = xml_escape(text),
+                    )
+                    .map_err(|e| SvgError::Format(e.to_string()))?;
+                }
             }
         }
     }

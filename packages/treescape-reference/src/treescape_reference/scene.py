@@ -43,6 +43,24 @@ class Line:
 
 
 @dataclass(frozen=True)
+class Arc:
+    """Circular arc from (x1, y1) to (x2, y2) along a circle of the
+    given radius. ``large_arc`` and ``sweep_clockwise`` map onto SVG
+    path arc flags. Used by circular layouts for the spine that
+    connects an internal node's children."""
+
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+    radius: float
+    large_arc: bool = False
+    sweep_clockwise: bool = True
+    stroke: Color = BLACK
+    stroke_width: float = 1.0
+
+
+@dataclass(frozen=True)
 class Text:
     x: float
     y: float
@@ -51,9 +69,12 @@ class Text:
     color: Color = BLACK
     anchor: TextAnchor = TextAnchor.START
     is_tip_label: bool = False
+    # Rotation in degrees around (x, y); 0.0 = upright. Used to keep
+    # circular tip labels radial.
+    rotation_deg: float = 0.0
 
 
-SceneItem = object  # union: Line | Text
+SceneItem = object  # union: Line | Arc | Text
 
 
 @dataclass
@@ -67,7 +88,7 @@ class Scene:
     def coords_within_canvas(self, eps: float = 1e-6) -> bool:
         w, h = self.canvas.width + eps, self.canvas.height + eps
         for item in self.items:
-            if isinstance(item, Line):
+            if isinstance(item, (Line, Arc)):
                 for c in (item.x1, item.x2):
                     if c < -eps or c > w:
                         return False
@@ -80,4 +101,13 @@ class Scene:
         return True
 
 
-__all__ = ["Color", "BLACK", "Canvas", "TextAnchor", "Line", "Text", "Scene"]
+__all__ = [
+    "Color",
+    "BLACK",
+    "Canvas",
+    "TextAnchor",
+    "Line",
+    "Arc",
+    "Text",
+    "Scene",
+]

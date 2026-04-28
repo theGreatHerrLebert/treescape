@@ -51,6 +51,21 @@ pub enum SceneItem {
         stroke: Color,
         stroke_width: f64,
     },
+    /// A circular arc from `(x1, y1)` to `(x2, y2)` along a circle of
+    /// the given `radius`. `large_arc` and `sweep_clockwise` map
+    /// directly onto SVG path arc flags. Used by circular layouts to
+    /// draw the spine connecting children of an internal node.
+    Arc {
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+        radius: f64,
+        large_arc: bool,
+        sweep_clockwise: bool,
+        stroke: Color,
+        stroke_width: f64,
+    },
     Text {
         x: f64,
         y: f64,
@@ -61,6 +76,12 @@ pub enum SceneItem {
         /// True when this glyph corresponds to a tip label. Used by
         /// the tip-count invariant claim runner.
         is_tip_label: bool,
+        /// Rotation in degrees, applied around `(x, y)`. 0.0 means
+        /// upright. Used by circular layouts to keep tip labels
+        /// radial. Rotation is emitted as `transform="rotate(deg, x,
+        /// y)"`; deterministic float formatting handles the
+        /// byte-equality claim.
+        rotation_deg: f64,
     },
 }
 
@@ -87,6 +108,18 @@ impl Scene {
         for item in &self.items {
             match item {
                 SceneItem::Line { x1, y1, x2, y2, .. } => {
+                    for &c in &[*x1, *x2] {
+                        if c < -eps || c > w {
+                            return false;
+                        }
+                    }
+                    for &c in &[*y1, *y2] {
+                        if c < -eps || c > h {
+                            return false;
+                        }
+                    }
+                }
+                SceneItem::Arc { x1, y1, x2, y2, .. } => {
                     for &c in &[*x1, *x2] {
                         if c < -eps || c > w {
                             return false;
