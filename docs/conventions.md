@@ -127,6 +127,29 @@ The Python reference at `packages/treescape-reference/src/treescape_reference/me
 - Palette rules match `color_tips_by`: user palettes must cover observed non-None values; omitted palettes use Tableau-10 in first occurrence order over tree tips.
 - Terminal branches are out of scope for v0.3's monophyly claim. They remain default-colored until a separate terminal-branch styling API lands.
 
+### Circular `.scale_bar` + `.support_labels` (v0.4 Phase 2)
+
+Lifts the v0.3+v0.4-Phase-1 `NotImplementedError` for `TreePlot.scale_bar` and `TreePlot.support_labels` on `.layout("circular")`. After v0.4 Phase 2 lands, the circular path has feature parity with rectangular for every styling primitive v0.3+v0.4 covers.
+
+**`.scale_bar` on circular: bottom-right radial bar.** A horizontal line + end ticks + centered label, identical scene primitives to the rectangular scale bar — only the position differs.
+
+- **Position locked.** The bar sits in the canvas's bottom-right corner, in the unused space outside the tree's bounding circle (the square canvas inscribes a circle of radius `radius_px + label_offset + max_label_px`; the four corners are reliably empty).
+  - Right endpoint: `bar_x2 = canvas_width − padding`.
+  - Bar y: `bar_y = canvas_height − padding − font_size · 1.2` (one label-height above the bottom padding boundary, leaving room for the label below).
+  - Left endpoint: `bar_x1 = bar_x2 − length · px_per_r`. The bar extends *leftward* from the right edge — opposite of the rectangular convention's "extends right from the left edge" — so the user can ask for any reasonable length without it running off-canvas.
+- **Length scaling.** `length` (in branch-length units) maps to pixels via `px_per_r`, the same scale the radial axis uses. Tip and bar share the same scale by construction.
+- **Ticks + label.** Same as rectangular: end ticks (vertical tick marks at `bar_x1` and `bar_x2`, height `max(font_size · 0.35, 3.0)` px) plus a centered label below the bar at `(bar_x1 + bar_x2) / 2, bar_y + font_size · 1.2`.
+- **No calibration-ring alternative.** A circle's circumference is angular, not branch-length — using a unit-radius ring as the "scale" would visually suggest the wrong metric. Rejected up-front; not a deferred decision.
+
+**`.support_labels` on circular: upright text at the projected internal-node position.** Same `min_value` filter API as rectangular.
+
+- **Position locked.** For each internal node with a non-empty name (and value ≥ `min_value` if specified), emit one `Text` at `(cx + r · px_per_r · cos(θ), cy − r · px_per_r · sin(θ))`. No offset from the node's projected position — the label sits at the junction.
+- **`rotation_deg = 0`.** Upright, not tangential to the radial axis (tip labels rotate; support labels do not). Justification: support labels are short numerics (`95`, `0.97`) and upright text is more legible at any tree position; rotated text loses readability when angled past 90° from horizontal. Crowding at the tree's inner regions is a label-collision problem, deferred to v0.5+ GPU work per the cadence memory.
+- **`anchor = TextAnchor.Middle`.** Centers the label on the projected position so it reads as "this is the value of this node" rather than offset to one side.
+- **`min_value` filter.** Same parsing rule as rectangular: internal-node names that don't parse as `f64` are skipped when `min_value` is set; values below the threshold are skipped.
+
+**EVIDENT (v0.4 Phase 2):** new claim `treescape-circular-annotation-determinism` (ci-tier, property-style). Same tree + same `(scale_bar, support_labels)` config → byte-identical SVG on the circular path. Includes convention assertions: scale-bar `bar_x2 == canvas_width − padding`; support-label `rotation_deg == 0` and `anchor == Middle`. One claim covers both annotations because they share the determinism property and the test fixture set.
+
 ### Circular tip + branch coloring (v0.4 Phase 1)
 
 Lifts the v0.3 `NotImplementedError` for `TreePlot.color_tips`, `TreePlot.color_tips_by`, and `TreePlot.color_branches_by` on `.layout("circular")`. Mirrors v0.3 Phase 2 rectangular semantics where the meaning is the same; one circular-specific convention is documented below.

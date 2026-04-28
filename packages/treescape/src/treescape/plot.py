@@ -597,25 +597,16 @@ class TreePlot:
                 )
             return render_rectangular_svg(self._tree, self._scene_opts)
         if self._layout == "circular":
-            # v0.3 Phase 3 lifted .highlight_clade. v0.4 Phase 1 lifts
-            # .color_tips / .color_tips_by / .color_branches_by. The
-            # remaining annotation features (scale_bar, support_labels)
-            # land in v0.4 Phase 2.
-            unsupported = []
-            if self._scale_bar is not None:
-                unsupported.append(".scale_bar")
-            if self._support_labels:
-                unsupported.append(".support_labels")
-            if unsupported:
-                raise NotImplementedError(
-                    f"circular layout does not yet support {', '.join(unsupported)}; "
-                    "v0.4 Phase 2 will lift these. Drop the unsupported "
-                    "styling or switch to .layout('rectangular')."
-                )
+            # v0.4 Phase 2 closes the circular feature gap: .scale_bar
+            # and .support_labels now route through the styled circular
+            # path. Every styling primitive v0.3+v0.4 covers works on
+            # both layouts.
             styled_circ = (
                 bool(self._highlights)
                 or bool(self._tip_colors)
                 or bool(self._branch_colors)
+                or self._scale_bar is not None
+                or self._support_labels
             )
             if styled_circ:
                 return render_circular_styled_svg(
@@ -624,6 +615,9 @@ class TreePlot:
                     list(self._highlights),
                     dict(self._tip_colors),
                     list(self._branch_colors.items()),
+                    self._scale_bar,
+                    self._support_labels,
+                    self._support_min,
                 )
             return render_circular_svg(self._tree, self._circular_opts)
         raise AssertionError(f"unreachable: layout {self._layout!r}")

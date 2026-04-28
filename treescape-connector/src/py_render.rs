@@ -313,11 +313,13 @@ fn render_circular_svg(tree: &PyTree, opts: Option<&PyCircularSceneOptions>) -> 
 }
 
 /// Circular SVG with v0.3+v0.4 styling. v0.3 Phase 3 added
-/// `highlights` (annular sectors); v0.4 Phase 1 adds `tip_colors`
+/// `highlights` (annular sectors); v0.4 Phase 1 added `tip_colors`
 /// (per-Text fill) and `branch_colors` (radial parent→child Line
-/// stroke; arc spine stays default per the locked convention). Other
-/// styling features (`scale_bar`, `support_labels`) on the circular
-/// path remain unsupported and are gated upstream in TreePlot.
+/// stroke; arc spine stays default per the locked convention); v0.4
+/// Phase 2 adds `scale_bar` (bottom-right radial bar) and
+/// `support_labels` (upright text at projected internal-node
+/// positions). After Phase 2 the circular path has feature parity
+/// with rectangular for everything v0.3+v0.4 covers.
 ///
 /// Raises ValueError when any highlight's MRCA is the tree root, per
 /// the v0.3 convention (whole-tree highlight is meaningless).
@@ -328,6 +330,9 @@ fn render_circular_svg(tree: &PyTree, opts: Option<&PyCircularSceneOptions>) -> 
     highlights = Vec::new(),
     tip_colors = HashMap::new(),
     branch_colors = Vec::new(),
+    scale_bar = None,
+    support_labels = false,
+    support_min = None,
 ))]
 fn render_circular_styled_svg(
     tree: &PyTree,
@@ -335,6 +340,9 @@ fn render_circular_styled_svg(
     highlights: Vec<HighlightSpec>,
     tip_colors: HashMap<String, Rgba>,
     branch_colors: Vec<BranchColorSpec>,
+    scale_bar: Option<ScaleBarSpec>,
+    support_labels: bool,
+    support_min: Option<f64>,
 ) -> PyResult<String> {
     let default = CoreCircularSceneOptions::default();
     let opts_ref = opts.map(|o| &o.inner).unwrap_or(&default);
@@ -353,6 +361,14 @@ fn render_circular_styled_svg(
         style
             .branch_colors
             .insert(node_id, CoreColor::rgba(r, g, b, a));
+    }
+    if let Some((length, label)) = scale_bar {
+        style.scale_bar = Some(ScaleBar { length, label });
+    }
+    if support_labels {
+        style.support_labels = Some(SupportLabelSpec {
+            min_value: support_min,
+        });
     }
 
     render_circular_styled(&tree.inner, opts_ref, &style).map_err(|e| match e {

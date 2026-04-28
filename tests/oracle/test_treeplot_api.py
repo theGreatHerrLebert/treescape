@@ -59,9 +59,21 @@ def test_support_labels_threshold_filters_numeric_names() -> None:
     assert ">65</text>" not in svg
 
 
-def test_support_labels_reject_circular_for_now() -> None:
-    with pytest.raises(NotImplementedError, match="support_labels"):
-        TreePlot("((a:1,b:1)95:0.2,c:1);").support_labels().layout("circular").to_svg()
+def test_support_labels_works_on_circular() -> None:
+    """v0.4 Phase 2 lifted the circular .support_labels NIE. Internal
+    node names render as upright (rotation_deg=0) middle-anchored Text
+    at the projected internal-node position."""
+    svg = TreePlot("((a:1,b:1)95:0.2,c:1);").support_labels().layout("circular").to_svg()
+    assert ">95</text>" in svg
+
+
+def test_scale_bar_works_on_circular() -> None:
+    """v0.4 Phase 2 lifted the circular .scale_bar NIE. The bar lives
+    in the bottom-right quadrant of the canvas, with right endpoint at
+    canvas_width − padding."""
+    svg = TreePlot("(a:1,b:2);").layout("circular").scale_bar(0.5, "0.5 subs/site").to_svg()
+    assert ">0.5 subs/site</text>" in svg
+    assert 'text-anchor="middle"' in svg
 
 
 def test_color_branches_by_works_on_circular() -> None:

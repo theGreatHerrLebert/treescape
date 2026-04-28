@@ -521,6 +521,78 @@ pub fn build_circular_scene_with_style(
         });
     }
 
+    // v0.4 Phase 2: support labels — upright text at projected
+    // internal-node positions (rotation_deg = 0), middle-anchored.
+    if let Some(support) = &style.support_labels {
+        for id in tree.preorder() {
+            if tree.is_tip[id] || tree.name[id].is_empty() {
+                continue;
+            }
+            if let Some(min_value) = support.min_value {
+                let Ok(value) = tree.name[id].parse::<f64>() else {
+                    continue;
+                };
+                if value < min_value {
+                    continue;
+                }
+            }
+            let r = layout.r[id];
+            let theta = layout.theta[id];
+            let (sx, sy) = project(r, theta);
+            items.push(SceneItem::Text {
+                x: sx,
+                y: sy,
+                text: tree.name[id].clone(),
+                font_size: opts.font_size,
+                color: opts.label_color,
+                anchor: TextAnchor::Middle,
+                is_tip_label: false,
+                rotation_deg: 0.0,
+            });
+        }
+    }
+
+    // v0.4 Phase 2: bottom-right radial scale bar. Right endpoint
+    // anchored at canvas_width - padding, extends leftward; ticks at
+    // both ends, label centered below. Same scene primitives as the
+    // rectangular scale bar — only the position differs.
+    if let Some(scale_bar) = &style.scale_bar {
+        if scale_bar.length > 0.0 {
+            let bar_x2 = canvas.width - opts.padding;
+            let bar_x1 = bar_x2 - scale_bar.length * opts.px_per_r;
+            let bar_y = canvas.height - opts.padding - opts.font_size * 1.2;
+            let tick = (opts.font_size * 0.35).max(3.0);
+            items.push(SceneItem::Line {
+                x1: bar_x1,
+                y1: bar_y,
+                x2: bar_x2,
+                y2: bar_y,
+                stroke: opts.stroke,
+                stroke_width: opts.stroke_width,
+            });
+            for x in [bar_x1, bar_x2] {
+                items.push(SceneItem::Line {
+                    x1: x,
+                    y1: bar_y - tick * 0.5,
+                    x2: x,
+                    y2: bar_y + tick * 0.5,
+                    stroke: opts.stroke,
+                    stroke_width: opts.stroke_width,
+                });
+            }
+            items.push(SceneItem::Text {
+                x: (bar_x1 + bar_x2) * 0.5,
+                y: bar_y + opts.font_size * 1.2,
+                text: scale_bar.label.clone(),
+                font_size: opts.font_size,
+                color: opts.label_color,
+                anchor: TextAnchor::Middle,
+                is_tip_label: false,
+                rotation_deg: 0.0,
+            });
+        }
+    }
+
     Ok(Scene { canvas, items })
 }
 

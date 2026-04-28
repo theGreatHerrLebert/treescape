@@ -45,9 +45,27 @@ class CladeHighlight:
     fill: Color
 
 
+@dataclass(frozen=True)
+class ScaleBar:
+    """Branch-length scale bar. ``length`` is in the same units as
+    Newick edge lengths."""
+
+    length: float
+    label: str
+
+
+@dataclass(frozen=True)
+class SupportLabelSpec:
+    """Internal-node label rendering options. ``min_value`` filters
+    numeric labels; nodes whose name doesn't parse as ``f64`` are
+    skipped when ``min_value`` is set."""
+
+    min_value: Optional[float] = None
+
+
 @dataclass
 class StyleSpec:
-    """Style overrides shared by the rectangular and (v0.4 Phase 1)
+    """Style overrides shared by the rectangular and (v0.4 Phase 1+2)
     circular scene builders. Default = no styling; existing
     SVG bytes unchanged.
 
@@ -61,11 +79,16 @@ class StyleSpec:
     radial Line for circular. Sibling spines (rectangular vertical
     connector, circular arc) stay at the default stroke per the locked
     convention. Missing entries fall back to ``SceneOptions.stroke``.
+    `scale_bar` and `support_labels` (v0.4 Phase 2 for circular;
+    rectangular impl reserved for parallel parity work) attach the
+    annotation features documented in ``docs/conventions.md``.
     """
 
     highlights: ListT[CladeHighlight] = field(default_factory=list)
     tip_colors: Dict[str, Color] = field(default_factory=dict)
     branch_colors: Dict[int, Color] = field(default_factory=dict)
+    scale_bar: Optional[ScaleBar] = None
+    support_labels: Optional[SupportLabelSpec] = None
 
 
 @dataclass
@@ -394,6 +417,74 @@ def build_circular_scene(
                 anchor=anchor,
                 is_tip_label=True,
                 rotation_deg=rotation_deg,
+            )
+        )
+
+    # v0.4 Phase 2: support labels — upright text at projected
+    # internal-node positions (rotation_deg = 0), middle-anchored.
+    # Per the locked convention, no offset from the projection.
+    if style.support_labels is not None:
+        spec = style.support_labels
+        for node in preorder:
+            if node.is_tip() or not node.name:
+                continue
+            if spec.min_value is not None:
+                try:
+                    value = float(node.name)
+                except (TypeError, ValueError):
+                    continue
+                if value < spec.min_value:
+                    continue
+            r, theta = coords[id(node)]
+            sx, sy = project(r, theta)
+            items.append(
+                Text(
+                    x=sx,
+                    y=sy,
+                    text=node.name,
+                    font_size=opts.font_size,
+                    color=opts.label_color,
+                    anchor=TextAnchor.MIDDLE,
+                    is_tip_label=False,
+                    rotation_deg=0.0,
+                )
+            )
+
+    # v0.4 Phase 2: bottom-right radial scale bar. Per the locked
+    # convention, the bar's right endpoint is anchored at
+    # canvas_width - padding and it extends leftward; ticks at both
+    # ends, label centered below.
+    if style.scale_bar is not None and style.scale_bar.length > 0:
+        bar_x2 = canvas.width - opts.padding
+        bar_x1 = bar_x2 - style.scale_bar.length * opts.px_per_x
+        bar_y = canvas.height - opts.padding - opts.font_size * 1.2
+        tick = max(opts.font_size * 0.35, 3.0)
+        items.append(
+            Line(
+                x1=bar_x1, y1=bar_y, x2=bar_x2, y2=bar_y,
+                stroke=opts.stroke,
+                stroke_width=opts.stroke_width,
+            )
+        )
+        for tx_tick in (bar_x1, bar_x2):
+            items.append(
+                Line(
+                    x1=tx_tick, y1=bar_y - tick * 0.5,
+                    x2=tx_tick, y2=bar_y + tick * 0.5,
+                    stroke=opts.stroke,
+                    stroke_width=opts.stroke_width,
+                )
+            )
+        items.append(
+            Text(
+                x=(bar_x1 + bar_x2) * 0.5,
+                y=bar_y + opts.font_size * 1.2,
+                text=style.scale_bar.label,
+                font_size=opts.font_size,
+                color=opts.label_color,
+                anchor=TextAnchor.MIDDLE,
+                is_tip_label=False,
+                rotation_deg=0.0,
             )
         )
 

@@ -583,6 +583,62 @@ claims:
         byte-determinism across version bumps. Documented and accepted
         — golden bytes regen on a LUT change.
 
+  - id: treescape-circular-annotation-determinism
+    title: Circular scale_bar + support_labels produce byte-identical SVG for fixed inputs
+    case: cases/treescape.md
+    source: packages/treescape
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#property-based-testing
+    claim: >
+      For a fixed tree + fixed circular scene options + fixed
+      (scale_bar, support_labels) configuration, repeated renders of
+      the styled circular SVG produce byte-identical output. Style
+      metadata is encoded into the scene graph via the same primitives
+      the rectangular path uses (Line + Text for the scale bar; Text
+      with rotation_deg=0 for support labels), placed under the
+      circular conventions documented in docs/conventions.md (v0.4
+      Phase 2). The byte-determinism property is the same one
+      treescape-svg-determinism and treescape-styling-determinism
+      assert; this claim extends coverage to the two new circular
+      annotation features. Convention assertions are part of the
+      claim: scale-bar bar_x2 equals canvas_width minus padding (bar
+      sits in the bottom-right corner, extending leftward from the
+      canvas's right edge); support-label rotation_deg equals 0
+      (upright, not tangential) and anchor equals Middle (centered on
+      the projected node position).
+    evidence:
+      oracle:
+        - self (repeated render + Rust↔Python ref byte parity + convention assertions + golden snapshot)
+      tolerance: Exact byte equality across repeated renders.
+      command: pytest tests/oracle/test_circular_annotations.py -v
+      artifact: tests/oracle/reports/circular_annotations.json
+    assumptions:
+      - The square canvas inscribes a circle of radius
+        radius_px + label_offset + max_label_px. The bottom-right
+        corner is reliably empty space outside that inscribed circle,
+        so a scale bar placed there does not overlap the tree.
+      - Support labels are short numerics in practice (bootstrap
+        values, posterior probabilities); crowding at the tree's
+        inner regions where internal nodes cluster is acknowledged
+        as a v0.5+ label-collision problem, not a v0.4 concern.
+      - SceneOptions.label_color is the support-label color (matches
+        the rectangular convention).
+    failure_modes:
+      - User asks for a scale_bar.length so large the bar runs off the
+        left edge. Documented and accepted — the user picked the
+        length; we draw it. A future "fits-on-canvas" guard could
+        warn, but is out of v0.4 scope.
+      - SceneOptions.font_size changes between repeated calls, which
+        is by design but not byte-determinism — distinct font sizes
+        produce distinct SVG bytes. This claim asserts byte equality
+        for fixed inputs; varying inputs are out of its scope.
+      - Internal-node names that happen to parse as f64 above
+        min_value get rendered alongside genuine bootstrap values.
+        Same caveat as rectangular; rectangular's claim already
+        documents this and circular inherits.
+
   - id: treescape-tip-count-invariant
     title: Rendered tip glyphs equal input tip count; coordinates within canvas
     case: cases/treescape.md
