@@ -445,14 +445,15 @@ class TreePlot:
                 f"{column!r}; leaving default branch color"
             )
 
-        # All validation passed — assign, then emit warnings. Warnings
-        # emitting first wouldn't change correctness, but emitting them
-        # only after a successful assign keeps the user-visible signal
-        # consistent: "this call mutated state AND warned about these
-        # branches."
-        self._branch_colors = new_colors
+        # Emit warnings BEFORE the atomic assign. If the user has
+        # warnings.simplefilter("error", TreescapeStyleWarning) set,
+        # warnings.warn raises — and the assign must not have happened
+        # yet, otherwise the atomicity guarantee breaks (round-3 review
+        # finding). On the default warning filter this ordering is
+        # invisible: the warnings fire and then the state mutates.
         for msg in deferred_warnings:
             warnings.warn(msg, TreescapeStyleWarning, stacklevel=2)
+        self._branch_colors = new_colors
         return self
 
     def width_branches_by(

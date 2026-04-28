@@ -158,6 +158,50 @@ def test_branch_coloring_failed_call_leaves_prior_state_intact() -> None:
     assert svg_after == svg_before, "failed call clobbered prior branch colors"
 
 
+def test_branch_coloring_warnings_as_errors_preserves_prior_state() -> None:
+    """v0.4 review round 3 (F5): if a user pins warnings.simplefilter
+    ('error', TreescapeStyleWarning), a paraphyletic call should raise
+    AND leave prior styling intact. Achieved by emitting warnings
+    BEFORE the atomic assign, so the simplefilter raise happens
+    before _branch_colors mutates."""
+    df_clean = pl.DataFrame(
+        {"tip": ["a", "b", "c", "d"], "clade": ["left", "left", "right", "right"]}
+    )
+    df_paraphyletic = pl.DataFrame(
+        {"tip": ["a", "b", "c", "d"], "clade": ["left", "right", "right", "right"]}
+    )
+
+    plot = (
+        TreePlot(TREE)
+        .join_metadata(df_clean, on="tip")
+        .color_branches_by("clade", palette=PALETTE)
+    )
+    svg_before = plot.to_svg()
+
+    # Now overwrite with a different metadata column that's
+    # paraphyletic — a TreescapeStyleWarning would fire. Pin the
+    # filter to error so the warning becomes an exception.
+    df2 = pl.DataFrame(
+        {"tip": ["a", "b", "c", "d"], "host": ["h1", "h2", "h2", "h2"]}
+    )
+    plot.join_metadata(df2, on="tip")
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", TreescapeStyleWarning)
+        with pytest.raises(TreescapeStyleWarning, match="left_node"):
+            plot.color_branches_by(
+                "host", palette={"h1": "#aabbcc", "h2": "#ddeeff"}
+            )
+
+    # Prior clade colors must still be intact — the simplefilter raise
+    # interrupted the call before _branch_colors mutated.
+    svg_after = plot.to_svg()
+    assert svg_after == svg_before, (
+        "warnings-as-errors raise clobbered prior branch colors; "
+        "atomic assignment must happen AFTER warning emission"
+    )
+
+
 def test_branch_coloring_chained_call_clears_stale_state() -> None:
     """v0.4 review round 1 (F1): a second .color_branches_by call must
     fully redefine the metadata-driven branch coloring. Without the
