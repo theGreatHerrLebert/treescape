@@ -1,7 +1,7 @@
 //! PyO3 bindings for `treescape_render` and the scene-graph types in
 //! `treescape_core::layout::scene`.
 
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 
 use std::collections::HashMap;
@@ -14,8 +14,8 @@ use treescape_core::layout::rectangular::{
 };
 use treescape_core::layout::scene::{Color as CoreColor, Scene};
 use treescape_render::{
-    build_circular_scene_, build_scene, render_circular, render_rectangular, render_svg,
-    text_width as core_text_width,
+    build_circular_scene_, build_scene, render_circular, render_circular_styled,
+    render_rectangular, render_svg, text_width as core_text_width,
 };
 
 use crate::py_tree::PyTree;
@@ -312,6 +312,40 @@ fn render_circular_svg(tree: &PyTree, opts: Option<&PyCircularSceneOptions>) -> 
     render_circular(&tree.inner, opts_ref).map_err(|e| PyRuntimeError::new_err(e.to_string()))
 }
 
+/// v0.3 Phase 3: circular SVG with highlight_clade support. Other
+/// styling features (color_tips, color_branches_by, scale_bar,
+/// support_labels) on the circular path remain unsupported in v0.3
+/// and are gated upstream in TreePlot. `highlights` is a list of
+/// `(tip_names, (r, g, b, a))` matching the rectangular signature.
+///
+/// Raises ValueError when any highlight's MRCA is the tree root,
+/// per the v0.3 convention (whole-tree highlight is meaningless).
+#[pyfunction]
+#[pyo3(signature = (tree, opts = None, highlights = Vec::new()))]
+fn render_circular_styled_svg(
+    tree: &PyTree,
+    opts: Option<&PyCircularSceneOptions>,
+    highlights: Vec<HighlightSpec>,
+) -> PyResult<String> {
+    let default = CoreCircularSceneOptions::default();
+    let opts_ref = opts.map(|o| &o.inner).unwrap_or(&default);
+
+    let mut style = CoreStyleSpec::default();
+    for (tip_names, (r, g, b, a)) in highlights {
+        style.highlights.push(CladeHighlight {
+            tip_names,
+            fill: CoreColor::rgba(r, g, b, a),
+        });
+    }
+
+    render_circular_styled(&tree.inner, opts_ref, &style).map_err(|e| match e {
+        treescape_render::SvgError::Format(msg) if msg.contains("MRCA == root") => {
+            PyValueError::new_err(msg)
+        }
+        treescape_render::SvgError::Format(msg) => PyRuntimeError::new_err(msg),
+    })
+}
+
 #[pyfunction]
 #[pyo3(signature = (tree, opts = None))]
 fn build_circular_scene(tree: &PyTree, opts: Option<&PyCircularSceneOptions>) -> PyScene {
@@ -331,6 +365,7 @@ pub fn py_render(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(render_rectangular_styled_svg, m)?)?;
     m.add_function(wrap_pyfunction!(build_rectangular_scene, m)?)?;
     m.add_function(wrap_pyfunction!(render_circular_svg, m)?)?;
+    m.add_function(wrap_pyfunction!(render_circular_styled_svg, m)?)?;
     m.add_function(wrap_pyfunction!(build_circular_scene, m)?)?;
     m.add_function(wrap_pyfunction!(text_width, m)?)?;
     Ok(())

@@ -11,6 +11,8 @@
 
 use std::f64::consts::PI;
 
+use crate::clades::{clade_tips, find_mrca};
+use crate::layout::rectangular::StyleSpec;
 use crate::layout::scene::{Canvas, Color, Scene, SceneItem, TextAnchor};
 use crate::tree::Tree;
 
@@ -307,6 +309,106 @@ pub fn build_circular_scene(
 ) -> Scene {
     let measure = |s: &str, fs: f64| s.chars().count() as f64 * fs * 0.6;
     build_circular_scene_with_measurer(tree, layout, opts, &measure)
+}
+
+/// Build a circular scene with v0.3 Phase 3 styling — currently only
+/// `style.highlights` (rendered as `AnnularSector` items behind the
+/// rest of the scene). Other [`StyleSpec`] fields are reserved for
+/// future circular extensions and ignored at this layer (the
+/// user-facing `TreePlot` still raises `NotImplementedError` for
+/// them).
+///
+/// Returns `Err` when a highlight's MRCA is the tree's root — under
+/// the v0.3 convention that case covers the whole tree visually and
+/// is loud-rejected rather than silently emitting a whole-canvas
+/// sector. Unknown tip names in a highlight are skipped (matching
+/// the rectangular path's behavior).
+pub fn build_circular_scene_with_style(
+    tree: &Tree,
+    layout: &CircularLayout,
+    opts: &CircularSceneOptions,
+    measure_width: &dyn Fn(&str, f64) -> f64,
+    style: &StyleSpec,
+) -> Result<Scene, String> {
+    let mut scene = build_circular_scene_with_measurer(tree, layout, opts, measure_width);
+    if style.highlights.is_empty() {
+        return Ok(scene);
+    }
+    if tree.is_empty() || layout.is_empty() {
+        return Ok(scene);
+    }
+
+    let max_r = layout
+        .r
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| tree.is_tip[*i])
+        .map(|(_, &r)| r)
+        .fold(0.0_f64, f64::max);
+    let max_label_px = tree
+        .name
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| tree.is_tip[*i])
+        .map(|(_, n)| measure_width(n, opts.font_size))
+        .fold(0.0_f64, f64::max);
+    let radius_px = max_r * opts.px_per_r;
+    let r_outer_px = radius_px + opts.label_offset + max_label_px;
+    let half = opts.padding + radius_px + opts.label_offset + max_label_px;
+    let cx = half;
+    let cy = half;
+
+    let root = match tree.root {
+        Some(r) => r,
+        None => return Ok(scene),
+    };
+    let mut sectors: Vec<SceneItem> = Vec::with_capacity(style.highlights.len());
+    for h in &style.highlights {
+        let tip_refs: Vec<&str> = h.tip_names.iter().map(|s| s.as_str()).collect();
+        let mrca = match find_mrca(tree, &tip_refs) {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        if mrca == root {
+            return Err(
+                "circular highlight_clade(MRCA == root) covers the whole tree; \
+                 drop the highlight or pick a deeper clade"
+                    .to_string(),
+            );
+        }
+        let clade = clade_tips(tree, mrca);
+        if clade.is_empty() {
+            continue;
+        }
+        let mut theta_min = f64::INFINITY;
+        let mut theta_max = f64::NEG_INFINITY;
+        for &id in &clade {
+            let t = layout.theta[id];
+            if t < theta_min {
+                theta_min = t;
+            }
+            if t > theta_max {
+                theta_max = t;
+            }
+        }
+        let r_inner_px = layout.r[mrca] * opts.px_per_r;
+        sectors.push(SceneItem::AnnularSector {
+            cx,
+            cy,
+            r_inner: r_inner_px,
+            r_outer: r_outer_px,
+            theta_min,
+            theta_max,
+            fill: h.fill,
+        });
+    }
+
+    // Insert sectors at the front so they render behind branches/labels.
+    let mut combined = Vec::with_capacity(sectors.len() + scene.items.len());
+    combined.extend(sectors);
+    combined.append(&mut scene.items);
+    scene.items = combined;
+    Ok(scene)
 }
 
 #[cfg(test)]

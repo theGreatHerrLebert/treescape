@@ -345,23 +345,41 @@ claims:
       - validation
     pattern: evident/patterns/README.md#property-based-testing
     claim: >
-      For any tree + scene options + style configuration (clade
-      highlights, per-tip color overrides), repeated renders produce
-      byte-identical SVG. Style metadata is encoded into the scene
-      graph via Rect items (behind branches) and per-Text/per-Line
-      color overrides; ordering and serialization are deterministic.
-      Extends `treescape-svg-determinism` (rectangular and circular
-      layouts) to the styled-render path that v0.2 Phase 3 adds.
+      For any tree + scene options + style configuration, repeated
+      renders produce byte-identical SVG. Style metadata is encoded
+      into the scene graph via Rect (rectangular highlights),
+      AnnularSector (circular highlights, v0.3 Phase 3), and
+      per-Text / per-Line color overrides; ordering and serialization
+      are deterministic. Extends treescape-svg-determinism
+      (rectangular and circular layouts) to the styled-render path
+      that v0.2 Phase 3 added rectangular and that v0.3 Phase 3
+      extended to circular highlights. Additional property for the
+      circular path: an AnnularSector's [theta_min, theta_max] equals
+      the min/max layout tip angles in the clade (the polar analogue
+      of the rectangular "row span equals clade tip rows" property).
+      Rectangular and circular highlight shapes are NOT claimed
+      equivalent under the polar transform — each layout is
+      byte-deterministic in its own conventions, no cross-shape
+      parity.
     evidence:
       oracle:
-        - self (repeated render)
-      tolerance: Exact byte equality across five repeated renders.
+        - self (repeated render + golden snapshot + Rust↔Python ref byte parity)
+      tolerance: >
+        Exact byte equality across five repeated renders. Golden
+        snapshots checked into tests/fixtures/golden/<fixture>_styled.svg
+        (rectangular) and tests/fixtures/golden/<fixture>_styled_circular.svg
+        (circular). Rust↔reference byte parity on the same fixtures.
       command: pytest tests/oracle/test_styling_determinism.py -v
       artifact: tests/oracle/reports/styling_determinism.json
     assumptions:
       - Style configuration is pure data (no callables, no random
         defaults); user-supplied colors are normalized into the same
         Color value across runs.
+      - Circular highlight bounds use the layout's own r_max +
+        label_zone outer radius (per docs/conventions.md, v0.3 Phase 3).
+        A clade whose MRCA is the root raises ValueError rather than
+        emitting a whole-canvas sector — this is part of the claim,
+        tested explicitly.
     failure_modes:
       - Iteration over a Python dict / Rust HashMap leaks order into
         the scene-item list (currently the impls iterate user-ordered
@@ -369,6 +387,11 @@ claims:
       - User passes a style spec that resolves to a different Color
         across runs (e.g. callable, time-dependent), which would
         rightly fail this claim.
+      - Annular sector SVG path's float formatting drifts between
+        Rust and Python (different rounding rules); the same _fmt_f
+        convention used by Arc keeps these aligned, but a refactor
+        of either could regress without a Rust↔ref byte-parity test
+        catching it.
 
   - id: treescape-metadata-join-roundtrip
     title: join_metadata round-trips polars frames against the tree's tip universe

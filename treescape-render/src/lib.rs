@@ -9,8 +9,10 @@ pub use svg::{render_svg, SvgError};
 pub use text::text_width;
 
 use treescape_core::layout::circular::{
-    build_circular_scene_with_measurer, circular_layout_with, CircularSceneOptions,
+    build_circular_scene_with_measurer, build_circular_scene_with_style, circular_layout_with,
+    CircularSceneOptions,
 };
+use treescape_core::layout::rectangular::StyleSpec;
 use treescape_core::layout::rectangular::{
     build_rectangular_scene_with_measurer, rectangular_layout, SceneOptions,
 };
@@ -47,4 +49,20 @@ pub fn render_circular(tree: &Tree, opts: &CircularSceneOptions) -> Result<Strin
 pub fn build_circular_scene_(tree: &Tree, opts: &CircularSceneOptions) -> Scene {
     let layout = circular_layout_with(tree, opts.start_angle, opts.sweep_total);
     build_circular_scene_with_measurer(tree, &layout, opts, &text_width)
+}
+
+/// v0.3 Phase 3: circular layout + scene + SVG bytes with style
+/// (currently only `style.highlights` — annular sectors). Other
+/// `StyleSpec` fields are reserved for future circular extensions.
+/// Returns `Err` when a highlight's MRCA is the tree root (whole-tree
+/// highlight is loud-rejected per `docs/conventions.md`).
+pub fn render_circular_styled(
+    tree: &Tree,
+    opts: &CircularSceneOptions,
+    style: &StyleSpec,
+) -> Result<String, SvgError> {
+    let layout = circular_layout_with(tree, opts.start_angle, opts.sweep_total);
+    let scene = build_circular_scene_with_style(tree, &layout, opts, &text_width, style)
+        .map_err(SvgError::Format)?;
+    render_svg(&scene)
 }

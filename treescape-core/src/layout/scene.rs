@@ -54,6 +54,20 @@ pub enum SceneItem {
         height: f64,
         fill: Color,
     },
+    /// Filled annular sector for circular clade highlights (v0.3 Phase 3).
+    /// Coordinates and radii are in pixels (post-projection), matching
+    /// `Rect`. Emitted before `Line`/`Arc`/`Text` so highlights render
+    /// behind branches and labels. See `docs/conventions.md` (v0.3,
+    /// circular clade highlighting) for the geometry rules.
+    AnnularSector {
+        cx: f64,
+        cy: f64,
+        r_inner: f64,
+        r_outer: f64,
+        theta_min: f64,
+        theta_max: f64,
+        fill: Color,
+    },
     Line {
         x1: f64,
         y1: f64,
@@ -137,6 +151,19 @@ impl Scene {
                         return false;
                     }
                     if *y < -eps || *y + *height > h {
+                        return false;
+                    }
+                }
+                SceneItem::AnnularSector {
+                    cx,
+                    cy,
+                    r_outer,
+                    ..
+                } => {
+                    if *cx - *r_outer < -eps || *cx + *r_outer > w {
+                        return false;
+                    }
+                    if *cy - *r_outer < -eps || *cy + *r_outer > h {
                         return false;
                     }
                 }

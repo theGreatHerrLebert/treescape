@@ -26,6 +26,7 @@ from typing import Optional, Union
 from treescape_connector.py_render import (
     CircularSceneOptions,
     SceneOptions,
+    render_circular_styled_svg,
     render_circular_svg,
     render_rectangular_styled_svg,
     render_rectangular_svg,
@@ -596,12 +597,29 @@ class TreePlot:
                 )
             return render_rectangular_svg(self._tree, self._scene_opts)
         if self._layout == "circular":
-            if styled:
+            # v0.3 Phase 3 lifts highlight_clade for circular. The other
+            # styling features remain unsupported on the circular path
+            # (each has its own follow-up scope decision).
+            unsupported = []
+            if self._tip_colors:
+                unsupported.append(".color_tips / .color_tips_by")
+            if self._branch_colors:
+                unsupported.append(".color_branches_by")
+            if self._scale_bar is not None:
+                unsupported.append(".scale_bar")
+            if self._support_labels:
+                unsupported.append(".support_labels")
+            if unsupported:
                 raise NotImplementedError(
-                    "circular layout does not yet support .highlight_clade or "
-                    ".color_tips or .color_branches_by or .scale_bar or "
-                    ".support_labels; v0.3 will lift this. Drop styling or "
-                    "switch to .layout('rectangular')."
+                    f"circular layout does not yet support {', '.join(unsupported)}; "
+                    "v0.3 Phase 3 lifts only .highlight_clade. Drop the unsupported "
+                    "styling or switch to .layout('rectangular')."
+                )
+            if self._highlights:
+                return render_circular_styled_svg(
+                    self._tree,
+                    self._circular_opts,
+                    list(self._highlights),
                 )
             return render_circular_svg(self._tree, self._circular_opts)
         raise AssertionError(f"unreachable: layout {self._layout!r}")

@@ -127,6 +127,20 @@ The Python reference at `packages/treescape-reference/src/treescape_reference/me
 - Palette rules match `color_tips_by`: user palettes must cover observed non-None values; omitted palettes use Tableau-10 in first occurrence order over tree tips.
 - Terminal branches are out of scope for v0.3's monophyly claim. They remain default-colored until a separate terminal-branch styling API lands.
 
+### Circular clade highlighting (annular sectors, v0.3 Phase 3)
+
+Closes the v0.2 `NotImplementedError` for `TreePlot.highlight_clade(...)` with `.layout("circular")`. Other circular styling features (`.color_tips`, `.color_tips_by`, `.color_branches_by`, `.scale_bar`, `.support_labels`) remain `NotImplementedError` for now — they're natural follow-ups but not in v0.3 Phase 3 scope.
+
+- **New scene type:** `AnnularSector(cx, cy, r_inner, r_outer, theta_min, theta_max, fill)` in both Python reference (`scene.py`) and Rust core (`layout/scene.rs`). Coordinates are in **pixels** (post-projection), matching `Rect` — the scene-graph layer never carries layout-coordinate values.
+- **Geometry per highlight:**
+  - `r_inner = mrca_r * px_per_x` where `mrca_r` is the layout radius of `MRCA(tip_names)`. The sector's inner edge sits at the MRCA, mirroring v0.2's rectangular convention where the highlight starts at the MRCA's branch point.
+  - `r_outer = max_r * px_per_x + label_offset + max_label_px` — the same outer extent the canvas reserves for tip labels. Every highlight extends to the same outer radius, the polar analogue of v0.2's "rectangle extends to canvas right edge."
+  - `theta_min`, `theta_max` = min and max layout tip angles among `clade_tips(MRCA)`. Internal-node angles do not bound the sector — only tip angles do, matching the rectangular convention where row span is the clade's tip rows.
+- **MRCA == root → raise.** A clade whose MRCA is the root covers every tip; the highlight would cover the whole canvas (visually meaningless, blocks every branch and label). `TreePlot.highlight_clade(...)` paired with `.layout("circular")` raises `ValueError` at `to_svg`-time when this happens. Wrap-split paths are dead code under v0.3's `start_angle = π/2`, `sweep = 2π` convention (see *θ — tip angles* and Phase 3 plan); a fan layout (`sweep_total < 2π`) reopens this question.
+- **Z-order:** `AnnularSector` items are emitted before `Line`, `Arc`, and `Text`, so highlights render behind branches and labels. Same z-order as `Rect` in the rectangular path.
+- **SVG emit (path data):** `M r_inner·cosθ_min, ... L r_outer·cosθ_min, ... A r_outer r_outer 0 large 0 r_outer·cosθ_max, ... L r_inner·cosθ_max, ... A r_inner r_inner 0 large 1 r_inner·cosθ_min, ... Z`. The outer arc uses SVG `sweep_flag = 0` (increasing-θ direction = CCW visually under our SVG y-flip — same convention used by the existing arc spines); the inner arc returns with `sweep_flag = 1`. `large_arc = 1` iff `theta_max − theta_min > π`. Float formatting (`{:.4}` trim trailing zeros) matches the existing arc renderer.
+- **EVIDENT claim:** `treescape-styling-determinism` is **extended**, not replaced. Byte-determinism property carries over unchanged. Additional property: an annular sector's `[theta_min, theta_max]` equals the min/max layout tip angles in the clade. The radial bounds use the layout's own `[r_mrca, r_max + label_zone]` convention; rectangular↔circular shape equivalence under the polar transform is **not** claimed — each layout is byte-deterministic in its own conventions, no cross-shape parity.
+
 ### Continuous coloring by metadata
 
 - `TreePlot.color_tips_by(column, cmap=...)` and `TreePlot.color_branches_by(column, cmap=...)` map a numeric metadata column through a colormap. Dispatch is auto-detected from the column's observed dtype: all-numeric (excluding `bool`) → continuous; otherwise → discrete. Pass `cmap=` (continuous) or `palette=` (discrete) to force the path; passing both raises `ValueError`.

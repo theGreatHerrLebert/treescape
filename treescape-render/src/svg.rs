@@ -70,6 +70,58 @@ pub fn render_svg(scene: &Scene) -> Result<String, SvgError> {
                 )
                 .map_err(|e| SvgError::Format(e.to_string()))?;
             }
+            SceneItem::AnnularSector {
+                cx,
+                cy,
+                r_inner,
+                r_outer,
+                theta_min,
+                theta_max,
+                fill,
+            } => {
+                // Project the four corner points under the SVG y-flip and
+                // emit M-L-A-L-A-Z. Outer arc sweep_flag=0 (CCW visually
+                // under y-flip — same convention as the circular Arc
+                // spine); inner arc sweep_flag=1 (return CW). large_arc
+                // = 1 iff the angular span exceeds π (smaller-than-π
+                // clades take the short arc).
+                let cosmin = theta_min.cos();
+                let sinmin = theta_min.sin();
+                let cosmax = theta_max.cos();
+                let sinmax = theta_max.sin();
+                let ix0 = cx + r_inner * cosmin;
+                let iy0 = cy - r_inner * sinmin;
+                let ox0 = cx + r_outer * cosmin;
+                let oy0 = cy - r_outer * sinmin;
+                let ox1 = cx + r_outer * cosmax;
+                let oy1 = cy - r_outer * sinmax;
+                let ix1 = cx + r_inner * cosmax;
+                let iy1 = cy - r_inner * sinmax;
+                let large_flag: u8 = if (theta_max - theta_min) > std::f64::consts::PI {
+                    1
+                } else {
+                    0
+                };
+                let ro = fmt_f(*r_outer);
+                let ri = fmt_f(*r_inner);
+                writeln!(
+                    &mut out,
+                    "  <path d=\"M {ix0} {iy0} L {ox0} {oy0} A {ro} {ro} 0 {la} 0 {ox1} {oy1} L {ix1} {iy1} A {ri} {ri} 0 {la} 1 {ix0} {iy0} Z\" fill=\"{fill}\"/>",
+                    ix0 = fmt_f(ix0),
+                    iy0 = fmt_f(iy0),
+                    ox0 = fmt_f(ox0),
+                    oy0 = fmt_f(oy0),
+                    ox1 = fmt_f(ox1),
+                    oy1 = fmt_f(oy1),
+                    ix1 = fmt_f(ix1),
+                    iy1 = fmt_f(iy1),
+                    ro = ro,
+                    ri = ri,
+                    la = large_flag,
+                    fill = fmt_color(*fill),
+                )
+                .map_err(|e| SvgError::Format(e.to_string()))?;
+            }
             SceneItem::Line {
                 x1,
                 y1,

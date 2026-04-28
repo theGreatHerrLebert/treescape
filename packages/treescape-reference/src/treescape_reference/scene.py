@@ -73,6 +73,28 @@ class Arc:
 
 
 @dataclass(frozen=True)
+class AnnularSector:
+    """Filled annular sector for circular clade highlights (v0.3 Phase 3).
+    Coordinates are in pixels (post-projection), matching ``Rect``.
+    Emitted before Line/Arc/Text so highlights render behind branches
+    and labels.
+
+    Geometry: sector centered at ``(cx, cy)``, bounded by inner radius
+    ``r_inner``, outer radius ``r_outer``, and the angular range
+    ``[theta_min, theta_max]`` in radians (math convention; the SVG
+    projection applies the y-flip).
+    """
+
+    cx: float
+    cy: float
+    r_inner: float
+    r_outer: float
+    theta_min: float
+    theta_max: float
+    fill: Color
+
+
+@dataclass(frozen=True)
 class Text:
     x: float
     y: float
@@ -105,6 +127,11 @@ class Scene:
                     return False
                 if item.y < -eps or item.y + item.height > h:
                     return False
+            elif isinstance(item, AnnularSector):
+                if item.cx - item.r_outer < -eps or item.cx + item.r_outer > w:
+                    return False
+                if item.cy - item.r_outer < -eps or item.cy + item.r_outer > h:
+                    return False
             elif isinstance(item, (Line, Arc)):
                 for c in (item.x1, item.x2):
                     if c < -eps or c > w:
@@ -124,6 +151,7 @@ __all__ = [
     "Canvas",
     "TextAnchor",
     "Rect",
+    "AnnularSector",
     "Line",
     "Arc",
     "Text",

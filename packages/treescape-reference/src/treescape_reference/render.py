@@ -26,6 +26,7 @@ from .layout import circular_layout, clade_tips, find_mrca, rectangular_layout
 from .newick import Tree
 from .scene import (
     BLACK,
+    AnnularSector,
     Arc,
     Canvas,
     Color,
@@ -210,17 +211,26 @@ def build_circular_scene(
     *,
     start_angle: float = math.pi / 2,
     sweep_total: float = 2 * math.pi,
+    style: StyleSpec | None = None,
 ) -> Scene:
     """Circular phylogram scene: radial branches, arc spines, rotated
     tip labels. Conventions in ``docs/conventions.md``.
 
     Per the locked convention, the canvas is square; the projection is
     ``x = cx + r·cos(θ); y = cy − r·sin(θ)``.
+
+    v0.3 Phase 3: ``style.highlights`` emit ``AnnularSector`` items
+    behind branches/labels. ``style.tip_colors`` and other style fields
+    are reserved for future circular extensions and currently ignored
+    on the circular path (the user-facing TreePlot still raises
+    NotImplementedError for them).
     """
     if opts is None:
         opts = SceneOptions()
     if measure is None:
         measure = _fontdue_text_width
+    if style is None:
+        style = StyleSpec()
 
     if tree.root is None:
         return Scene(canvas=Canvas(0.0, 0.0), items=[])
@@ -249,6 +259,41 @@ def build_circular_scene(
     items: List[object] = []
 
     preorder = _preorder(tree.root)
+
+    # Highlights (annular sectors) emitted first so they render behind
+    # branches, arc spines, and labels. MRCA == root raises ValueError
+    # rather than emitting a whole-canvas sector. Per docs/conventions.md
+    # (v0.3 Phase 3), r_outer matches the canvas's tip-label zone so
+    # every highlight extends to the same outer radius.
+    r_outer_px = radius_px + opts.label_offset + max_label_px
+    for h in style.highlights:
+        try:
+            mrca = find_mrca(tree, list(h.tip_names))
+        except (KeyError, ValueError):
+            continue
+        if mrca is tree.root:
+            raise ValueError(
+                "circular highlight_clade(MRCA == root) covers the whole tree; "
+                "drop the highlight or pick a deeper clade"
+            )
+        clade = clade_tips(tree, mrca)
+        if not clade:
+            continue
+        tip_thetas = [coords[id(n)][1] for n in clade]
+        theta_min = min(tip_thetas)
+        theta_max = max(tip_thetas)
+        r_inner_px = coords[id(mrca)][0] * opts.px_per_x
+        items.append(
+            AnnularSector(
+                cx=cx,
+                cy=cy,
+                r_inner=r_inner_px,
+                r_outer=r_outer_px,
+                theta_min=theta_min,
+                theta_max=theta_max,
+                fill=h.fill,
+            )
+        )
 
     # Radial branch segments and arc spines.
     for node in preorder:
@@ -364,6 +409,36 @@ def render_svg(scene: Scene) -> str:
                 f'width="{_fmt_f(item.width)}" '
                 f'x="{_fmt_f(item.x)}" '
                 f'y="{_fmt_f(item.y)}"/>\n'
+            )
+        elif isinstance(item, AnnularSector):
+            # Project the four corners of the sector under the SVG y-flip.
+            # M (inner, theta_min) L (outer, theta_min) A->outer-arc->
+            # (outer, theta_max) L (inner, theta_max) A->inner-arc->
+            # (inner, theta_min) Z. Outer arc sweep_flag=0 (CCW visually
+            # under the y-flipped projection — same convention as the
+            # circular Arc spine); inner arc sweep_flag=1 (return CW).
+            cosmin = math.cos(item.theta_min)
+            sinmin = math.sin(item.theta_min)
+            cosmax = math.cos(item.theta_max)
+            sinmax = math.sin(item.theta_max)
+            ix0 = item.cx + item.r_inner * cosmin
+            iy0 = item.cy - item.r_inner * sinmin
+            ox0 = item.cx + item.r_outer * cosmin
+            oy0 = item.cy - item.r_outer * sinmin
+            ox1 = item.cx + item.r_outer * cosmax
+            oy1 = item.cy - item.r_outer * sinmax
+            ix1 = item.cx + item.r_inner * cosmax
+            iy1 = item.cy - item.r_inner * sinmax
+            la = 1 if (item.theta_max - item.theta_min) > math.pi else 0
+            ro = _fmt_f(item.r_outer)
+            ri = _fmt_f(item.r_inner)
+            out.append(
+                f'  <path d="M {_fmt_f(ix0)} {_fmt_f(iy0)} '
+                f'L {_fmt_f(ox0)} {_fmt_f(oy0)} '
+                f'A {ro} {ro} 0 {la} 0 {_fmt_f(ox1)} {_fmt_f(oy1)} '
+                f'L {_fmt_f(ix1)} {_fmt_f(iy1)} '
+                f'A {ri} {ri} 0 {la} 1 {_fmt_f(ix0)} {_fmt_f(iy0)} Z" '
+                f'fill="{_fmt_color(item.fill)}"/>\n'
             )
         elif isinstance(item, Line):
             out.append(
