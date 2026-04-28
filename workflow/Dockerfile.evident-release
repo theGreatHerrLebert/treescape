@@ -1,0 +1,63 @@
+# treescape EVIDENT release-tier validator.
+#
+# This image runs the heavy oracle claims that cannot run on free CI:
+# notably treescape-layout-vs-ggtree, which requires R + Bioconductor +
+# the ggtree package. Builds are slow (Bioconductor compiles a long
+# dep tree); this image is intentionally pinned to release tags only,
+# not every PR.
+#
+# Build:
+#   docker build -f workflow/Dockerfile.evident-release -t treescape-release .
+#
+# Run a release-tier claim:
+#   docker run --rm -v "$PWD:/workspace" -w /workspace treescape-release \
+#     bash -lc "pytest tests/oracle/test_layout_vs_ggtree.py -v"
+
+FROM rocker/r-ver:4.4.1
+
+LABEL org.opencontainers.image.title="treescape EVIDENT release runner"
+LABEL org.opencontainers.image.description="R + Bioconductor + ggtree + Python + maturin for release-tier oracle claims"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        curl \
+        git \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        libxml2-dev \
+        libfontconfig1-dev \
+        libharfbuzz-dev \
+        libfribidi-dev \
+        libfreetype6-dev \
+        libpng-dev \
+        libtiff5-dev \
+        libjpeg-dev \
+        python3.12 \
+        python3.12-dev \
+        python3.12-venv \
+        python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Rust toolchain for the connector build
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Bioconductor + ggtree + ape
+RUN R -e 'install.packages("BiocManager", repos="https://cloud.r-project.org")' \
+ && R -e 'BiocManager::install(c("ggtree","ape"), update=FALSE, ask=FALSE)'
+
+# Python venv with the same deps as ci
+RUN python3.12 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir maturin pytest biopython ete3 hypothesis six PyYAML
+
+WORKDIR /workspace
+
+# Image is consumed by mounting the repo at /workspace and running
+# pytest commands; we don't bake the codebase into the image so that
+# release validation always reflects the checked-out commit.
+CMD ["bash", "-lc", "echo 'use docker run -v \"$PWD:/workspace\" treescape-release bash -lc \"<command>\"'"]

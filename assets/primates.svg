@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg height="252" version="1.1" viewBox="0 0 520.2 252" width="520.2" xmlns="http://www.w3.org/2000/svg">
+  <line stroke="#000000" stroke-width="1" x1="16" x2="16" y1="121.1875" y2="225"/>
+  <line stroke="#000000" stroke-width="1" x1="16" x2="136" y1="121.1875" y2="121.1875"/>
+  <line stroke="#000000" stroke-width="1" x1="16" x2="136" y1="225" y2="225"/>
+  <line stroke="#000000" stroke-width="1" x1="136" x2="136" y1="83.375" y2="159"/>
+  <line stroke="#000000" stroke-width="1" x1="136" x2="184" y1="83.375" y2="83.375"/>
+  <line stroke="#000000" stroke-width="1" x1="136" x2="256" y1="159" y2="159"/>
+  <line stroke="#000000" stroke-width="1" x1="184" x2="184" y1="62.75" y2="104"/>
+  <line stroke="#000000" stroke-width="1" x1="184" x2="196" y1="62.75" y2="62.75"/>
+  <line stroke="#000000" stroke-width="1" x1="184" x2="304" y1="104" y2="104"/>
+  <line stroke="#000000" stroke-width="1" x1="196" x2="196" y1="43.5" y2="82"/>
+  <line stroke="#000000" stroke-width="1" x1="196" x2="214" y1="43.5" y2="43.5"/>
+  <line stroke="#000000" stroke-width="1" x1="196" x2="298" y1="82" y2="82"/>
+  <line stroke="#000000" stroke-width="1" x1="214" x2="214" y1="27" y2="60"/>
+  <line stroke="#000000" stroke-width="1" x1="214" x2="238" y1="27" y2="27"/>
+  <line stroke="#000000" stroke-width="1" x1="214" x2="298" y1="60" y2="60"/>
+  <line stroke="#000000" stroke-width="1" x1="238" x2="238" y1="16" y2="38"/>
+  <line stroke="#000000" stroke-width="1" x1="238" x2="298" y1="16" y2="16"/>
+  <line stroke="#000000" stroke-width="1" x1="238" x2="298" y1="38" y2="38"/>
+  <line stroke="#000000" stroke-width="1" x1="256" x2="256" y1="137" y2="181"/>
+  <line stroke="#000000" stroke-width="1" x1="256" x2="280" y1="137" y2="137"/>
+  <line stroke="#000000" stroke-width="1" x1="256" x2="292" y1="181" y2="181"/>
+  <line stroke="#000000" stroke-width="1" x1="280" x2="280" y1="126" y2="148"/>
+  <line stroke="#000000" stroke-width="1" x1="280" x2="352" y1="126" y2="126"/>
+  <line stroke="#000000" stroke-width="1" x1="280" x2="352" y1="148" y2="148"/>
+  <line stroke="#000000" stroke-width="1" x1="292" x2="292" y1="170" y2="192"/>
+  <line stroke="#000000" stroke-width="1" x1="292" x2="352" y1="170" y2="170"/>
+  <line stroke="#000000" stroke-width="1" x1="292" x2="352" y1="192" y2="192"/>
+  <line stroke="#000000" stroke-width="1" x1="136" x2="136" y1="214" y2="236"/>
+  <line stroke="#000000" stroke-width="1" x1="136" x2="292" y1="214" y2="214"/>
+  <line stroke="#000000" stroke-width="1" x1="136" x2="292" y1="236" y2="236"/>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="13" text-anchor="start" x="302" y="20.55">Homo_sapiens</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="13" text-anchor="start" x="302" y="42.55">Pan_troglodytes</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="13" text-anchor="start" x="302" y="64.55">Gorilla_gorilla</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="13" text-anchor="start" x="302" y="86.55">Pongo_abelii</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="13" text-anchor="start" x="308" y="108.55">Hylobates_lar</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="13" text-anchor="start" x="356" y="130.55">Macaca_mulatta</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="13" text-anchor="start" x="356" y="152.55">Papio_anubis</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="13" text-anchor="start" x="356" y="174.55">Cercopithecus_mitis</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="13" text-anchor="start" x="356" y="196.55">Chlorocebus_sabaeus</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="13" text-anchor="start" x="296" y="218.55">Callithrix_jacchus</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="13" text-anchor="start" x="296" y="240.55">Saimiri_sciureus</text>
+</svg>

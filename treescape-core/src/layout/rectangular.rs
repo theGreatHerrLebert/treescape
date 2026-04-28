@@ -134,7 +134,17 @@ pub fn build_rectangular_scene(
         };
     }
 
-    let max_x = layout.x.iter().cloned().fold(0.0_f64, f64::max);
+    // Branch lengths can be negative (legal Newick, see fixture
+    // edge/neg_branches.nwk), so cumulative x can be < 0. We must
+    // shift the layout so that the leftmost coordinate is at the
+    // padding boundary; otherwise nodes render outside the canvas.
+    let min_x = layout
+        .x
+        .iter()
+        .cloned()
+        .fold(f64::INFINITY, f64::min)
+        .min(0.0);
+    let max_x = layout.x.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
     let max_y = layout.y.iter().cloned().fold(0.0_f64, f64::max);
     let max_label_chars = tree
         .name
@@ -147,10 +157,13 @@ pub fn build_rectangular_scene(
     let max_label_px =
         (max_label_chars as f64) * opts.font_size * opts.avg_glyph_width;
 
+    let x_span = (max_x - min_x).max(0.0);
     let canvas = Canvas {
-        width: opts.padding * 2.0 + max_x * opts.px_per_x + opts.label_offset + max_label_px,
+        width: opts.padding * 2.0 + x_span * opts.px_per_x + opts.label_offset + max_label_px,
         height: opts.padding * 2.0 + max_y * opts.px_per_y,
     };
+    // Helper: tree-x -> pixel-x with the negative-cumulative shift baked in.
+    let to_px_x = |xv: f64| opts.padding + (xv - min_x) * opts.px_per_x;
 
     let mut items = Vec::new();
 
@@ -161,7 +174,7 @@ pub fn build_rectangular_scene(
         if tree.children[id].is_empty() {
             continue;
         }
-        let parent_px_x = opts.padding + layout.x[id] * opts.px_per_x;
+        let parent_px_x = to_px_x(layout.x[id]);
         let child_ys: Vec<f64> = tree.children[id]
             .iter()
             .map(|&c| layout.y[c])
@@ -179,7 +192,7 @@ pub fn build_rectangular_scene(
         });
 
         for &c in &tree.children[id] {
-            let child_px_x = opts.padding + layout.x[c] * opts.px_per_x;
+            let child_px_x = to_px_x(layout.x[c]);
             let child_px_y = opts.padding + layout.y[c] * opts.px_per_y;
             items.push(SceneItem::Line {
                 x1: parent_px_x,
@@ -197,7 +210,7 @@ pub fn build_rectangular_scene(
         if !tree.is_tip[id] || tree.name[id].is_empty() {
             continue;
         }
-        let tx = opts.padding + layout.x[id] * opts.px_per_x + opts.label_offset;
+        let tx = to_px_x(layout.x[id]) + opts.label_offset;
         let ty = opts.padding + layout.y[id] * opts.px_per_y + opts.font_size * 0.35;
         items.push(SceneItem::Text {
             x: tx,
@@ -303,6 +316,20 @@ mod tests {
         let l = rectangular_layout(&t);
         let s = build_rectangular_scene(&t, &l, &SceneOptions::default());
         assert!(s.coords_within_canvas(1e-6));
+    }
+
+    #[test]
+    fn scene_coords_within_canvas_negative_branch() {
+        // Negative branch lengths produce negative cumulative x. Without
+        // the min_x shift, tips render at negative pixel coords outside
+        // the canvas.
+        let t = parse("(a:-0.5,b:0.5);").unwrap();
+        let l = rectangular_layout(&t);
+        let s = build_rectangular_scene(&t, &l, &SceneOptions::default());
+        assert!(
+            s.coords_within_canvas(1e-6),
+            "negative branch leaks coords outside canvas"
+        );
     }
 
     #[test]

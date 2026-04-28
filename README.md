@@ -2,6 +2,11 @@
 
 Python-native phylogenetic tree visualization with a Rust core and EVIDENT-style trust scaffolding.
 
+<p align="center">
+  <img src="assets/primates.svg" alt="treescape rendering of a 12-tip primate phylogeny" width="640"/>
+</p>
+<p align="center"><em>v0.1: rectangular phylogram, deterministic SVG, byte-identical Rust↔Python reference output.</em></p>
+
 ## Status
 
 v0.1 in development. See `plan.md` for the vision and `evident.yaml` for the trust manifest.
@@ -39,16 +44,20 @@ The manifest is pinned today; the oracle test runners turn green progressively a
 
 ### Claim status
 
-| Claim | Tier | Phase gate | Status |
+All eight claims are implemented. Status here is reported relative to a local environment that has the prerequisites listed in **Quickstart** (Python 3.11+, the maturin-built `treescape_connector`, Biopython, ete3, and hypothesis). When a prerequisite is absent, the corresponding test skips cleanly — it does not silently pass.
+
+| Claim | Tier | Requires | Status (with prereqs) |
 |---|---|---|---|
-| treescape-newick-roundtrip | ci | Phase 1 | green |
-| treescape-layout-rust-vs-reference | ci | Phase 4 | green |
-| treescape-layout-vs-ete3 | ci | Phase 2 | green |
-| treescape-layout-vs-biopython | ci | Phase 2 | green |
-| treescape-layout-vs-ggtree | release | Phase 2 (skips on `ci`) | implemented; skips when ggtree absent |
-| treescape-ladderize-order | ci | Phase 2 | green |
-| treescape-svg-determinism | ci | Phase 3 | green |
-| treescape-tip-count-invariant | ci | Phase 3 | green |
+| treescape-newick-roundtrip | ci | Biopython, connector | green |
+| treescape-layout-rust-vs-reference | ci | connector | green |
+| treescape-layout-vs-ete3 | ci | ete3 | green |
+| treescape-layout-vs-biopython | ci | Biopython (≥1.84) | green |
+| treescape-layout-vs-ggtree | release | R + Bioconductor + ggtree | green inside `workflow/Dockerfile.evident-release`; skips on `ci` |
+| treescape-ladderize-order | ci | ete3 | green |
+| treescape-svg-determinism | ci | connector | green |
+| treescape-tip-count-invariant | ci | hypothesis | green |
+
+Run `pytest tests/oracle -v` and read the `SKIPPED` reasons to see which prerequisites are missing in your environment.
 
 ## License
 

@@ -17,6 +17,9 @@ dependencies = []
 [project.optional-dependencies]
 test = [
     "pytest>=8.0",
+    "hypothesis>=6.0",
+    "biopython>=1.84",
+    "ete3>=3.1",
 ]
 
 [tool.hatch.build.targets.wheel]

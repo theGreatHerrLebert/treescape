@@ -11,6 +11,7 @@ Every fixture used by an EVIDENT claim lives here. Fixtures are versioned with t
 | `edge/nhx_comments.nwk` | 2 | hand-written | NHX `[&&NHX:...]` annotations |
 | `edge/neg_branches.nwk` | 2 | hand-written | negative branch length (legal but unusual) |
 | `edge/trifurcation_root.nwk` | 3 | hand-written | unrooted-style 3-way root |
+| `medium/primates.nwk` | 12 | hand-written, schematic | demo fixture for the README screenshot; topology approximates a primate phylogeny but branch lengths are illustrative, not literature-derived |
 
 ## Adding a fixture
 

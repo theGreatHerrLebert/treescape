@@ -20,7 +20,12 @@ import time
 from typing import List
 
 import pytest
-from hypothesis import HealthCheck, given, settings, strategies as st
+
+hypothesis = pytest.importorskip(
+    "hypothesis",
+    reason="hypothesis not installed (declared in packages/treescape-reference[test])",
+)
+from hypothesis import HealthCheck, given, settings, strategies as st  # noqa: E402
 
 from treescape_reference.newick import parse as ref_parse
 from treescape_reference.render import (

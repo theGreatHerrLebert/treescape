@@ -56,6 +56,9 @@ def build_rectangular_scene(tree: Tree, opts: SceneOptions | None = None) -> Sce
 
     xs = [coords[id(n)][0] for n in nodes]
     ys = [coords[id(n)][1] for n in nodes]
+    # Negative branch lengths can push cumulative x below zero. Shift
+    # so the leftmost coord lands at the padding boundary.
+    min_x = min(min(xs) if xs else 0.0, 0.0)
     max_x = max(xs) if xs else 0.0
     max_y = max(ys) if ys else 0.0
 
@@ -63,10 +66,14 @@ def build_rectangular_scene(tree: Tree, opts: SceneOptions | None = None) -> Sce
     max_label_chars = max(tip_chars) if tip_chars else 0
     max_label_px = max_label_chars * opts.font_size * opts.avg_glyph_width
 
+    x_span = max(max_x - min_x, 0.0)
     canvas = Canvas(
-        width=opts.padding * 2 + max_x * opts.px_per_x + opts.label_offset + max_label_px,
+        width=opts.padding * 2 + x_span * opts.px_per_x + opts.label_offset + max_label_px,
         height=opts.padding * 2 + max_y * opts.px_per_y,
     )
+
+    def to_px_x(xv: float) -> float:
+        return opts.padding + (xv - min_x) * opts.px_per_x
 
     items: List[object] = []
 
@@ -75,7 +82,7 @@ def build_rectangular_scene(tree: Tree, opts: SceneOptions | None = None) -> Sce
     for node in preorder:
         if not node.children:
             continue
-        parent_x = opts.padding + coords[id(node)][0] * opts.px_per_x
+        parent_x = to_px_x(coords[id(node)][0])
         child_ys = [coords[id(c)][1] for c in node.children]
         min_cy = min(child_ys)
         max_cy = max(child_ys)
@@ -92,7 +99,7 @@ def build_rectangular_scene(tree: Tree, opts: SceneOptions | None = None) -> Sce
         )
 
         for child in node.children:
-            cx = opts.padding + coords[id(child)][0] * opts.px_per_x
+            cx = to_px_x(coords[id(child)][0])
             cy = opts.padding + coords[id(child)][1] * opts.px_per_y
             items.append(
                 Line(
@@ -109,7 +116,7 @@ def build_rectangular_scene(tree: Tree, opts: SceneOptions | None = None) -> Sce
     for node in preorder:
         if not node.is_tip() or not node.name:
             continue
-        tx = opts.padding + coords[id(node)][0] * opts.px_per_x + opts.label_offset
+        tx = to_px_x(coords[id(node)][0]) + opts.label_offset
         ty = opts.padding + coords[id(node)][1] * opts.px_per_y + opts.font_size * 0.35
         items.append(
             Text(
