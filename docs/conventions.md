@@ -127,6 +127,20 @@ The Python reference at `packages/treescape-reference/src/treescape_reference/me
 - Palette rules match `color_tips_by`: user palettes must cover observed non-None values; omitted palettes use Tableau-10 in first occurrence order over tree tips.
 - Terminal branches are out of scope for v0.3's monophyly claim. They remain default-colored until a separate terminal-branch styling API lands.
 
+### Circular tip + branch coloring (v0.4 Phase 1)
+
+Lifts the v0.3 `NotImplementedError` for `TreePlot.color_tips`, `TreePlot.color_tips_by`, and `TreePlot.color_branches_by` on `.layout("circular")`. Mirrors v0.3 Phase 2 rectangular semantics where the meaning is the same; one circular-specific convention is documented below.
+
+- **Tip color** is per-`Text` `fill`, identical to the rectangular convention. No new scene primitive. The fontdue-measured rotation/anchor of circular tip labels is unchanged — only the fill color changes per tip.
+- **Branch color: which scene primitive carries it.** The v0.3 rectangular convention is "the horizontal parent→child segment receives the color while the vertical connector spine stays at the default stroke color." The circular analogue:
+  - **The radial parent→child `Line` (from `(parent.r, child.θ)` to `(child.r, child.θ)`) receives the color.** That line is the parent-to-child branch.
+  - **The arc spine (at `r = parent.r`, spanning the children's θ-range) stays at the default stroke color.** The spine connects siblings, not parent-to-child; it is not "a branch" in the metadata-coloring sense.
+  - This means a colored circular branch is visually a single radial line segment from the parent's radius outward to the child's. Sibling spines under a paraphyletic-by-`column` parent stay default-stroke even when the children's branches are differently colored — same visual idiom as rectangular's vertical-spine-stays-default convention, just rotated into polar.
+- **Monophyly logic** (discrete `color_branches_by`) is unchanged from v0.3 rectangular: every descendant tip shares the same non-missing value → palette color; otherwise default + `TreescapeStyleWarning`. The warning names the branch by its child node id (or the parent node's name if it has one).
+- **Continuous (subtree-mean viridis)** is unchanged from v0.3 rectangular: each non-tip branch's color is `cmap(mean(descendant tips' non-missing values for column))`, with `(vmin, vmax)` defaulting to the column's observed min/max so tip and branch coloring share a coherent scale by construction. Subtrees with no observed values keep the default radial-line stroke silently.
+- **Z-order** (v0.3 Phase 3 convention preserved): `AnnularSector` items emit before `Line` / `Arc` / `Text`, so highlights render behind the colored radial branches. Branch coloring on top of a highlight still reads correctly (highlight tints the background, branch stroke remains visible).
+- **EVIDENT (v0.4 Phase 1):** `treescape-color-tips-by-discrete-roundtrip`, `treescape-color-branches-by-monophyly`, and `treescape-color-by-continuous-determinism` are each **extended** (not replaced) to cover circular layouts. New circular fixtures land alongside the existing rectangular ones; Rust↔Python ref byte parity continues to hold.
+
 ### Circular clade highlighting (annular sectors, v0.3 Phase 3)
 
 Closes the v0.2 `NotImplementedError` for `TreePlot.highlight_clade(...)` with `.layout("circular")`. Other circular styling features (`.color_tips`, `.color_tips_by`, `.color_branches_by`, `.scale_bar`, `.support_labels`) remain `NotImplementedError` for now — they're natural follow-ups but not in v0.3 Phase 3 scope.

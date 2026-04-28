@@ -465,10 +465,13 @@ claims:
       `TreePlot.color_tips({...})` call using the same palette. The
       default palette is deterministic Tableau-10 ordered by first
       occurrence in tree tip order, so repeated renders are byte
-      identical for the same tree + metadata.
+      identical for the same tree + metadata. v0.4 Phase 1 extends
+      coverage to circular layouts: the resolver runs once per plot and
+      maps to per-Text fill on both rectangular and circular paths;
+      explicit-mapping equivalence holds across both layouts.
     evidence:
       oracle:
-        - self (explicit color_tips equivalence)
+        - self (explicit color_tips equivalence on rectangular AND circular)
       tolerance: Exact SVG byte equality against the explicit mapping.
       command: pytest tests/oracle/test_color_tips_by_metadata.py -v
       artifact: tests/oracle/reports/color_tips_by_metadata.json
@@ -476,7 +479,9 @@ claims:
       - Metadata has already passed the `join_metadata` validation
         contract; this claim tests color resolution only.
       - Only discrete/categorical columns are in scope. Continuous
-        numeric color maps are covered by a later v0.3 claim.
+        numeric color maps are covered by treescape-color-by-continuous-determinism.
+      - v0.4 Phase 1 added circular coverage — v0.3 rectangular byte
+        bytes for the existing fixtures unchanged.
     failure_modes:
       - Palette assignment accidentally depends on Python dict/set
         iteration order instead of tree tip order, making default
@@ -493,26 +498,32 @@ claims:
       - validation
     pattern: evident/patterns/README.md#property-based-testing
     claim: >
-      For each rectangular internal branch and discrete metadata column,
+      For each internal branch and discrete metadata column,
       `TreePlot.color_branches_by(column)` colors the branch iff every
       descendant tip in the child subtree has the same non-None metadata
       value. Mixed or missing values leave the branch at the default
       stroke color and emit `TreescapeStyleWarning` naming the branch and
       column. Branch color overrides are serialized through the existing
-      deterministic styled SVG path.
+      deterministic styled SVG path. v0.4 Phase 1 extends coverage to
+      circular layouts under the convention locked in
+      docs/conventions.md (v0.4 Phase 1, circular tip + branch
+      coloring): the radial parent→child Line gets the color while the
+      arc spine stays default — same z-order and warning semantics as
+      rectangular.
     evidence:
       oracle:
-        - self (monophyly resolver + SVG serialization checks)
+        - self (monophyly resolver + SVG serialization checks on rectangular AND circular)
       tolerance: Exact warning/no-warning behavior and exact SVG color fragments.
       command: pytest tests/oracle/test_color_branches_by_metadata.py -v
       artifact: tests/oracle/reports/color_branches_by_metadata.json
     assumptions:
       - >
-        v0.3 colors internal branches only: the horizontal segment from
-        parent to child internal node. Terminal branch coloring is out
-        of scope.
+        v0.3/v0.4 Phase 1 color internal branches only: the
+        parent→child segment (horizontal in rectangular, radial in
+        circular). Terminal branch coloring is v0.4 Phase 3 territory
+        and is covered by an extension to this same claim.
       - Discrete/categorical metadata only. Continuous gradients are a
-        separate v0.3 claim.
+        separate claim (treescape-color-by-continuous-determinism).
     failure_modes:
       - Paraphyletic metadata silently colors an internal branch by the
         first/last descendant tip instead of warning and leaving default.
@@ -539,10 +550,14 @@ claims:
       default branch color silently — no warning, since "no data" is not
       a paraphyletic miscoloring. Degenerate ranges (`vmin == vmax`, or
       all values equal) deterministically map to the colormap midpoint
-      (`t = 0.5`) rather than dividing by zero.
+      (`t = 0.5`) rather than dividing by zero. v0.4 Phase 1 extends
+      coverage to circular layouts: continuous tip and branch coloring
+      apply to per-Text fill and the radial parent→child Line stroke
+      respectively (per docs/conventions.md, v0.4 Phase 1), with the
+      same byte-determinism property.
     evidence:
       oracle:
-        - self (repeated render + LUT-endpoint assertions + auto/explicit equivalence)
+        - self (repeated render + LUT-endpoint assertions + auto/explicit equivalence on rectangular AND circular)
       tolerance: Exact byte equality across repeated renders for fixed inputs.
       command: pytest tests/oracle/test_color_by_continuous.py -v
       artifact: tests/oracle/reports/color_by_continuous.json

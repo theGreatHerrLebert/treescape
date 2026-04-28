@@ -287,6 +287,85 @@ def test_rust_circular_styled_matches_python_reference_bytes(
     )
 
 
+CIRCULAR_TIP_COLOR_SPECS = [
+    # v0.4 Phase 1: tip_colors keyed by name carry over to circular.
+    # Pinned highlights + tip_colors per fixture so goldens stay stable.
+    (
+        FIXTURES_DIR / "small" / "balanced_4.nwk",
+        [(["a", "b"], (224, 123, 0, 76))],
+        {"a": (255, 0, 0, 255), "d": (0, 170, 0, 255)},
+    ),
+    (
+        FIXTURES_DIR / "small" / "unbalanced_5.nwk",
+        [(["a", "b", "c"], (192, 64, 192, 64))],
+        {"e": (255, 128, 0, 255)},
+    ),
+]
+
+
+def _ref_render_circular_styled_full(
+    fixture: pathlib.Path,
+    highlights: list,
+    tip_colors: dict,
+) -> str:
+    src = fixture.read_text()
+    tree = ref_parse(src)
+    style = StyleSpec(
+        highlights=[
+            CladeHighlight(tip_names=tuple(names), fill=Color(r, g, b, a))
+            for names, (r, g, b, a) in highlights
+        ],
+        tip_colors={
+            name: Color(r, g, b, a) for name, (r, g, b, a) in tip_colors.items()
+        },
+    )
+    scene = build_circular_scene(tree, SceneOptions(), style=style)
+    return render_svg(scene)
+
+
+@pytest.mark.parametrize(
+    "fixture,highlights,tip_colors",
+    CIRCULAR_TIP_COLOR_SPECS,
+    ids=[s[0].name for s in CIRCULAR_TIP_COLOR_SPECS],
+)
+def test_circular_styled_with_tip_colors_render_repeated(
+    fixture: pathlib.Path, highlights: list, tip_colors: dict
+) -> None:
+    """v0.4 Phase 1: circular styled render with tip_colors stays
+    byte-deterministic across repeated Python ref renders."""
+    first = _ref_render_circular_styled_full(fixture, highlights, tip_colors)
+    for _ in range(4):
+        assert _ref_render_circular_styled_full(fixture, highlights, tip_colors) == first
+
+
+@pytest.mark.skipif(
+    not HAVE_CONNECTOR,
+    reason="treescape_connector not built (run pip install -e ./treescape-connector)",
+)
+@pytest.mark.parametrize(
+    "fixture,highlights,tip_colors",
+    CIRCULAR_TIP_COLOR_SPECS,
+    ids=[s[0].name for s in CIRCULAR_TIP_COLOR_SPECS],
+)
+def test_rust_circular_styled_with_tip_colors_matches_ref_bytes(
+    fixture: pathlib.Path, highlights: list, tip_colors: dict
+) -> None:
+    """v0.4 Phase 1: Rust↔Python ref byte parity for circular
+    tip_colors (keyed by name → portable across impls)."""
+    src = fixture.read_text()
+    rust_svg = rust_render_circular(
+        RustTree.parse_newick(src),
+        None,
+        list(highlights),
+        dict(tip_colors),
+    )
+    ref_svg = _ref_render_circular_styled_full(fixture, highlights, tip_colors)
+    assert rust_svg == ref_svg, (
+        f"Rust/ref circular styled-with-tip-colors SVG diverged on {fixture.name}: "
+        f"rust_len={len(rust_svg)} ref_len={len(ref_svg)}"
+    )
+
+
 def test_circular_highlight_mrca_is_root_raises() -> None:
     """Whole-tree highlight on circular layout raises ValueError per
     docs/conventions.md (v0.3 Phase 3). Tested at the Python ref layer

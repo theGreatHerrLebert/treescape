@@ -311,12 +311,16 @@ pub fn build_circular_scene(
     build_circular_scene_with_measurer(tree, layout, opts, &measure)
 }
 
-/// Build a circular scene with v0.3 Phase 3 styling — currently only
-/// `style.highlights` (rendered as `AnnularSector` items behind the
-/// rest of the scene). Other [`StyleSpec`] fields are reserved for
-/// future circular extensions and ignored at this layer (the
-/// user-facing `TreePlot` still raises `NotImplementedError` for
-/// them).
+/// Build a circular scene with v0.3+v0.4 styling.
+///
+/// v0.3 Phase 3 introduced `style.highlights` (annular sectors behind
+/// the scene). v0.4 Phase 1 added `style.tip_colors` (per-Text fill)
+/// and `style.branch_colors` (radial parent→child Line stroke; arc
+/// spine stays default per the locked convention in
+/// `docs/conventions.md`). Other [`StyleSpec`] fields (scale_bar,
+/// support_labels) are reserved for v0.4 Phase 2; the user-facing
+/// `TreePlot` still raises `NotImplementedError` for them on
+/// circular.
 ///
 /// Returns `Err` when a highlight's MRCA is the tree's root — under
 /// the v0.3 convention that case covers the whole tree visually and
@@ -330,12 +334,14 @@ pub fn build_circular_scene_with_style(
     measure_width: &dyn Fn(&str, f64) -> f64,
     style: &StyleSpec,
 ) -> Result<Scene, String> {
-    let mut scene = build_circular_scene_with_measurer(tree, layout, opts, measure_width);
-    if style.highlights.is_empty() {
-        return Ok(scene);
-    }
     if tree.is_empty() || layout.is_empty() {
-        return Ok(scene);
+        return Ok(Scene {
+            canvas: Canvas {
+                width: 0.0,
+                height: 0.0,
+            },
+            items: Vec::new(),
+        });
     }
 
     let max_r = layout
@@ -352,17 +358,34 @@ pub fn build_circular_scene_with_style(
         .filter(|(i, _)| tree.is_tip[*i])
         .map(|(_, n)| measure_width(n, opts.font_size))
         .fold(0.0_f64, f64::max);
+
     let radius_px = max_r * opts.px_per_r;
-    let r_outer_px = radius_px + opts.label_offset + max_label_px;
     let half = opts.padding + radius_px + opts.label_offset + max_label_px;
+    let canvas_size = 2.0 * half;
+    let canvas = Canvas {
+        width: canvas_size,
+        height: canvas_size,
+    };
     let cx = half;
     let cy = half;
+    let r_outer_px = radius_px + opts.label_offset + max_label_px;
+
+    let project = |r: f64, theta: f64| -> (f64, f64) {
+        (
+            cx + r * opts.px_per_r * theta.cos(),
+            cy - r * opts.px_per_r * theta.sin(),
+        )
+    };
 
     let root = match tree.root {
         Some(r) => r,
-        None => return Ok(scene),
+        None => return Ok(Scene { canvas, items: Vec::new() }),
     };
-    let mut sectors: Vec<SceneItem> = Vec::with_capacity(style.highlights.len());
+
+    let mut items: Vec<SceneItem> = Vec::new();
+
+    // Highlights (annular sectors) emitted first so they render behind
+    // branches and labels. MRCA == root → loud reject.
     for h in &style.highlights {
         let tip_refs: Vec<&str> = h.tip_names.iter().map(|s| s.as_str()).collect();
         let mrca = match find_mrca(tree, &tip_refs) {
@@ -392,7 +415,7 @@ pub fn build_circular_scene_with_style(
             }
         }
         let r_inner_px = layout.r[mrca] * opts.px_per_r;
-        sectors.push(SceneItem::AnnularSector {
+        items.push(SceneItem::AnnularSector {
             cx,
             cy,
             r_inner: r_inner_px,
@@ -403,12 +426,102 @@ pub fn build_circular_scene_with_style(
         });
     }
 
-    // Insert sectors at the front so they render behind branches/labels.
-    let mut combined = Vec::with_capacity(sectors.len() + scene.items.len());
-    combined.extend(sectors);
-    combined.append(&mut scene.items);
-    scene.items = combined;
-    Ok(scene)
+    // Radial branch lines + arc spines. Per the v0.4 Phase 1
+    // convention, style.branch_colors override the radial Line stroke
+    // (parent→child); the arc spine stays at opts.stroke.
+    for id in tree.preorder() {
+        let cs = &tree.children[id];
+        if cs.is_empty() {
+            continue;
+        }
+        let parent_r = layout.r[id];
+
+        for &child in cs {
+            let cr = layout.r[child];
+            let cth = layout.theta[child];
+            let (x1, y1) = project(parent_r, cth);
+            let (x2, y2) = project(cr, cth);
+            let stroke = style
+                .branch_colors
+                .get(&child)
+                .copied()
+                .unwrap_or(opts.stroke);
+            items.push(SceneItem::Line {
+                x1,
+                y1,
+                x2,
+                y2,
+                stroke,
+                stroke_width: opts.stroke_width,
+            });
+        }
+
+        if parent_r > 0.0 && cs.len() >= 2 {
+            let mut min_th = f64::INFINITY;
+            let mut max_th = f64::NEG_INFINITY;
+            for &c in cs {
+                let th = layout.theta[c];
+                if th < min_th {
+                    min_th = th;
+                }
+                if th > max_th {
+                    max_th = th;
+                }
+            }
+            let span = max_th - min_th;
+            let (x1, y1) = project(parent_r, min_th);
+            let (x2, y2) = project(parent_r, max_th);
+            items.push(SceneItem::Arc {
+                x1,
+                y1,
+                x2,
+                y2,
+                radius: parent_r * opts.px_per_r,
+                large_arc: span > PI,
+                sweep_clockwise: false,
+                stroke: opts.stroke,
+                stroke_width: opts.stroke_width,
+            });
+        }
+    }
+
+    // Tip labels — per-tip color override via style.tip_colors keyed
+    // by name (portable across Python ref / Rust).
+    for id in tree.preorder() {
+        if !tree.is_tip[id] || tree.name[id].is_empty() {
+            continue;
+        }
+        let r = layout.r[id];
+        let theta = layout.theta[id];
+        let ux = theta.cos();
+        let uy = -theta.sin();
+        let (px, py) = project(r, theta);
+        let tx = px + opts.label_offset * ux;
+        let ty = py + opts.label_offset * uy;
+        let deg = theta.to_degrees();
+        let (anchor, rotation_deg) = if ux >= 0.0 {
+            (TextAnchor::Start, -deg)
+        } else {
+            (TextAnchor::End, -deg + 180.0)
+        };
+        let color = style
+            .tip_colors
+            .get(&tree.name[id])
+            .copied()
+            .unwrap_or(opts.label_color);
+        items.push(SceneItem::Text {
+            x: tx,
+            y: ty,
+            text: tree.name[id].clone(),
+            font_size: opts.font_size,
+            color,
+            anchor,
+            is_tip_label: true,
+            rotation_deg,
+        });
+    }
+
+    Ok(Scene { canvas, items })
 }
 
 #[cfg(test)]

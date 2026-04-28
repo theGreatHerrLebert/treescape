@@ -47,17 +47,25 @@ class CladeHighlight:
 
 @dataclass
 class StyleSpec:
-    """Style overrides for the rectangular scene builder. Default =
-    no styling; existing rectangular SVG bytes unchanged.
+    """Style overrides shared by the rectangular and (v0.4 Phase 1)
+    circular scene builders. Default = no styling; existing
+    SVG bytes unchanged.
 
     `highlights` is a list (order-preserving — first highlight emits
     first, draws underneath any later highlights at the same location).
     `tip_colors` is a name→color map; missing names fall back to
     SceneOptions.label_color.
+    `branch_colors` (v0.4 Phase 1) keys by Python node identity
+    (``id(node)`` for the Python reference) and overrides the
+    parent→child branch stroke — horizontal segment for rectangular,
+    radial Line for circular. Sibling spines (rectangular vertical
+    connector, circular arc) stay at the default stroke per the locked
+    convention. Missing entries fall back to ``SceneOptions.stroke``.
     """
 
     highlights: ListT[CladeHighlight] = field(default_factory=list)
     tip_colors: Dict[str, Color] = field(default_factory=dict)
+    branch_colors: Dict[int, Color] = field(default_factory=dict)
 
 
 @dataclass
@@ -171,13 +179,14 @@ def build_rectangular_scene(
         for child in node.children:
             cx = to_px_x(coords[id(child)][0])
             cy = opts.padding + coords[id(child)][1] * opts.px_per_y
+            branch_stroke = style.branch_colors.get(id(child), opts.stroke)
             items.append(
                 Line(
                     x1=parent_x,
                     y1=cy,
                     x2=cx,
                     y2=cy,
-                    stroke=opts.stroke,
+                    stroke=branch_stroke,
                     stroke_width=opts.stroke_width,
                 )
             )
@@ -303,17 +312,23 @@ def build_circular_scene(
         child_thetas = [coords[id(c)][1] for c in node.children]
 
         # One radial line per child, from (parent_r, child.θ) to (child.r, child.θ).
+        # v0.4 Phase 1: branch_colors (keyed by Node identity for the
+        # Python ref) override the radial line stroke. The arc spine
+        # below stays at the default stroke per the locked convention
+        # (docs/conventions.md, v0.4 Phase 1) — same idiom as
+        # rectangular's vertical-spine-stays-default rule.
         for child in node.children:
             cr, cth = coords[id(child)]
             x1, y1 = project(parent_r, cth)
             x2, y2 = project(cr, cth)
+            branch_stroke = style.branch_colors.get(id(child), opts.stroke)
             items.append(
                 Line(
                     x1=x1,
                     y1=y1,
                     x2=x2,
                     y2=y2,
-                    stroke=opts.stroke,
+                    stroke=branch_stroke,
                     stroke_width=opts.stroke_width,
                 )
             )
@@ -365,13 +380,17 @@ def build_circular_scene(
             anchor = TextAnchor.END
             rotation_deg = -deg + 180.0
 
+        # v0.4 Phase 1: per-tip color override via style.tip_colors,
+        # keyed by tip name (portable across Python ref / Rust). Same
+        # mechanism the rectangular ref already uses.
+        label_color = style.tip_colors.get(node.name, opts.label_color)
         items.append(
             Text(
                 x=tx,
                 y=ty,
                 text=node.name,
                 font_size=opts.font_size,
-                color=opts.label_color,
+                color=label_color,
                 anchor=anchor,
                 is_tip_label=True,
                 rotation_deg=rotation_deg,

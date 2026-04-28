@@ -64,13 +64,19 @@ def test_support_labels_reject_circular_for_now() -> None:
         TreePlot("((a:1,b:1)95:0.2,c:1);").support_labels().layout("circular").to_svg()
 
 
-def test_color_branches_by_rejects_circular_for_now() -> None:
+def test_color_branches_by_works_on_circular() -> None:
+    """v0.4 Phase 1 lifted the circular .color_branches_by NIE. Branch
+    color is applied to the radial parent→child Line; the arc spine
+    stays at the default stroke per the locked convention."""
     df = pl.DataFrame({"tip": ["a", "b", "c"], "clade": ["x", "x", "y"]})
-
-    with pytest.raises(NotImplementedError, match="color_branches_by"):
-        TreePlot("((a:1,b:1)x:1,c:1)root;").join_metadata(
-            df, on="tip"
-        ).color_branches_by("clade").layout("circular").to_svg()
+    svg = (
+        TreePlot("((a:1,b:1)x:1,c:1)root;")
+        .join_metadata(df, on="tip")
+        .color_branches_by("clade", palette={"x": "#ff0000", "y": "#0000ff"})
+        .layout("circular")
+        .to_svg()
+    )
+    assert 'stroke="#ff0000"' in svg, "monophyletic x-clade branch should be colored"
 
 
 def test_join_metadata_roundtrips_tip_rows() -> None:

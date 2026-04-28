@@ -312,20 +312,29 @@ fn render_circular_svg(tree: &PyTree, opts: Option<&PyCircularSceneOptions>) -> 
     render_circular(&tree.inner, opts_ref).map_err(|e| PyRuntimeError::new_err(e.to_string()))
 }
 
-/// v0.3 Phase 3: circular SVG with highlight_clade support. Other
-/// styling features (color_tips, color_branches_by, scale_bar,
-/// support_labels) on the circular path remain unsupported in v0.3
-/// and are gated upstream in TreePlot. `highlights` is a list of
-/// `(tip_names, (r, g, b, a))` matching the rectangular signature.
+/// Circular SVG with v0.3+v0.4 styling. v0.3 Phase 3 added
+/// `highlights` (annular sectors); v0.4 Phase 1 adds `tip_colors`
+/// (per-Text fill) and `branch_colors` (radial parent→child Line
+/// stroke; arc spine stays default per the locked convention). Other
+/// styling features (`scale_bar`, `support_labels`) on the circular
+/// path remain unsupported and are gated upstream in TreePlot.
 ///
-/// Raises ValueError when any highlight's MRCA is the tree root,
-/// per the v0.3 convention (whole-tree highlight is meaningless).
+/// Raises ValueError when any highlight's MRCA is the tree root, per
+/// the v0.3 convention (whole-tree highlight is meaningless).
 #[pyfunction]
-#[pyo3(signature = (tree, opts = None, highlights = Vec::new()))]
+#[pyo3(signature = (
+    tree,
+    opts = None,
+    highlights = Vec::new(),
+    tip_colors = HashMap::new(),
+    branch_colors = Vec::new(),
+))]
 fn render_circular_styled_svg(
     tree: &PyTree,
     opts: Option<&PyCircularSceneOptions>,
     highlights: Vec<HighlightSpec>,
+    tip_colors: HashMap<String, Rgba>,
+    branch_colors: Vec<BranchColorSpec>,
 ) -> PyResult<String> {
     let default = CoreCircularSceneOptions::default();
     let opts_ref = opts.map(|o| &o.inner).unwrap_or(&default);
@@ -336,6 +345,14 @@ fn render_circular_styled_svg(
             tip_names,
             fill: CoreColor::rgba(r, g, b, a),
         });
+    }
+    for (name, (r, g, b, a)) in tip_colors {
+        style.tip_colors.insert(name, CoreColor::rgba(r, g, b, a));
+    }
+    for (node_id, (r, g, b, a)) in branch_colors {
+        style
+            .branch_colors
+            .insert(node_id, CoreColor::rgba(r, g, b, a));
     }
 
     render_circular_styled(&tree.inner, opts_ref, &style).map_err(|e| match e {

@@ -141,16 +141,58 @@ def test_auto_detect_numeric_column_uses_viridis() -> None:
     assert svg == explicit
 
 
+def test_circular_tip_continuous_byte_determinism_and_endpoints() -> None:
+    """v0.4 Phase 1: continuous tip coloring carries over to circular
+    layouts. Same byte-determinism property; same viridis LUT endpoints
+    at the column's observed min/max."""
+    svg1 = (
+        TreePlot(TREE)
+        .layout("circular")
+        .join_metadata(SUPPORTS, on="tip")
+        .color_tips_by("support")
+        .to_svg()
+    )
+    svg2 = (
+        TreePlot(TREE)
+        .layout("circular")
+        .join_metadata(SUPPORTS, on="tip")
+        .color_tips_by("support")
+        .to_svg()
+    )
+    assert svg1 == svg2
+    assert "#440154" in svg1, "viridis t=0 endpoint missing on circular"
+    assert "#fde725" in svg1, "viridis t=1 endpoint missing on circular"
+
+
+def test_circular_branch_continuous_byte_determinism() -> None:
+    svg1 = (
+        TreePlot(TREE)
+        .layout("circular")
+        .join_metadata(SUPPORTS, on="tip")
+        .color_branches_by("support")
+        .to_svg()
+    )
+    svg2 = (
+        TreePlot(TREE)
+        .layout("circular")
+        .join_metadata(SUPPORTS, on="tip")
+        .color_branches_by("support")
+        .to_svg()
+    )
+    assert svg1 == svg2
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _emit_report() -> None:
     yield
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     summary = {
         "claim": "treescape-color-by-continuous-determinism",
-        "version": "0.3",
+        "version": "0.4",
         "timestamp_utc": int(time.time()),
         "tier": "ci",
         "cmap": "viridis (treescape pinned 11-keystop LUT)",
+        "layouts": ["rectangular", "circular"],
     }
     (REPORT_DIR / "color_by_continuous.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True)

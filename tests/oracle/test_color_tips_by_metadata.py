@@ -97,16 +97,58 @@ def test_palette_must_cover_observed_values() -> None:
         )
 
 
+def test_color_tips_by_discrete_circular_matches_explicit_mapping() -> None:
+    """v0.4 Phase 1: same per-tip color mapping property as rectangular,
+    but on .layout("circular"). Tip color is per-Text fill, identical to
+    the rectangular convention."""
+    df = pl.DataFrame({"tip": ["a", "b", "c", "d"], "clade": ["left", "left", "right", "right"]})
+    palette = {"left": "#ff0000", "right": "#0000ff"}
+    via_metadata = (
+        TreePlot(TREE)
+        .layout("circular")
+        .join_metadata(df, on="tip")
+        .color_tips_by("clade", palette=palette)
+    )
+    explicit = (
+        TreePlot(TREE)
+        .layout("circular")
+        .color_tips({"a": "#ff0000", "b": "#ff0000", "c": "#0000ff", "d": "#0000ff"})
+    )
+    assert via_metadata.to_svg() == explicit.to_svg()
+
+
+def test_color_tips_by_discrete_circular_default_palette_deterministic() -> None:
+    df = pl.DataFrame({"tip": ["d", "c", "b", "a"], "clade": ["right", "right", "left", "left"]})
+    svg1 = (
+        TreePlot(TREE)
+        .layout("circular")
+        .join_metadata(df, on="tip")
+        .color_tips_by("clade")
+        .to_svg()
+    )
+    svg2 = (
+        TreePlot(TREE)
+        .layout("circular")
+        .join_metadata(df, on="tip")
+        .color_tips_by("clade")
+        .to_svg()
+    )
+    assert svg1 == svg2
+    assert "#4e79a7" in svg1
+    assert "#f28e2b" in svg1
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _emit_report() -> None:
     yield
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     summary = {
         "claim": "treescape-color-tips-by-discrete-roundtrip",
-        "version": "0.3",
+        "version": "0.4",
         "fixtures": [tree.name for tree, _ in FIXTURE_PAIRS],
         "timestamp_utc": int(time.time()),
         "tier": "ci",
+        "layouts": ["rectangular", "circular"],
     }
     (REPORT_DIR / "color_tips_by_metadata.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True)

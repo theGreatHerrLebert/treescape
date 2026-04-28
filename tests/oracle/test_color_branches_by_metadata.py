@@ -72,15 +72,51 @@ def test_branch_coloring_default_palette_is_deterministic() -> None:
     assert "#f28e2b" in svg1
 
 
+def test_branch_coloring_circular_monophyletic_clades_do_not_warn() -> None:
+    """v0.4 Phase 1: the monophyly + warn semantics carry over to
+    circular layouts. Per the locked convention, the radial parent→child
+    Line gets the color; the arc spine stays at the default stroke."""
+    df = pl.DataFrame({"tip": ["a", "b", "c", "d"], "clade": ["left", "left", "right", "right"]})
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        svg = (
+            TreePlot(TREE)
+            .layout("circular")
+            .join_metadata(df, on="tip")
+            .color_branches_by("clade", palette=PALETTE)
+            .to_svg()
+        )
+    assert not [w for w in record if issubclass(w.category, TreescapeStyleWarning)]
+    assert 'stroke="#ff0000"' in svg
+    assert 'stroke="#0000ff"' in svg
+
+
+def test_branch_coloring_circular_paraphyletic_warns_and_leaves_default() -> None:
+    df = pl.DataFrame({"tip": ["a", "b", "c", "d"], "clade": ["left", "right", "right", "right"]})
+    with pytest.warns(TreescapeStyleWarning, match="left_node"):
+        svg = (
+            TreePlot(TREE)
+            .layout("circular")
+            .join_metadata(df, on="tip")
+            .color_branches_by("clade", palette=PALETTE)
+            .to_svg()
+        )
+    assert 'stroke="#0000ff"' in svg
+    assert 'stroke="#ff0000"' not in svg
+    # circular default stroke is also #000000 just like rectangular
+    assert 'stroke="#000000"' in svg
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _emit_report() -> None:
     yield
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     summary = {
         "claim": "treescape-color-branches-by-monophyly",
-        "version": "0.3",
+        "version": "0.4",
         "timestamp_utc": int(time.time()),
         "tier": "ci",
+        "layouts": ["rectangular", "circular"],
     }
     (REPORT_DIR / "color_branches_by_metadata.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True)

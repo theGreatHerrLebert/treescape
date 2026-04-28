@@ -597,14 +597,11 @@ class TreePlot:
                 )
             return render_rectangular_svg(self._tree, self._scene_opts)
         if self._layout == "circular":
-            # v0.3 Phase 3 lifts highlight_clade for circular. The other
-            # styling features remain unsupported on the circular path
-            # (each has its own follow-up scope decision).
+            # v0.3 Phase 3 lifted .highlight_clade. v0.4 Phase 1 lifts
+            # .color_tips / .color_tips_by / .color_branches_by. The
+            # remaining annotation features (scale_bar, support_labels)
+            # land in v0.4 Phase 2.
             unsupported = []
-            if self._tip_colors:
-                unsupported.append(".color_tips / .color_tips_by")
-            if self._branch_colors:
-                unsupported.append(".color_branches_by")
             if self._scale_bar is not None:
                 unsupported.append(".scale_bar")
             if self._support_labels:
@@ -612,14 +609,21 @@ class TreePlot:
             if unsupported:
                 raise NotImplementedError(
                     f"circular layout does not yet support {', '.join(unsupported)}; "
-                    "v0.3 Phase 3 lifts only .highlight_clade. Drop the unsupported "
+                    "v0.4 Phase 2 will lift these. Drop the unsupported "
                     "styling or switch to .layout('rectangular')."
                 )
-            if self._highlights:
+            styled_circ = (
+                bool(self._highlights)
+                or bool(self._tip_colors)
+                or bool(self._branch_colors)
+            )
+            if styled_circ:
                 return render_circular_styled_svg(
                     self._tree,
                     self._circular_opts,
                     list(self._highlights),
+                    dict(self._tip_colors),
+                    list(self._branch_colors.items()),
                 )
             return render_circular_svg(self._tree, self._circular_opts)
         raise AssertionError(f"unreachable: layout {self._layout!r}")
