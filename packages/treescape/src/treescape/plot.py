@@ -79,6 +79,47 @@ _TABLEAU_10 = (
 )
 
 
+# treescape's pinned viridis approximation: 11 keystops, linearly
+# interpolated. Visually faithful to matplotlib's viridis but not
+# byte-identical — see docs/conventions.md (v0.3, continuous color).
+_VIRIDIS_LUT = (
+    (68, 1, 84),
+    (72, 36, 117),
+    (64, 65, 132),
+    (52, 91, 140),
+    (42, 116, 142),
+    (34, 139, 141),
+    (30, 161, 133),
+    (68, 185, 116),
+    (135, 206, 69),
+    (211, 226, 45),
+    (253, 231, 37),
+)
+
+
+def _viridis(t: float) -> str:
+    """Map ``t in [0, 1]`` to a ``#rrggbb`` hex color via the pinned LUT."""
+    if t <= 0.0:
+        r, g, b = _VIRIDIS_LUT[0]
+        return f"#{r:02x}{g:02x}{b:02x}"
+    if t >= 1.0:
+        r, g, b = _VIRIDIS_LUT[-1]
+        return f"#{r:02x}{g:02x}{b:02x}"
+    n = len(_VIRIDIS_LUT) - 1
+    pos = t * n
+    lo = int(pos)
+    frac = pos - lo
+    r0, g0, b0 = _VIRIDIS_LUT[lo]
+    r1, g1, b1 = _VIRIDIS_LUT[lo + 1]
+    r = int(round(r0 + frac * (r1 - r0)))
+    g = int(round(g0 + frac * (g1 - g0)))
+    b = int(round(b0 + frac * (b1 - b0)))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+_BUILTIN_CMAPS = {"viridis": _viridis}
+
+
 class TreescapeStyleWarning(UserWarning):
     """Warning raised when metadata-driven styling cannot be applied cleanly."""
 
@@ -290,31 +331,72 @@ class TreePlot:
             return None
         return dict(self._metadata_rows.get(tip_name, {}))
 
-    def color_tips_by(self, column: str, palette: Optional[dict] = None) -> "TreePlot":
-        """Color tip labels by a joined categorical metadata column."""
+    def color_tips_by(
+        self,
+        column: str,
+        palette: Optional[dict] = None,
+        cmap: Optional[Union[str, "callable"]] = None,
+        vmin: Optional[float] = None,
+        vmax: Optional[float] = None,
+    ) -> "TreePlot":
+        """Color tip labels by a joined metadata column.
+
+        Discrete columns map through ``palette`` (defaults to Tableau-10).
+        Numeric columns map through ``cmap`` (defaults to ``"viridis"``).
+        Pass ``palette=`` for an explicit categorical mapping or ``cmap=``
+        for a continuous gradient; passing both raises ``ValueError``. If
+        neither is given, dispatch is auto-detected from the column's
+        observed dtype: all-numeric → continuous, otherwise → discrete.
+        """
         if column not in self._metadata_columns:
             raise ValueError(f"metadata column {column!r} has not been joined")
-        palette = self._resolve_discrete_palette(column, palette)
+        if palette is not None and cmap is not None:
+            raise ValueError("color_tips_by accepts palette= or cmap=, not both")
 
+        if self._is_continuous(column, palette, cmap):
+            tip_colors = self._resolve_continuous_tip_colors(column, cmap, vmin, vmax)
+            return self.color_tips(tip_colors)
+
+        discrete_palette = self._resolve_discrete_palette(column, palette)
         mapping = {}
         for tip in self._tree.tip_order():
             value = self._metadata_rows.get(tip, {}).get(column)
             if value is not None:
-                mapping[tip] = palette[value]
+                mapping[tip] = discrete_palette[value]
         return self.color_tips(mapping)
 
-    def color_branches_by(self, column: str, palette: Optional[dict] = None) -> "TreePlot":
-        """Color internal branches by monophyletic discrete metadata values.
+    def color_branches_by(
+        self,
+        column: str,
+        palette: Optional[dict] = None,
+        cmap: Optional[Union[str, "callable"]] = None,
+        vmin: Optional[float] = None,
+        vmax: Optional[float] = None,
+    ) -> "TreePlot":
+        """Color internal branches by a joined metadata column.
 
-        A branch is colored when every descendant tip under its child node
-        has the same non-missing value for ``column``. Mixed or missing
-        values leave the branch at the default color and raise
-        ``TreescapeStyleWarning``.
+        Discrete columns: a branch is colored when every descendant tip
+        shares one non-missing value (monophyly). Mixed or missing values
+        leave the default branch color and raise ``TreescapeStyleWarning``.
+
+        Numeric columns (``cmap`` provided or auto-detected): each branch
+        is colored by the **mean** of its descendant tips' non-missing
+        values, mapped through ``cmap``. A branch with no observed values
+        keeps the default color silently — no warning, since "no data" is
+        not a paraphyletic miscoloring. ``vmin`` / ``vmax`` pin the
+        colormap range; otherwise the range is the observed tip-value
+        min/max for the column (so branch and tip coloring share a scale).
         """
         if column not in self._metadata_columns:
             raise ValueError(f"metadata column {column!r} has not been joined")
-        palette = self._resolve_discrete_palette(column, palette)
+        if palette is not None and cmap is not None:
+            raise ValueError("color_branches_by accepts palette= or cmap=, not both")
 
+        if self._is_continuous(column, palette, cmap):
+            self._apply_continuous_branch_colors(column, cmap, vmin, vmax)
+            return self
+
+        discrete_palette = self._resolve_discrete_palette(column, palette)
         root = self._tree.root
         for node_id in self._tree.preorder():
             if node_id == root or self._tree.is_tip(node_id):
@@ -327,7 +409,7 @@ class TreePlot:
                 if value not in distinct:
                     distinct.append(value)
             if len(distinct) == 1 and len(observed) == len(tips):
-                self._branch_colors[node_id] = _parse_color(palette[distinct[0]])
+                self._branch_colors[node_id] = _parse_color(discrete_palette[distinct[0]])
                 continue
             warnings.warn(
                 f"branch {self._branch_label(node_id)} is not monophyletic for metadata column "
@@ -336,6 +418,104 @@ class TreePlot:
                 stacklevel=2,
             )
         return self
+
+    def _is_continuous(
+        self,
+        column: str,
+        palette: Optional[dict],
+        cmap: Optional[Union[str, "callable"]],
+    ) -> bool:
+        if cmap is not None:
+            return True
+        if palette is not None:
+            return False
+        observed = [
+            self._metadata_rows.get(tip, {}).get(column) for tip in self._tree.tip_order()
+        ]
+        observed = [v for v in observed if v is not None]
+        if not observed:
+            return False
+        return all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in observed)
+
+    def _resolve_cmap(self, cmap: Optional[Union[str, "callable"]]):
+        if cmap is None or cmap == "viridis":
+            return _viridis
+        if isinstance(cmap, str):
+            if cmap not in _BUILTIN_CMAPS:
+                raise ValueError(
+                    f"unknown cmap {cmap!r}; built-ins: {sorted(_BUILTIN_CMAPS)}"
+                )
+            return _BUILTIN_CMAPS[cmap]
+        if callable(cmap):
+            return cmap
+        raise TypeError(f"cmap must be a string name or callable; got {type(cmap).__name__}")
+
+    def _column_value_range(
+        self,
+        column: str,
+        vmin: Optional[float],
+        vmax: Optional[float],
+    ) -> tuple[float, float]:
+        observed = [
+            self._metadata_rows.get(tip, {}).get(column) for tip in self._tree.tip_order()
+        ]
+        numeric = [float(v) for v in observed if v is not None]
+        lo = float(vmin) if vmin is not None else (min(numeric) if numeric else 0.0)
+        hi = float(vmax) if vmax is not None else (max(numeric) if numeric else 1.0)
+        return lo, hi
+
+    def _normalize(self, value: float, lo: float, hi: float) -> float:
+        if hi <= lo:
+            # Degenerate range (all values equal, or pinned vmin>=vmax). Map to
+            # the colormap midpoint — deterministic, unambiguous, no
+            # divide-by-zero.
+            return 0.5
+        t = (float(value) - lo) / (hi - lo)
+        if t < 0.0:
+            return 0.0
+        if t > 1.0:
+            return 1.0
+        return t
+
+    def _resolve_continuous_tip_colors(
+        self,
+        column: str,
+        cmap: Optional[Union[str, "callable"]],
+        vmin: Optional[float],
+        vmax: Optional[float],
+    ) -> dict:
+        cmap_fn = self._resolve_cmap(cmap)
+        lo, hi = self._column_value_range(column, vmin, vmax)
+        out = {}
+        for tip in self._tree.tip_order():
+            value = self._metadata_rows.get(tip, {}).get(column)
+            if value is None:
+                continue
+            t = self._normalize(value, lo, hi)
+            out[tip] = cmap_fn(t)
+        return out
+
+    def _apply_continuous_branch_colors(
+        self,
+        column: str,
+        cmap: Optional[Union[str, "callable"]],
+        vmin: Optional[float],
+        vmax: Optional[float],
+    ) -> None:
+        cmap_fn = self._resolve_cmap(cmap)
+        lo, hi = self._column_value_range(column, vmin, vmax)
+        root = self._tree.root
+        for node_id in self._tree.preorder():
+            if node_id == root or self._tree.is_tip(node_id):
+                continue
+            tips = self._descendant_tips(node_id)
+            values = [self._metadata_rows.get(tip, {}).get(column) for tip in tips]
+            numeric = [float(v) for v in values if v is not None]
+            if not numeric:
+                continue  # no data → keep default, silent
+            mean_value = sum(numeric) / len(numeric)
+            t = self._normalize(mean_value, lo, hi)
+            self._branch_colors[node_id] = _parse_color(cmap_fn(t))
 
     def _resolve_discrete_palette(self, column: str, palette: Optional[dict]) -> dict:
         values = []

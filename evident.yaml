@@ -495,6 +495,56 @@ claims:
         first/last descendant tip instead of warning and leaving default.
       - Missing metadata values are mistaken for a category and colored.
 
+  - id: treescape-color-by-continuous-determinism
+    title: Continuous metadata coloring produces byte-identical SVG for fixed inputs
+    case: cases/treescape.md
+    source: packages/treescape
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#property-based-testing
+    claim: >
+      `TreePlot.color_tips_by(column, cmap=...)` and
+      `TreePlot.color_branches_by(column, cmap=...)` produce byte-identical
+      SVG across repeated renders given the same column values, the same
+      `cmap`, and the same `(vmin, vmax)` range. Default `cmap` is
+      `"viridis"`, mapped through treescape's pinned 11-keystop LUT
+      (documented in docs/conventions.md, v0.3 continuous color); endpoints
+      are `#440154` at t=0 and `#fde725` at t=1. Callable `cmap` arguments
+      are honored. Branch coloring uses the **mean** of descendant tips'
+      non-missing values; subtrees with no observed values keep the
+      default branch color silently — no warning, since "no data" is not
+      a paraphyletic miscoloring. Degenerate ranges (`vmin == vmax`, or
+      all values equal) deterministically map to the colormap midpoint
+      (`t = 0.5`) rather than dividing by zero.
+    evidence:
+      oracle:
+        - self (repeated render + LUT-endpoint assertions + auto/explicit equivalence)
+      tolerance: Exact byte equality across repeated renders for fixed inputs.
+      command: pytest tests/oracle/test_color_by_continuous.py -v
+      artifact: tests/oracle/reports/color_by_continuous.json
+    assumptions:
+      - The viridis LUT shipped in `packages/treescape/src/treescape/plot.py`
+        is the convention owner. Visual fidelity to matplotlib's full
+        256-stop viridis is approximate; byte-determinism is exact.
+      - The vmin/vmax kwargs default to the column's observed min/max
+        across the tree's tip universe — so branch and tip colorings
+        share the same scale by construction when both call color_*_by
+        on the same column without explicit pins.
+      - Auto-detection of numeric vs discrete dispatch reads
+        isinstance(v, (int, float)) on observed values (excluding
+        bool); pl.read_csv typically produces float for numeric
+        columns, which routes correctly.
+    failure_modes:
+      - User passes a callable `cmap` whose output is locale-dependent or
+        otherwise non-deterministic; this would rightly fail the claim.
+      - Auto-detection misclassifies a column whose values are all
+        numeric strings (e.g., `"0.85"`); user fixes by casting before
+        the join, or by passing `cmap=` / `palette=` explicitly.
+      - The pinned LUT changes between treescape versions, breaking
+        byte-determinism across version bumps. Documented and accepted
+        — golden bytes regen on a LUT change.
+
   - id: treescape-tip-count-invariant
     title: Rendered tip glyphs equal input tip count; coordinates within canvas
     case: cases/treescape.md
