@@ -18,7 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          # `true`, not `recursive`: the `evident` submodule has nested
+          # case-study submodules (`cases/cu-ims-primitives`,
+          # `cases/proteon`) that are private/unrelated to treescape's
+          # validation. Recursing fails CI on missing/private deps.
+          submodules: true
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: cargo check
@@ -36,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: true   # see rust-test job for why not recursive
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v5
@@ -72,7 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: true   # see rust-test job for why not recursive
       - name: Build release-tier image
         run: docker build -f workflow/Dockerfile.evident-release -t treescape-release .
       - name: Run release-tier claim runner
