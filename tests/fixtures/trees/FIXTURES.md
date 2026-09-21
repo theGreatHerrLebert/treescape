@@ -11,7 +11,7 @@ Every fixture used by an EVIDENT claim lives here. Fixtures are versioned with t
 | `edge/nhx_comments.nwk` | 2 | hand-written | NHX `[&&NHX:...]` annotations |
 | `edge/neg_branches.nwk` | 2 | hand-written | negative branch length (legal but unusual) |
 | `edge/trifurcation_root.nwk` | 3 | hand-written | unrooted-style 3-way root |
-| `medium/primates.nwk` | 12 | hand-written, schematic | demo fixture for the README screenshot; topology approximates a primate phylogeny but branch lengths are illustrative, not literature-derived |
+| `medium/primates.nwk` | 11 | hand-written, schematic | demo fixture for the README screenshot; topology approximates a primate phylogeny but branch lengths are illustrative, not literature-derived |
 
 ## Adding a fixture
 
@@ -22,7 +22,7 @@ Every fixture used by an EVIDENT claim lives here. Fixtures are versioned with t
 
 ## Medium and large fixtures
 
-`medium/` currently contains a single demo fixture (`primates.nwk`) used as the README screenshot — its branch lengths are illustrative, not literature-derived, so it isn't an oracle target.
+`medium/` currently contains a single demo fixture (`primates.nwk`) used as the README screenshot — its branch lengths are illustrative, not literature-derived, so it is never used as biological ground truth. It is a parser target: the Newick claim compares its topology and every branch length with Biopython (v0.5 review round 2).
 
 Biologically real fixtures (NCBI mammals, COVID lineages, etc.) are deferred until a use case justifies the citation/license footprint. Each must arrive with a source URL, license note, and a row in the table above.
 

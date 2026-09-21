@@ -38,6 +38,19 @@ impl Tree {
         self.parent.is_empty()
     }
 
+    /// [`add_node`](Self::add_node), but reports allocation failure
+    /// instead of aborting (the parser uses this so oversized input
+    /// becomes an error at the FFI boundary, not a dead host process).
+    pub fn try_add_node(&mut self) -> Result<NodeId, std::collections::TryReserveError> {
+        self.parent.try_reserve(1)?;
+        self.children.try_reserve(1)?;
+        self.branch_len.try_reserve(1)?;
+        self.name.try_reserve(1)?;
+        self.is_tip.try_reserve(1)?;
+        self.meta_idx.try_reserve(1)?;
+        Ok(self.add_node())
+    }
+
     pub fn add_node(&mut self) -> NodeId {
         let id = self.parent.len();
         self.parent.push(None);

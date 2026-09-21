@@ -112,8 +112,11 @@ fn check_style_ids(tree: &TsTree, style: &TsStyle) -> FfiResult<()> {
     Ok(())
 }
 
-fn render_err(e: impl std::fmt::Display) -> Failure {
-    Failure::new(TS_RENDER_ERROR, e.to_string())
+/// The message is the bare `SvgError` text, the same string Python's
+/// exception carries (no "svg format error: " prefix).
+fn render_err(e: treescape_render::SvgError) -> Failure {
+    let treescape_render::SvgError::Format(msg) = e;
+    Failure::new(TS_RENDER_ERROR, msg)
 }
 
 /// Rectangular SVG. `opts` null → defaults; `style` null → the unstyled

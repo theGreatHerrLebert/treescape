@@ -351,3 +351,15 @@ ops = [
   { op = "scale_bar", args = [0.1, "0.1 subs/site"] },
   { op = "support_labels", kwargs = { min_value = 90 } },
 ]
+
+# Review round 2: a non-string label is formatted as Python's str() would.
+[[cases]]
+name = "scale_bar_float_label"
+tree = "support"
+ops = [{ op = "scale_bar", args = [0.1, 1e-5] }]
+
+[[cases]]
+name = "scale_bar_bool_label"
+tree = "support"
+ops = [{ op = "scale_bar", args = [0.1, true] }]
+

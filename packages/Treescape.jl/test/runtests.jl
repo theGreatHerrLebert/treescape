@@ -145,6 +145,29 @@ const META = (tip=["a", "b", "c", "d", "e"], grp=["x", "x", "y", "y", "z"], w=[0
         @test_throws ArgumentError highlight_clade!(TreePlot(NEWICK), ["a"]; alpha=Inf)
     end
 
+    @testset "review round 2 regressions" begin
+        # An explicit finalize frees the handle once; later use is a clean
+        # error, not a use-after-free rendering another tree's memory.
+        p = TreePlot(NEWICK)
+        finalize(p.tree)
+        @test p.tree.ptr == C_NULL
+        junk = [Treescape.Tree("(zz$i:1,yy$i:1);") for i in 1:50]
+        @test_throws "null pointer" to_svg(p)
+        finalize(p.tree)   # second finalize is a no-op
+        @test length(junk) == 50
+
+        # Non-finite scale bars fail at the call, as in Python.
+        @test_throws ArgumentError scale_bar!(TreePlot(NEWICK), NaN)
+        @test_throws ArgumentError scale_bar!(TreePlot(NEWICK), Inf)
+        # Labels are formatted as Python's str() (bytes are pinned by the
+        # scale_bar_*_label parity cases).
+        @test scale_bar!(TreePlot(NEWICK), 0.1, 1e-5).scale_bar[2] == "1e-05"
+        @test scale_bar!(TreePlot(NEWICK), 0.1, true).scale_bar[2] == "True"
+
+        # Alpha large enough that alpha * 255 overflows still clamps.
+        @test highlight_clade!(TreePlot(NEWICK), ["a"]; alpha=1e307).highlights[1][2][4] == 0xff
+    end
+
     @testset "annotations" begin
         p = scale_bar!(TreePlot(NEWICK), 1e-5)
         @test p.scale_bar == (1e-5, "1e-05")

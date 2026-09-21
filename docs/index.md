@@ -1,14 +1,14 @@
 # treescape
 
-Phylogenetic tree plots with deterministic SVG output, a Rust core, and bindings for **Python** and **Julia**. Every numerical and structural claim the library makes is pinned in a trust manifest with an independent oracle, a tolerance, and the command that checks it.
+Phylogenetic tree plots with deterministic SVG output, a Rust core, and bindings for **Python** and **Julia**. Every numerical and structural claim the library makes is pinned in a trust manifest with an oracle (an external tool where one exists), a tolerance, and the command that checks it.
 
 ![Rectangular phylogram of 11 primates](assets/primates.svg)
 
 ## What you get
 
-- **Layouts:** rectangular and circular phylograms, laid out from branch lengths. Coordinates agree with ete3, Biopython.Phylo and R/ggtree; where they differ, [Conventions](conventions.md) says how and why.
+- **Layouts:** rectangular and circular phylograms, laid out from branch lengths. The readable Python reference, which the Rust core matches within 1e-9, agrees with ete3, Biopython.Phylo and R/ggtree (rectangular) and with ete3 and R/ggtree (circular), so far on small fixtures (2–5 tips); where they differ, [Conventions](conventions.md) says how and why.
 - **Styling from metadata:** join a table on tip names, then color tips and branches by category (Tableau-10) or number (viridis), scale branch widths, highlight clades, and add scale bars and support labels.
-- **Deterministic output:** the same inputs give byte-identical SVG, in Python and in Julia alike.
+- **Deterministic output:** the same inputs give byte-identical SVG, in Python and in Julia alike (verified on Linux).
 - **Trust you can check:** the [claims](claims.md) page lists every EVIDENT claim, its oracle, and the command that verifies it.
 
 ## Install (development)
@@ -18,7 +18,7 @@ treescape is not yet on PyPI or the Julia General registry. From a checkout:
 === "Python"
 
     ```bash
-    git clone --recursive https://github.com/theGreatHerrLebert/treescape.git
+    git clone https://github.com/theGreatHerrLebert/treescape.git
     cd treescape
     python3.12 -m venv .venv && source .venv/bin/activate
     pip install maturin polars
@@ -28,7 +28,7 @@ treescape is not yet on PyPI or the Julia General registry. From a checkout:
 === "Julia"
 
     ```bash
-    git clone --recursive https://github.com/theGreatHerrLebert/treescape.git
+    git clone https://github.com/theGreatHerrLebert/treescape.git
     cd treescape
     cargo build -p treescape-jl-connector --release
     julia --project=packages/Treescape.jl -e 'using Pkg; Pkg.instantiate()'

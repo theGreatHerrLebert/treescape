@@ -29,6 +29,7 @@ pub enum NewickError {
     MissingSemicolon,
     TrailingContent,
     MultipleRoots,
+    OutOfMemory,
 }
 
 impl std::fmt::Display for NewickError {
@@ -43,6 +44,7 @@ impl std::fmt::Display for NewickError {
             Self::MissingSemicolon => write!(f, "missing trailing semicolon"),
             Self::TrailingContent => write!(f, "trailing content after semicolon"),
             Self::MultipleRoots => write!(f, "multiple top-level roots; expected exactly one"),
+            Self::OutOfMemory => write!(f, "input too large to parse in available memory"),
         }
     }
 }
@@ -59,27 +61,43 @@ enum Token {
     BranchLen(f64),
 }
 
+/// Make room for one more element, reporting allocation failure as an
+/// error. The parser's large buffers all grow through this (or reserve
+/// up front), so a huge input fails cleanly instead of aborting.
+fn grow<T>(v: &mut Vec<T>) -> Result<(), NewickError> {
+    v.try_reserve(1).map_err(|_| NewickError::OutOfMemory)
+}
+
 fn tokenize(input: &str) -> Result<Vec<Token>, NewickError> {
-    let bytes: Vec<char> = input.chars().collect();
+    let mut bytes: Vec<char> = Vec::new();
+    bytes
+        .try_reserve_exact(input.chars().count())
+        .map_err(|_| NewickError::OutOfMemory)?;
+    bytes.extend(input.chars());
     let mut tokens = Vec::new();
+    fn push(tokens: &mut Vec<Token>, t: Token) -> Result<(), NewickError> {
+        grow(tokens)?;
+        tokens.push(t);
+        Ok(())
+    }
     let mut i = 0;
     while i < bytes.len() {
         let c = bytes[i];
         match c {
             '(' => {
-                tokens.push(Token::Open);
+                push(&mut tokens, Token::Open)?;
                 i += 1;
             }
             ')' => {
-                tokens.push(Token::Close);
+                push(&mut tokens, Token::Close)?;
                 i += 1;
             }
             ',' => {
-                tokens.push(Token::Comma);
+                push(&mut tokens, Token::Comma)?;
                 i += 1;
             }
             ';' => {
-                tokens.push(Token::Semi);
+                push(&mut tokens, Token::Semi)?;
                 i += 1;
             }
             ':' => {
@@ -102,7 +120,7 @@ fn tokenize(input: &str) -> Result<Vec<Token>, NewickError> {
                 let v: f64 = raw
                     .parse()
                     .map_err(|_| NewickError::InvalidNumber(raw.clone()))?;
-                tokens.push(Token::BranchLen(v));
+                push(&mut tokens, Token::BranchLen(v))?;
             }
             '\'' => {
                 i += 1;
@@ -126,7 +144,7 @@ fn tokenize(input: &str) -> Result<Vec<Token>, NewickError> {
                 if !closed {
                     return Err(NewickError::UnterminatedQuote);
                 }
-                tokens.push(Token::Name(buf));
+                push(&mut tokens, Token::Name(buf))?;
             }
             '[' => {
                 i += 1;
@@ -161,7 +179,7 @@ fn tokenize(input: &str) -> Result<Vec<Token>, NewickError> {
                     i += 1;
                 }
                 let raw: String = bytes[start..i].iter().collect();
-                tokens.push(Token::Name(raw));
+                push(&mut tokens, Token::Name(raw))?;
             }
         }
     }
@@ -175,25 +193,31 @@ pub fn parse(input: &str) -> Result<Tree, NewickError> {
     let mut current: Option<NodeId> = None;
     let mut seen_semi = false;
 
-    let attach_to_parent = |tree: &mut Tree, stack: &[NodeId], child: NodeId| {
-        if let Some(&p) = stack.last() {
-            tree.parent[child] = Some(p);
-            tree.children[p].push(child);
-        }
-    };
+    let attach_to_parent =
+        |tree: &mut Tree, stack: &[NodeId], child: NodeId| -> Result<(), NewickError> {
+            if let Some(&p) = stack.last() {
+                tree.parent[child] = Some(p);
+                grow(&mut tree.children[p])?;
+                tree.children[p].push(child);
+            }
+            Ok(())
+        };
 
-    let new_sibling = |tree: &mut Tree, stack: &[NodeId]| -> NodeId {
-        let id = tree.add_node();
-        attach_to_parent(tree, stack, id);
-        id
+    let add_node = |tree: &mut Tree| tree.try_add_node().map_err(|_| NewickError::OutOfMemory);
+
+    let new_sibling = |tree: &mut Tree, stack: &[NodeId]| -> Result<NodeId, NewickError> {
+        let id = add_node(tree)?;
+        attach_to_parent(tree, stack, id)?;
+        Ok(id)
     };
 
     let mut iter = tokens.into_iter();
     while let Some(tok) = iter.next() {
         match tok {
             Token::Open => {
-                let id = tree.add_node();
-                attach_to_parent(&mut tree, &stack, id);
+                let id = add_node(&mut tree)?;
+                attach_to_parent(&mut tree, &stack, id)?;
+                grow(&mut stack)?;
                 stack.push(id);
                 current = None;
             }
@@ -215,12 +239,18 @@ pub fn parse(input: &str) -> Result<Tree, NewickError> {
                 break;
             }
             Token::Name(s) => {
-                let id = current.unwrap_or_else(|| new_sibling(&mut tree, &stack));
+                let id = match current {
+                    Some(id) => id,
+                    None => new_sibling(&mut tree, &stack)?,
+                };
                 tree.name[id] = s;
                 current = Some(id);
             }
             Token::BranchLen(v) => {
-                let id = current.unwrap_or_else(|| new_sibling(&mut tree, &stack));
+                let id = match current {
+                    Some(id) => id,
+                    None => new_sibling(&mut tree, &stack)?,
+                };
                 tree.branch_len[id] = v;
                 current = Some(id);
             }

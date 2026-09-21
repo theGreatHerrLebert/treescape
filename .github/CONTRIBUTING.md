@@ -29,31 +29,40 @@ When an external oracle (ete3, Biopython, ggtree) disagrees with us on a fixture
 ## Setup
 
 ```bash
-git clone --recursive https://github.com/theGreatHerrLebert/treescape.git
+git clone https://github.com/theGreatHerrLebert/treescape.git
 cd treescape
+git submodule update --init   # `evident` (manifest validator); not --recursive, see ci.yml
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install maturin
 (cd treescape-connector && maturin develop --release)
 pip install -e packages/treescape-reference -e packages/treescape
-pip install -e "packages/treescape[test]"
+pip install -e "packages/treescape[test]" six PyYAML   # six: ete3 on 3.12; PyYAML: manifest check
+pip install -r docs/requirements.txt                  # only for the docs site
 ```
+
+Julia claims need Julia ≥ 1.10 and the C-ABI library: `cargo build -p treescape-jl-connector --release`, then point `TREESCAPE_JULIA` at the Julia binary if it is not on `PATH`.
 
 ## Running checks
 
 ```bash
 cargo test --workspace                       # Rust unit tests
 python workflow/validate_manifest.py evident.yaml  # Manifest structural check
-pytest tests/oracle -v                        # All ci-tier oracle claims
+pytest tests/oracle -v -m "not release_only"  # All ci-tier oracle claims
+mkdocs build --strict                         # Docs site, incl. generated claims page
 ```
 
-For the release-tier ggtree claim:
+For the release-tier ggtree claims (rectangular and circular), the same command CI runs:
 
 ```bash
 docker build -f workflow/Dockerfile.evident-release -t treescape-release .
 docker run --rm -v "$PWD:/workspace" -w /workspace treescape-release \
-    bash -lc "pytest tests/oracle/test_layout_vs_ggtree.py -v"
+    bash -lc "(cd treescape-connector && maturin develop --release) && \
+              pip install -e packages/treescape-reference -e packages/treescape && \
+              pytest tests/oracle -v -m release_only"
 ```
+
+Release-tier claims must pass before a release tag is pushed: run the `ci` workflow manually on `main` (Actions → ci → Run workflow), which includes the release tier.
 
 ## Adding a fixture
 

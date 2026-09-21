@@ -9,12 +9,13 @@ use treescape_core::tree::Tree;
 use crate::ffi::{copy_out, finish, handle, str_arg, write_out, write_string, Failure, FfiResult};
 use crate::TS_PARSE_ERROR;
 
-/// Largest Newick input accepted (64 MiB; a million-tip tree is ~30 MB).
-/// Parsing amplifies input size several-fold, and allocation failure
-/// aborts the host process, so oversized input is rejected up front.
-/// This bounds the common case; it cannot rule out allocation failure
-/// under arbitrary memory pressure.
-pub const MAX_NEWICK_BYTES: usize = 64 * 1024 * 1024;
+/// Largest Newick input accepted (16 MiB; ~500k tips of typical Newick).
+/// Parsing costs ~30x the input on typical trees and up to ~160x in the
+/// worst case (every byte opens a node), so this caps the parse near
+/// 2.7 GB. The parser's large buffers grow fallibly (an out-of-memory
+/// parse is an error, not an abort); per-node allocations do not, so the
+/// cap keeps them far from memory exhaustion rather than ruling it out.
+pub const MAX_NEWICK_BYTES: usize = 16 * 1024 * 1024;
 
 /// Opaque tree handle.
 pub struct TsTree {

@@ -47,3 +47,7 @@ nav:
       - The trust case: trust-case.md
       - Claims: claims.md
       - Conventions: conventions.md
+
+# Build inputs that live in docs/ but are not pages.
+exclude_docs: |
+  requirements.txt

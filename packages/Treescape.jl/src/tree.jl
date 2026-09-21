@@ -30,8 +30,16 @@ function Tree(newick::AbstractString)
     check(status, err)
     tree = Tree(out[], 0, -1, Int[], Bool[], String[], String[])
     # Resolve the pointer now so the finalizer does no lookup at GC time.
+    # Nulling `ptr` makes an explicit `finalize(tree)` safe: later calls get
+    # the connector's null-pointer error instead of a use-after-free, and a
+    # second finalize is a no-op.
     free = sym(:ts_tree_free)
-    finalizer(t -> ccall(free, Cvoid, (Ptr{Cvoid},), t.ptr), tree)
+    finalizer(tree) do t
+        if t.ptr != C_NULL
+            ccall(free, Cvoid, (Ptr{Cvoid},), t.ptr)
+            t.ptr = C_NULL
+        end
+    end
     _fill_caches!(tree)
     return tree
 end

@@ -82,6 +82,32 @@ for bad in ("a];", "(a,b)];", "8\"312XZXE6-; E7E()X]9c-\" 5\n")
     end
 end
 
+# Review round 2: large inputs. Over the byte limit is rejected before
+# parsing; the worst case at the limit (every byte opens a node) must
+# end in a status, never an allocation-failure abort, under the
+# runner's address-space cap.
+const LIMIT = 16 * 1024 * 1024
+case("parse over the size limit", [1]) do err
+    status, t = parse_tree("a"^LIMIT * ";", err)
+    t == C_NULL || free_tree(t)
+    status
+end
+case("parse worst case at the size limit", ANY_STATUS) do err
+    status, t = parse_tree("("^LIMIT, err)
+    t == C_NULL || free_tree(t)
+    status
+end
+
+# Oversized buffer: a length whose byte size overflows isize.
+case("value_range oversized length", [1]) do err
+    v, pr = [0.5, 0.5], UInt8[1, 1]
+    ccall(
+        sym(:ts_value_range), Int32,
+        (Ptr{Float64}, Ptr{UInt8}, Csize_t, UInt8, Float64, UInt8, Float64, Ptr{Float64}, Ptr{Float64}, ERR),
+        v, pr, typemax(Csize_t) ÷ 2, 0, 0.0, 0, 0.0, Ref(0.0), Ref(0.0), err,
+    )
+end
+
 status, tree = parse_tree(VALID)
 @assert status == 0
 n_nodes = Ref{Csize_t}(0)

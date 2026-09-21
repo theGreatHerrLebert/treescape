@@ -4,8 +4,8 @@ Two-tier validation infrastructure for treescape's EVIDENT manifest.
 
 ## Tiers
 
-- `ci` — light, runs on every PR. `python` + `maturin` + `ete3` + `biopython` + `numpy`/`pandas`.
-- `release` — heavy, runs before any release tag. Adds R + Bioconductor + ggtree for the third independent layout oracle.
+- `ci` — light, runs on every push to `main` and every PR. `python` + `maturin` + `ete3` + `biopython` + `polars` (+ Julia in the `julia` job).
+- `release` — heavy, adds R + Bioconductor + ggtree for the third independent layout oracle. Runs when a `v*` tag is pushed and on a manual run of the `ci` workflow; run it manually on `main` and see it pass **before** pushing a release tag.
 
 ## Files
 

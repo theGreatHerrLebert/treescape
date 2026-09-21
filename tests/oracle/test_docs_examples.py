@@ -28,31 +28,51 @@ GALLERY = REPO / "assets" / "gallery"
 
 _MARKER = re.compile(r"<!--\s*(setup|example:\s*(\S+))\s*-->")
 _FENCE = re.compile(r"^( *)```(python|julia)\n(.*?)^\1```", re.S | re.M)
+_IMAGE = re.compile(r"!\[[^\]]*\]\(assets/gallery/([^)\s]+)\)")
 
 
 def _sections() -> list[tuple[str | None, dict[str, str]]]:
-    """``[(expected file or None for setup, {"python": code, "julia": code})]``."""
+    """``[(expected file or None for setup, {"python": code, "julia": code}, first gallery image)]``."""
     text = DOC.read_text()
     marks = list(_MARKER.finditer(text))
     sections = []
     for i, m in enumerate(marks):
         end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
-        blocks = {lang: textwrap.dedent(code) for _, lang, code in _FENCE.findall(text[m.end():end])}
-        sections.append((m.group(2), blocks))
+        found = _FENCE.findall(text[m.end():end])
+        langs = [lang for _, lang, _ in found]
+        # A second block in one language would silently replace the first.
+        assert len(langs) == len(set(langs)), f"duplicate language block after {m.group(0)}"
+        blocks = {lang: textwrap.dedent(code) for _, lang, code in found}
+        image = _IMAGE.search(text, m.end(), end)
+        sections.append((m.group(2), blocks, image.group(1) if image else None))
     return sections
 
 
+def _loose_fences() -> int:
+    """Every python/julia fence on the page, however it is written (tabs,
+    info strings, CRLF): each must be one the parser above picked up."""
+    return len(re.findall(r"^[ \t]*```\s*(?:python|julia)\b", DOC.read_text(), re.M))
+
+
 SECTIONS = _sections()
-SETUP = [blocks for name, blocks in SECTIONS if name is None]
-EXAMPLES = [(name, blocks) for name, blocks in SECTIONS if name is not None]
+SETUP = [blocks for name, blocks, _ in SECTIONS if name is None]
+EXAMPLES = [(name, blocks) for name, blocks, _ in SECTIONS if name is not None]
 
 
 def test_every_example_has_both_languages_and_an_image():
     assert SETUP and EXAMPLES
-    for name, blocks in EXAMPLES:
-        assert set(blocks) == {"python", "julia"}, name
-        assert (GALLERY / name).is_file(), name
-        assert f"assets/gallery/{name}" in DOC.read_text(), f"{name} is not shown on the page"
+    for name, blocks, image in SECTIONS:
+        assert set(blocks) == {"python", "julia"}, name or "setup"
+        if name is not None:
+            assert (GALLERY / name).is_file(), name
+            assert image == name, f"the image shown under {name} is {image}"
+
+
+def test_no_code_block_is_skipped():
+    """Fences before the first marker, or written so the parser misses
+    them, would otherwise never run."""
+    parsed = sum(len(blocks) for _, blocks, _ in SECTIONS)
+    assert parsed == _loose_fences(), f"{_loose_fences() - parsed} python/julia block(s) are not executed"
 
 
 @pytest.fixture()

@@ -4,10 +4,10 @@ build-backend = "maturin"
 
 [project]
 name = "treescape_connector"
-version = "0.1.0"
+version = "0.5.0"
 description = "PyO3 bindings for treescape Rust core."
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "MIT AND Bitstream-Vera"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
@@ -15,3 +15,7 @@ classifiers = [
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
+# The extension embeds DejaVu Sans (via treescape-render), whose license
+# must accompany every copy. LICENSE and LICENSE.DejaVu.txt in this
+# directory are symlinks to the canonical files; maturin puts every
+# LICENSE* file into the wheel's .dist-info/licenses/.

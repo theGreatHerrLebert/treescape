@@ -26,7 +26,7 @@ treescape is not yet on PyPI or the Julia General registry; install from a check
 **Python** (≥ 3.11)
 
 ```bash
-git clone --recursive https://github.com/theGreatHerrLebert/treescape.git && cd treescape
+git clone https://github.com/theGreatHerrLebert/treescape.git && cd treescape
 pip install maturin polars
 pip install -e ./treescape-connector -e packages/treescape-reference -e packages/treescape
 ```
@@ -71,7 +71,7 @@ Every correctness claim is pinned in [`evident.yaml`](evident.yaml) — the [EVI
 
 | What | Checked against | Tolerance |
 |---|---|---|
-| Newick parsing | Biopython | exact topology; branch lengths 1e-9 |
+| Newick parsing (Python reference and Rust parsers) | Biopython | exact topology (every clade); every branch length 1e-9 |
 | Rectangular layout | ete3, Biopython, R/ggtree | 1e-6 (ggtree 1e-4) |
 | Circular layout | ete3, R/ggtree | 1e-4 (ggtree 1e-3) in (r, θ) |
 | Rust core vs readable Python reference | `treescape-reference` | 1e-9 layout; exact styling rules |

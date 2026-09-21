@@ -221,7 +221,11 @@ class TreePlot:
         # If user passed an opaque hex/3-tuple AND a non-default alpha,
         # apply alpha. Otherwise the spec wins.
         if a == 255 and alpha != 1.0:
-            a = max(0, min(255, int(round(alpha * 255))))
+            if not math.isfinite(alpha):
+                raise ValueError(f"alpha must be finite; got {alpha}")
+            # Clamp before rounding so huge finite alphas (alpha * 255 ==
+            # inf) clamp instead of overflowing; same result otherwise.
+            a = int(round(min(255.0, max(0.0, alpha * 255))))
         self._highlights.append((list(tips), (r, g, b, a)))
         return self
 
@@ -596,8 +600,8 @@ class TreePlot:
         lengths. If ``label`` is omitted, the numeric length is used.
         """
         length = float(length)
-        if length <= 0:
-            raise ValueError("scale_bar length must be positive")
+        if not (math.isfinite(length) and length > 0):
+            raise ValueError("scale_bar length must be positive and finite")
         self._scale_bar = (length, str(length) if label is None else str(label))
         return self
 

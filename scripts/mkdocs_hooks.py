@@ -16,6 +16,7 @@ sources it is built from.
 
 from __future__ import annotations
 
+import html
 import re
 import shutil
 from pathlib import Path
@@ -25,14 +26,16 @@ import yaml
 REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / "docs"
 BLOB = "https://github.com/theGreatHerrLebert/treescape/blob/main/"
+RAW = "https://raw.githubusercontent.com/theGreatHerrLebert/treescape/main/"
 
 
 def _github_links(text: str, base: str) -> str:
     """Rewrite relative markdown links to GitHub URLs (``base`` is the
-    source file's directory relative to the repo root)."""
+    source file's directory relative to the repo root). Images point at
+    the raw file, links at the GitHub page; fenced code is left alone."""
 
     def fix(match: re.Match) -> str:
-        label, target = match.group(1), match.group(2)
+        bang, label, target = match.group(1), match.group(2), match.group(3)
         if re.match(r"^(https?:|#|mailto:)", target):
             return match.group(0)
         path = (Path(base) / target).as_posix()
@@ -42,9 +45,30 @@ def _github_links(text: str, base: str) -> str:
                 parts and parts.pop()
             elif part not in ("", "."):
                 parts.append(part)
-        return f"[{label}]({BLOB}{'/'.join(parts)})"
+        return f"{bang}[{label}]({RAW if bang else BLOB}{'/'.join(parts)})"
 
-    return re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", fix, text)
+    link = re.compile(r"(!?)\[([^\]]*)\]\(([^)\s]+)\)")
+    chunks = re.split(r"(^```.*?^```[^\n]*$)", text, flags=re.M | re.S)
+    return "".join(c if c.startswith("```") else link.sub(fix, c) for c in chunks)
+
+
+def _text(value: object) -> str:
+    """One-line claim text, safe inside Markdown and table cells. Outside
+    code spans: HTML-escaped (so literal placeholders like ``<fixture>``
+    survive) and pipes escaped. Code spans are left alone: they escape
+    themselves, Markdown ignores backslashes in them, and the table
+    extension does not split cells on a pipe inside backticks."""
+    parts = re.split(r"(`[^`]*`)", " ".join(str(value).split()))
+    return "".join(
+        p if p.startswith("`") else html.escape(p, quote=False).replace("|", "\\|") for p in parts
+    )
+
+
+def _field(claim: dict, key: str) -> str:
+    try:
+        return str(claim[key])
+    except KeyError:
+        raise ValueError(f"evident.yaml claim {claim.get('id', '?')!r} has no {key!r}") from None
 
 
 def _claims_page() -> str:
@@ -55,7 +79,8 @@ def _claims_page() -> str:
         "",
         "Generated from [`evident.yaml`](" + BLOB + "evident.yaml) at build time. Every "
         "claim names its oracle, tolerance, and the command that checks it. `ci` claims run "
-        "on every push; `release` claims (R/ggtree) run in the validation image before a tag.",
+        "on every push to `main` and every pull request; `release` claims (R/ggtree) run in "
+        "the validation image on a manual run before tagging and again when the `v*` tag is pushed.",
         "",
         f"**{len(claims)} claims.**",
         "",
@@ -64,25 +89,27 @@ def _claims_page() -> str:
     ]
     for c in claims:
         ev = c.get("evidence", {})
-        oracle = "; ".join(str(o) for o in ev.get("oracle", []))
-        tol = " ".join(str(ev.get("tolerance", "")).split())
-        lines.append(f"| [{c['title']}](#{c['id']}) | `{c['tier']}` | {oracle} | {tol} |")
+        oracle = _text("; ".join(str(o) for o in ev.get("oracle", [])))
+        tol = _text(ev.get("tolerance", ""))
+        lines.append(
+            f"| [{_text(_field(c, 'title'))}](#{_field(c, 'id')}) | `{_field(c, 'tier')}` | {oracle} | {tol} |"
+        )
     for c in claims:
         ev = c.get("evidence", {})
         lines += [
             "",
-            f"## {c['title']} {{ #{c['id']} }}",
+            f"## {_text(_field(c, 'title')).replace('{', '&#123;')} {{ #{_field(c, 'id')} }}",
             "",
-            f"`{c['id']}` · tier `{c['tier']}` · source `{c['source']}`",
+            f"`{_field(c, 'id')}` · tier `{_field(c, 'tier')}` · source `{_field(c, 'source')}`",
             "",
-            " ".join(str(c["claim"]).split()),
+            _text(_field(c, "claim")),
             "",
             f"**Check:** `{ev.get('command', '')}`",
         ]
         for heading, key in (("Assumptions", "assumptions"), ("Failure modes", "failure_modes")):
             items = c.get(key) or []
             if items:
-                lines += ["", f"**{heading}**", ""] + [f"- {' '.join(str(i).split())}" for i in items]
+                lines += ["", f"**{heading}**", ""] + [f"- {_text(i)}" for i in items]
     return "\n".join(lines) + "\n"
 
 

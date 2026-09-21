@@ -4,47 +4,72 @@ All notable changes to treescape are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — v0.5.0
+## [0.5.0] — unreleased
+
+A second host language. Styling resolution moved from Python into the Rust core (Phase 1), a C-ABI connector and `Treescape.jl` drive that core from Julia with byte-identical output (Phase 2), and a docs site shows every example in both languages (Phase 3). Three EVIDENT claims added (21 in total).
+
+Metadata-driven styling resolution moved from `plot.py` into `treescape-core::style` (exposed as `treescape_connector.py_style`), in preparation for the Julia binding. No API changes. New EVIDENT claim `treescape-style-resolution-rust-vs-reference`.
+
+### Changed — Phase 1: styling resolution in Rust
+
+- **Python 3.11: subtree-mean branch colors and widths now match Python 3.12.** v0.4 averaged subtree values with builtin `sum()`, whose float algorithm changed in Python 3.12 (Neumaier compensation). For cancellation-prone values (e.g. `[1e16, 1.0, -1e16]`) v0.4 produced different colors/widths on 3.11 than on 3.12 and than the committed goldens. v0.5 pins the 3.12 algorithm in Rust, so output is now interpreter-independent. Python 3.12+ output is unchanged: every golden and gallery SVG is byte-identical.
+
+### Added — Phase 1
+
+- `tests/oracle/test_gallery_bytes.py`: every `scripts/regen_assets.py` configuration is rendered in memory and compared byte-for-byte to the committed `assets/` files. `scripts/regen_assets.py` now exposes the configurations as a `GALLERY` list.
+
+### Fixed — Phase 1
+
+- `cargo clippy --workspace -- -D warnings` failed on `main` since v0.4 Phase 3 (`too_many_arguments` on the two `render_*_styled_svg` PyO3 functions); allowed explicitly.
 
 ### Added — v0.5 Phase 2: Julia binding
 
 - **`Treescape.jl`** (`packages/Treescape.jl`) — the full TreePlot grammar in Julia (`layout!`, `options!`, `highlight_clade!`, `color_tips!`, `join_metadata!` over any Tables.jl source, `color_tips_by!`, `color_branches_by!`, `width_branches_by!`, `scale_bar!`, `support_labels!`, `to_svg`, `save`, inline SVG display). Julia ≥ 1.10; CI on 1.10 and 1.12.
 - **`treescape-jl-connector`** — C-ABI cdylib in the rustims `imsjl_connector` style: opaque handles, status codes with owned error messages, finalizer-managed memory, ABI version check, library discovery via `TREESCAPE_JL_LIB` / Preferences.jl / the dev build. Unlike `imsjl_connector` it cannot panic across the boundary (clippy deny-list on `unwrap`/`expect`/`panic`/indexing; null, alignment and size checks on every pointer). Unit tests call the C functions in-process and run under Miri in CI.
-- Claims `treescape-julia-python-svg-parity` (37 data-only cases in `tests/fixtures/parity/cases.toml`, including every gallery file, byte-identical between Julia and Python) and `treescape-jl-ffi-no-abort` (1,596 hostile/fuzzed inputs through the raw ABI; the Julia process must survive). Both fail rather than skip in the CI `julia` job.
+- Claims `treescape-julia-python-svg-parity` (39 data-only cases in `tests/fixtures/parity/cases.toml`, including every gallery file, byte-identical between Julia and Python) and `treescape-jl-ffi-no-abort` (1,601 hostile, fuzzed and oversized inputs through the raw ABI; the Julia process must survive). Both fail rather than skip in the CI `julia` job.
 
 ### Fixed — Phase 2 review round 1 (general + FFI robustness reviews)
 
 - **Julia memory safety.** Every `ccall` now passes the owning `Tree` (rooted for the call) instead of its raw pointer, which the GC could otherwise finalize mid-call; `deepcopy`/`copy` share the tree owner instead of duplicating the handle (two finalizers, one handle); the finalizer captures its free-function pointer at construction and never takes a lock; all symbols are resolved once under a lock at load; returned strings are freed in `finally`; a library that fails the ABI check is `dlclose`d.
-- **C ABI.** Output destinations are validated before strings are allocated (a rejected call leaked the whole SVG); the `err` pointer is validated before it is written; a non-null options pointer that fails validation is an error rather than a silent fallback to defaults; Rust writes caller buffers with raw copies and never forms `&mut [T]` over possibly-uninitialized Julia memory; Newick input over 64 MiB is rejected before parsing.
+- **C ABI.** Output destinations are validated before strings are allocated (a rejected call leaked the whole SVG); the `err` pointer is validated before it is written; a non-null options pointer that fails validation is an error rather than a silent fallback to defaults; Rust writes caller buffers with raw copies and never forms `&mut [T]` over possibly-uninitialized Julia memory; Newick input over 16 MiB is rejected before parsing (64 MiB in round 1; lowered in round 2).
 - **Invalid SVG from non-finite numbers (Python too).** NaN/infinite options, branch lengths or scale bars — or finite values whose derived geometry overflows (e.g. `font_size=1e300`) — produced `NaN`/`inf` attributes. The SVG emitter now raises instead (`RuntimeError` in Python, `TreescapeError` in Julia). No golden changed.
 - **XML-forbidden control characters** (U+0000–U+0008, U+000B, U+000C, U+000E–U+001F, U+FFFE, U+FFFF) in tip names and labels are replaced with U+FFFD instead of producing a malformed document.
 - **Julia host parity:** `-0.0`/`0.0` (and `1`/`1.0`) are one category, as in Python; callable structs are accepted as colormaps; huge finite `alpha` clamps instead of overflowing.
 - **Newick tokenizers agree on Unicode:** branch-length digits are ASCII only and whitespace is Unicode White_Space in both the Rust core and `treescape-reference` (the reference accepted `'١'` as a digit and treated U+001C–U+001F as whitespace).
 
-### Known limitations
-
-- Metadata-driven branch styling is O(nodes × depth) — about 0.3 s for an 8,000-tip ladder tree. The pinned left-to-right Neumaier summation rules out combining child sums; a faster algorithm that preserves it is v0.6 work.
-- Allocation failure aborts the host process (Rust's default). The 64 MiB input limit bounds the common case; very large trees under tight memory can still abort.
-
-### Fixed
+### Fixed — found by the Phase 2 fuzz runner
 
 - **Newick: a `]` outside a comment hung the parser until the process ran out of memory** — in both the Rust core and `treescape-reference`, so `TreePlot("a];")` could take down a Python session. The tokenizer's name scanner stopped at `]` without advancing and appended empty names forever. Found by the Phase 2 fuzz runner; now a parse error (`unmatched ']' outside a comment`) with regression tests on both sides.
 
-## v0.4.1 (Phase 1, untagged)
+### Added — Phase 3: docs site
 
-v0.5 Phase 1: metadata-driven styling resolution moved from `plot.py` into `treescape-core::style` (exposed as `treescape_connector.py_style`), in preparation for the Julia binding. No API changes. New EVIDENT claim `treescape-style-resolution-rust-vs-reference` (19 claims).
+- **Docs site on GitHub Pages** (MkDocs Material, `docs/` + `mkdocs.yml`), built and deployed by `.github/workflows/docs.yml`: examples in Python and Julia side by side, conventions, the EVIDENT trust case, a claims page generated from `evident.yaml`, and the Julia package page.
+- **Tested examples:** `tests/oracle/test_docs_examples.py` runs every Python and Julia block on the examples page and requires the SVG to equal the gallery image shown under it, byte for byte (coverage of `treescape-julia-python-svg-parity`; no new claim).
+- `THIRD_PARTY_NOTICES.md`: everything treescape bundles, links, reproduces or tests against, with licenses.
+- README rewritten (why / quickstart / what to trust, with the known limits of the evidence / design).
 
-### Changed
+### Changed — Phase 3
 
-- **Python 3.11: subtree-mean branch colors and widths now match Python 3.12.** v0.4 averaged subtree values with builtin `sum()`, whose float algorithm changed in Python 3.12 (Neumaier compensation). For cancellation-prone values (e.g. `[1e16, 1.0, -1e16]`) v0.4 produced different colors/widths on 3.11 than on 3.12 and than the committed goldens. v0.5 pins the 3.12 algorithm in Rust, so output is now interpreter-independent. Python 3.12+ output is unchanged: every golden and gallery SVG is byte-identical.
+- `treescape` no longer depends on `pandas` or `numpy`; `polars` is the only data-frame dependency.
+- Repository layout: plans moved to `devdocs/plans/`, `CONTRIBUTING.md` to `.github/`.
 
-### Added
+### Fixed — review round 2 (Phase 2 fixes + Phase 3)
 
-- `tests/oracle/test_gallery_bytes.py`: every `scripts/regen_assets.py` configuration is rendered in memory and compared byte-for-byte to the committed `assets/` files. `scripts/regen_assets.py` now exposes the configurations as a `GALLERY` list.
+- **Julia use-after-free after an explicit `finalize(tree)`.** The finalizer freed the handle but kept the pointer, so a later render read freed memory (and could draw another tree). It now nulls the pointer; later calls fail with "tree is a null pointer", and a second `finalize` is a no-op.
+- **Oversized Newick could abort the process (Python and Julia).** Parsing costs up to ~160× the input size, and Rust aborts on allocation failure: 63 MiB of `(` under an 8 GiB address-space cap killed the host. The parser's buffers now grow fallibly (`input too large to parse in available memory`, a `ValueError` in Python), and the C ABI limit is 16 MiB instead of 64 MiB. The no-abort runner now covers the size limit, the worst-case input at the limit, and an oversized buffer length.
+- **Python/Julia parity:** a non-string `scale_bar` label is formatted as Python's `str()` (`1e-05`, `True`) in Julia too; a NaN or infinite `scale_bar` length is rejected at the call in both hosts; `alpha` so large that `alpha * 255` overflows clamps to opaque in Python too (it raised `OverflowError`); Julia render errors carry exactly Python's message (no `svg format error:` prefix). Two new parity cases pin the label bytes.
+- **Newick claim now tests what it states.** `treescape-newick-roundtrip` claims exact topology agreement with Biopython, but the runner compared only tip names and tip branch lengths, and only for the reference parser. It now compares every clade and the branch length above it, for both the reference and the Rust parser, and includes the medium fixture (`primates.nwk`).
+- **Claims page:** claim text containing `<fixture>`-style placeholders or `|` is escaped (the live page dropped `<fixture>` as an HTML tag); a claim missing a field fails the build with its id.
+- **Font license:** the bundled `LICENSE.DejaVu.txt` lacked the Arev Fonts section that the font's own license (name ID 13) requires; it is now the font's license verbatim. The `treescape_connector` wheel ships both license files, and the crates that embed the font declare `MIT AND Bitstream-Vera`.
+- **Docs wording:** the site no longer calls every oracle independent, states which oracles cover which layout (and that they check the Python reference on small fixtures), notes that determinism is verified on Linux, and no longer publishes a local path.
+- **CI:** the release tier (ggtree) can be run manually on `main` before tagging (`workflow_dispatch`), as the trust case requires; Pages write permissions and the deploy queue are scoped to the deploy job, so pull-request builds can no longer cancel a pending deploy.
+- **Tests:** the docs-example runner fails if any Python/Julia block on the page is not executed or an example's image is not the one shown under it; the parity runner fails on a misspelled table in `cases.toml`.
 
-### Fixed
+### Known limitations (v0.5.0)
 
-- `cargo clippy --workspace -- -D warnings` failed on `main` since v0.4 Phase 3 (`too_many_arguments` on the two `render_*_styled_svg` PyO3 functions); allowed explicitly.
+- Metadata-driven branch styling is O(nodes × depth) — about 0.3 s for an 8,000-tip ladder tree. The pinned left-to-right Neumaier summation rules out combining child sums; a faster algorithm that preserves it is v0.6 work.
+- Rust aborts on allocation failure. The Newick parser now grows its large buffers fallibly, and the C ABI caps input at 16 MiB, but small per-node allocations are still infallible, so parsing under extreme memory pressure can in principle still abort.
+- Python and Julia still differ on a few inputs, in whether they succeed or raise, never in the bytes of a successful render: NUL characters in names (Julia rejects them, Python writes U+FFFD); several NaN keys in a discrete palette (Julia treats all NaNs as one category, Python as distinct values); Newick over 16 MiB (Python only); `cmap=` on a column of numeric strings (Python only).
 
 ## [0.4.0] — 2026-04-28
 

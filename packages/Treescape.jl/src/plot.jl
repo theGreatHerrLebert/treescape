@@ -396,8 +396,8 @@ Python would (`0.05`, `1e-05`).
 """
 function scale_bar!(p::TreePlot, length::Real, label=nothing)
     length = Float64(length)
-    length > 0 || throw(ArgumentError("scale_bar length must be positive"))
-    p.scale_bar = (length, label === nothing ? pyfloat(length) : string(label))
+    isfinite(length) && length > 0 || throw(ArgumentError("scale_bar length must be positive and finite"))
+    p.scale_bar = (length, label === nothing ? pyfloat(length) : pystr(label))
     return p
 end
 

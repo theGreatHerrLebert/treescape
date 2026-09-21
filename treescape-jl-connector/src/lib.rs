@@ -447,7 +447,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "allocates 64 MiB")]
+    #[cfg_attr(miri, ignore = "allocates 16 MiB")]
     fn oversized_newick_is_rejected_before_parsing() {
         let big = "a".repeat(tree::MAX_NEWICK_BYTES + 1) + ";";
         let (status, tree, msg) = parse(&big);

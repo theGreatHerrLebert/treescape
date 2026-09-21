@@ -1,0 +1,5 @@
+# Docs site build (see .github/workflows/docs.yml). MkDocs 2.0 drops the
+# plugin/hook system this site uses; stay on 1.x.
+mkdocs>=1.6,<2
+mkdocs-material>=9.5,<10
+PyYAML

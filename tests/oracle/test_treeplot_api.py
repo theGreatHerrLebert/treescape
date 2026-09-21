@@ -42,6 +42,19 @@ def test_scale_bar_rejects_non_positive_lengths() -> None:
         TreePlot("(a:1,b:2);").scale_bar(0)
 
 
+@pytest.mark.parametrize("length", [float("nan"), float("inf")])
+def test_scale_bar_rejects_non_finite_lengths(length: float) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        TreePlot("(a:1,b:2);").scale_bar(length)
+
+
+def test_highlight_alpha_clamps_when_alpha_times_255_overflows() -> None:
+    plot = TreePlot("((a:1,b:1):1,c:1);").highlight_clade(["a", "b"], alpha=1e307)
+    assert plot._highlights[0][1][3] == 255
+    with pytest.raises(ValueError, match="finite"):
+        TreePlot("((a:1,b:1):1,c:1);").highlight_clade(["a"], alpha=float("nan"))
+
+
 def test_support_labels_render_internal_node_names() -> None:
     svg = TreePlot("((a:1,b:1)95:0.2,c:1);").support_labels().to_svg()
 

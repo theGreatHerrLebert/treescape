@@ -6,8 +6,10 @@ Two oracles per the manifest:
      writing then re-parsing produces a structurally identical tree.
 
   2. **Biopython.Phylo** — on small/medium fixtures, our parsed tree
-     agrees with Biopython's parse on the tip-name set and on tip
-     branch lengths (within 1e-9). Edge fixtures (NHX, negative
+     (reference and Rust parser) agrees with Biopython's parse exactly
+     on topology — the set of clades, each clade being the set of tip
+     names below a node — and within 1e-9 on the branch length above
+     every clade, internal ones included. Edge fixtures (NHX, negative
      branches) are excluded with the reason recorded below.
 
 Phase 1 status: the Rust path is reachable only via `cargo test`; this
@@ -48,6 +50,7 @@ CANONICAL_FIXTURES = [
     FIXTURES_DIR / "small" / "two_tip.nwk",
     FIXTURES_DIR / "small" / "balanced_4.nwk",
     FIXTURES_DIR / "small" / "unbalanced_5.nwk",
+    FIXTURES_DIR / "medium" / "primates.nwk",
     FIXTURES_DIR / "edge" / "quoted_names.nwk",
     FIXTURES_DIR / "edge" / "trifurcation_root.nwk",
     FIXTURES_DIR / "edge" / "neg_branches.nwk",
@@ -141,6 +144,72 @@ def test_biopython_tip_branch_lengths_match(fixture: pathlib.Path) -> None:
         )
 
 
+def _biopython_clades(src: str) -> dict[frozenset[str], float]:
+    """Clade (tip-name set below a node) -> branch length above it."""
+    bio_tree = Phylo.read(StringIO(src), "newick")
+    return {
+        frozenset(t.name for t in clade.get_terminals()): (
+            clade.branch_length if clade.branch_length is not None else 0.0
+        )
+        for clade in bio_tree.find_clades()
+    }
+
+
+def _reference_clades(src: str) -> dict[frozenset[str], float]:
+    below: dict[int, frozenset[str]] = {}
+    out: dict[frozenset[str], float] = {}
+    for n in ref_parse(src).postorder():
+        tips = frozenset([n.name]) if n.is_tip() else frozenset().union(*(below[id(c)] for c in n.children))
+        below[id(n)] = tips
+        out[tips] = n.branch_length
+    return out
+
+
+def _rust_clades(src: str) -> dict[frozenset[str], float]:
+    tree = RustTree.parse_newick(src)
+    below: dict[int, frozenset[str]] = {}
+    out: dict[frozenset[str], float] = {}
+    for i in tree.postorder():
+        tips = frozenset([tree.name(i)]) if tree.is_tip(i) else frozenset().union(*(below[c] for c in tree.children(i)))
+        below[i] = tips
+        out[tips] = tree.branch_len(i)
+    return out
+
+
+def _assert_clades_match(ours: dict[frozenset[str], float], bio: dict[frozenset[str], float], where: str) -> None:
+    assert set(ours) == set(bio), (
+        f"topology differs from Biopython on {where}: "
+        f"only ours={sorted(map(sorted, set(ours) - set(bio)))} "
+        f"only biopython={sorted(map(sorted, set(bio) - set(ours)))}"
+    )
+    for clade, length in ours.items():
+        delta = abs(length - bio[clade])
+        assert delta < BRANCH_LEN_TOL, (
+            f"branch length above {sorted(clade)} on {where}: "
+            f"ours={length!r} biopython={bio[clade]!r} delta={delta}"
+        )
+
+
+@pytest.mark.skipif(not HAVE_BIOPYTHON, reason="Biopython not installed")
+@pytest.mark.parametrize("fixture", _BIO_FIXTURES, ids=lambda p: p.name)
+def test_biopython_topology_matches_reference(fixture: pathlib.Path) -> None:
+    """Every clade and the branch length above it match Biopython (reference parser)."""
+    src = fixture.read_text()
+    _assert_clades_match(_reference_clades(src), _biopython_clades(src), fixture.name)
+
+
+@pytest.mark.skipif(not HAVE_BIOPYTHON, reason="Biopython not installed")
+@pytest.mark.skipif(
+    not HAVE_CONNECTOR,
+    reason="treescape_connector not built (run maturin develop)",
+)
+@pytest.mark.parametrize("fixture", _BIO_FIXTURES, ids=lambda p: p.name)
+def test_biopython_topology_matches_rust(fixture: pathlib.Path) -> None:
+    """Every clade and the branch length above it match Biopython (Rust parser)."""
+    src = fixture.read_text()
+    _assert_clades_match(_rust_clades(src), _biopython_clades(src), fixture.name)
+
+
 # ----- Rust path (Phase 4 deliverable) --------------------------------------
 
 
@@ -187,6 +256,12 @@ def test_rust_matches_python_reference_topology(fixture: pathlib.Path) -> None:
     )
 
     assert rust_tree.n_nodes == len(ref_tree.postorder())
+
+    # Tip names are unique on these fixtures, so clade sets identify nodes.
+    if len(rust_tips) == len(set(rust_tips)):
+        assert set(_rust_clades(src)) == set(_reference_clades(src)), (
+            f"Rust/ref clade sets differ on {fixture.name}"
+        )
 
 
 # v0.5 fuzz finding: a ']' outside a comment made both tokenizers loop

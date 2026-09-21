@@ -13,12 +13,17 @@ it only **tests against**, with each upstream license.
 tip-label measurement, and shipped as a file with `treescape-reference`.
 It is the unmodified upstream font from <https://dejavu-fonts.github.io/>.
 
-License: **Bitstream Vera Fonts License** (DejaVu changes are public
-domain). The full notice, which must accompany every copy, is in
+License: **Bitstream Vera Fonts License**, plus the **Arev Fonts
+License** for glyphs DejaVu imported from the Arev fonts (DejaVu's own
+changes are public domain). The full notice, which must accompany every
+copy, is the font's own license text (its name ID 13) and is in
 [`treescape-render/src/fonts/LICENSE.DejaVu.txt`](treescape-render/src/fonts/LICENSE.DejaVu.txt)
 and [`packages/treescape-reference/src/treescape_reference/fonts/LICENSE.DejaVu.txt`](packages/treescape-reference/src/treescape_reference/fonts/LICENSE.DejaVu.txt).
-SVG output references the font by family name only; no glyph data is
-written into figures.
+The `treescape_connector` wheel ships it in `.dist-info/licenses/`
+(declared as `MIT AND Bitstream-Vera`), and the Rust crates that embed
+the font (`treescape-render` and both connectors) declare the same
+license expression. SVG output references the font by family name only;
+no glyph data is written into figures.
 
 ## Reproduced data
 

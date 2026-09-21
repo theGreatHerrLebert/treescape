@@ -43,7 +43,7 @@ or a `NamedTuple` of vectors):
 ```julia
 meta = (tip = ["Homo_sapiens", "Pan_troglodytes"], clade = ["great_apes", "great_apes"])
 
-p = TreePlot("primates.nwk")
+p = TreePlot("tests/fixtures/trees/medium/primates.nwk")
 layout!(p, :circular)
 join_metadata!(p, meta; on=:tip)
 color_tips_by!(p, :clade)                      # Tableau-10, first-occurrence order

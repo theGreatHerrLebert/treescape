@@ -42,6 +42,12 @@ SPEC = tomllib.loads(CASES_PATH.read_text())
 CASE_NAMES = [c["name"] for c in SPEC["cases"]]
 
 
+def test_cases_file_has_no_ignored_tables() -> None:
+    """A misspelled table (``[[case]]``) would silently drop its cases."""
+    assert set(SPEC) <= {"trees", "tables", "cases"}, sorted(set(SPEC) - {"trees", "tables", "cases"})
+    assert len(CASE_NAMES) == len(set(CASE_NAMES)), "duplicate case names"
+
+
 # --- Python driver ------------------------------------------------------------
 
 

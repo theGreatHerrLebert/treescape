@@ -1,8 +1,8 @@
 //! treescape-core: tree model, parsers, traversal, layout, scene graph.
 //!
-//! Phase 0 skeleton. Implementation lands in subsequent phases — see
-//! `~/.claude/plans/stateless-waddling-crane.md` and `evident.yaml` at the
-//! workspace root for the trust manifest that gates what ships.
+//! Pure Rust, no host bindings. `evident.yaml` at the workspace root is
+//! the trust manifest that gates what ships; `docs/conventions.md` pins
+//! every convention the code follows.
 
 pub mod clades;
 pub mod ladderize;

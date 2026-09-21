@@ -37,6 +37,13 @@ pyrepr(::Nothing) = "None"
 pyrepr(x::AbstractFloat) = pyfloat(x)
 pyrepr(x) = repr(x)
 
+"""Python `str` for a scale-bar label: strings as-is, `True`/`False`,
+floats via [`pyfloat`](@ref)."""
+pystr(s::AbstractString) = String(s)
+pystr(b::Bool) = b ? "True" : "False"
+pystr(x::AbstractFloat) = pyfloat(x)
+pystr(x) = string(x)
+
 """
     pyfloat(x) -> String
 

@@ -7,19 +7,12 @@ name: docs
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
     branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   build:
@@ -30,8 +23,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install MkDocs
-        # MkDocs 2.0 drops the plugin/hook system this site uses; stay on 1.x.
-        run: pip install "mkdocs>=1.6,<2" "mkdocs-material>=9.5,<10" PyYAML
+        run: pip install -r docs/requirements.txt
       - name: Build (strict)
         run: mkdocs build --strict
       - uses: actions/upload-pages-artifact@v3
@@ -43,6 +35,14 @@ jobs:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
+    # Only the deploy job may write to Pages, and only deploys share the
+    # queue, so a pull-request build can never cancel a pending deploy.
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
