@@ -96,7 +96,7 @@ For each phase:
 
 ## Decisions (locked 2026-09-21)
 
-PyPI trusted publishing uses workflow `.github/workflows/release.yml` and the GitHub environments `testpypi` and `pypi` (created 2026-09-21; `pypi` requires the owner's approval for every publish). The PyPI-side pending publishers are the user's one-time setup.
+PyPI trusted publishing uses workflow `.github/workflows/release.yml` and the GitHub environment `pypi` (created 2026-09-21; requires the owner's approval for every publish). The PyPI-side pending publishers are the user's one-time setup. No TestPyPI rehearsal (user decision): the wheels are tested installed in CI and checked with `twine check` before the gated upload; a bad upload is yanked and superseded by a patch release.
 
 
 1. **PyPI:** publish to PyPI through trusted publishing (recommended). This needs a one-time setup by you: a PyPI account, and a trusted publisher for the three projects pointing at this repository's workflow. The alternative is GitHub release assets only (`pip install <url>`), which needs no account but is clumsier for students.
