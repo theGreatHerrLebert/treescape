@@ -6,6 +6,10 @@ Coherence notes for AI-assisted development of treescape.
 
 A phylogenetic tree visualization library for Python and Julia with a Rust core and EVIDENT-style trust scaffolding. `evident.yaml` is the active trust manifest; per-version plans live in `devdocs/plans/` (`plan-v0.1.md` holds the original vision; the newest `plan-v0.N.md` is the current one); `docs/conventions.md` pins every convention; `CHANGELOG.md` records what landed. Keep the repository root for standard files only — plans, notes and scratch documents go under `devdocs/`.
 
+## Resuming work
+
+If `devdocs/HANDOFF.md` exists, read it first: it lists what is open from the last session, in order.
+
 ## Architecture you must mirror
 
 The repo follows the rustims layout exactly (`/scratch/timsim-demo/SUBMISSION/rustims/`). Read its `Cargo.toml`, `imspy_connector/src/lib.rs`, and `imspy_connector/pyproject.toml` before changing build files here.
