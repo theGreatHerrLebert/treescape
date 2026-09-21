@@ -1,6 +1,6 @@
 # v0.6 plan
 
-**Status: approved 2026-09-21** (user greenlight after v0.5.0; decisions 1 and 3 taken at their recommended defaults, decisions 2 and 4 open — they only gate Phase 3). Same cadence as v0.1–v0.5: tight scope, EVIDENT claims pinned **before** the code, Python reference first then Rust port, external review at the end of each phase.
+**Status: approved 2026-09-21** (user greenlight after v0.5.0; decisions 1 and 3 at their recommended defaults; decision 2 answered: no MATLAB; decision 4 open — it only gates the course fixtures). Same cadence as v0.1–v0.5: tight scope, EVIDENT claims pinned **before** the code, Python reference first then Rust port, external review at the end of each phase.
 
 ## Theme
 
@@ -95,7 +95,7 @@ The builders live in `treescape-core` (a new `tree_build` module that produces t
 | Biopython `DistanceTreeConstructor` (`nj`, `upgma`) | NJ + UPGMA | ci |
 | SciPy `linkage(method="average")` | UPGMA topology + merge heights | ci |
 | ape `nj()` + phangorn `upgma()` (R) | NJ + UPGMA | release |
-| MATLAB `seqneighjoin` / `seqlinkage` output, frozen as Newick | NJ + UPGMA on the course fixtures | ci (frozen files), if decision 2 |
+| ~~MATLAB `seqneighjoin` / `seqlinkage` output~~ | dropped: no MATLAB available (decision 2) | — |
 
 The comparison is on topology (unrooted splits for NJ, rooted clades for UPGMA) and branch lengths within 1e-9. It runs on the course fixtures plus random distance matrices, both additive (from random trees in the Phase 2 corpus, where NJ must recover the tree exactly) and non-additive. Oracle disagreements, most likely from ties and rooting, are documented, never absorbed.
 
@@ -165,7 +165,7 @@ Claim count after v0.6: 21 + 5 = **26**.
 ## Decisions (to lock)
 
 1. **Scope order:** Phases 1–2 (evidence plumbing) before Phase 3 (NJ/UPGMA). Recommended, since Phase 3's oracles and random matrices reuse Phase 2's corpus and runners.
-2. **MATLAB as a frozen oracle:** can MATLAB (with the Bioinformatics Toolbox) be run once to export the course fixtures' distance matrices and `seqneighjoin`/`seqlinkage` trees as Newick (`getnewickstr`)? That makes "same tree as the MATLAB demo" a tested claim, which is what students will check.
+2. **MATLAB as a frozen oracle:** ~~can MATLAB be run once to export frozen reference trees?~~ **Decided 2026-09-21: no MATLAB is available.** There is no MATLAB oracle and no MATLAB-equivalence claim. The NJ variant rests on the published algorithm and on scikit-bio, Biopython and ape. If the course fixtures are published (decision 4), their distance matrices are computed with the pinned Biopython pairwise-alignment + Jukes–Cantor script (the fallback in Phase 3).
 3. **Vertical orientation:** stays out of v0.6 (recommended), or replaces the macOS leg in Phase 2 as the one extra item.
 4. **Publishing course data:** the fixtures derive from course material (demos from the *Introduction to Computational Genomics* website, sequences from GenBank). Confirm the derived distance matrices, labels and GenBank accessions can be published in the public repo and on the docs site.
 

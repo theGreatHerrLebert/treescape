@@ -352,7 +352,7 @@ An **active list** holds the current clusters, starting with the taxa in input o
 
 ### Neighbor joining
 
-Saitou and Nei (1987), with the Studier and Keppler criterion (the "canonical" NJ; to be confirmed as MATLAB's `seqneighjoin(..., 'equivar')`):
+Saitou and Nei (1987), with the Studier and Keppler criterion (the "canonical" NJ). MATLAB's `seqneighjoin(..., 'equivar')` is documented as the same method, but no MATLAB is available to test it, so treescape makes no MATLAB-equivalence claim:
 
 - With `r` active clusters: `R(k) = Σ_m d(k, m)`, and `Q(p, q) = (r − 2)·d(p, q) − R(p) − R(q)`. Join the pair that minimizes `Q`.
 - Branch lengths: `δ_p = d(p,q)/2 + (R(p) − R(q)) / (2(r − 2))` and `δ_q = d(p,q) − δ_p`.
