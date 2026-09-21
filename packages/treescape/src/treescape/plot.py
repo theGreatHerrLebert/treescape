@@ -1,9 +1,10 @@
 """User-facing declarative grammar for treescape.
 
-v0.1 surface area is intentionally tight: load a Newick tree, choose
-the rectangular layout, render tip labels, save SVG. Color/metadata
-joins, circular and radial layouts, clade highlighting, and
-branch/node styling all land in v0.2 and are documented in plan.md.
+Load a Newick tree, choose a rectangular or circular layout, style it
+from joined metadata, and save deterministic SVG. Methods chain. The
+Julia package (packages/Treescape.jl) mirrors this grammar and renders
+byte-identical output; styling rules live in the Rust core
+(treescape_connector.py_style), conventions in docs/conventions.md.
 
 Example:
 

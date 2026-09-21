@@ -4,15 +4,16 @@ Coherence notes for AI-assisted development of treescape.
 
 ## What this project is
 
-A Python-native phylogenetic tree visualization library with a Rust core and EVIDENT-style trust scaffolding. See `plan.md` for the vision, `evident.yaml` for the active trust manifest, and `~/.claude/plans/stateless-waddling-crane.md` for the v0.1 implementation plan.
+A phylogenetic tree visualization library for Python and Julia with a Rust core and EVIDENT-style trust scaffolding. `evident.yaml` is the active trust manifest; per-version plans live in `devdocs/plans/` (`plan-v0.1.md` holds the original vision; the newest `plan-v0.N.md` is the current one); `docs/conventions.md` pins every convention; `CHANGELOG.md` records what landed. Keep the repository root for standard files only — plans, notes and scratch documents go under `devdocs/`.
 
 ## Architecture you must mirror
 
 The repo follows the rustims layout exactly (`/scratch/timsim-demo/SUBMISSION/rustims/`). Read its `Cargo.toml`, `imspy_connector/src/lib.rs`, and `imspy_connector/pyproject.toml` before changing build files here.
 
 - Two pure-Rust crates: `treescape-core` (fat capability — tree, parsers, traversal, layout, scene graph) and `treescape-render` (SVG emitter + themes).
-- One PyO3 connector cdylib: `treescape-connector`. Use `wrap_pymodule!` submodules (`py_tree`, `py_layout`, `py_render`, `py_metadata`), not a single flat module.
-- Python packages live under `packages/`: `treescape` (user-facing TreePlot grammar), `treescape-reference` (slow, readable Python — the EVIDENT oracle for layout), `treescape-cli` (deferred to v0.3).
+- One PyO3 connector cdylib: `treescape-connector`. Use `wrap_pymodule!` submodules (`py_tree`, `py_layout`, `py_render`, `py_metadata`, `py_style`), not a single flat module.
+- One C-ABI connector cdylib for Julia: `treescape-jl-connector` (the rustims `imsjl_connector` pattern). It must never panic across the boundary — see its clippy deny-list and the "Julia binding" section of `docs/conventions.md`.
+- Packages live under `packages/`: `treescape` (Python TreePlot grammar), `treescape-reference` (slow, readable Python — the EVIDENT oracle), `Treescape.jl` (Julia; must stay byte-identical to Python).
 
 ## Internal tree representation
 
@@ -29,9 +30,9 @@ Pure-Rust SVG. No matplotlib. Use `fontdue` or `ttf-parser` for real text bbox m
 - `release`-tier claims (e.g. ggtree, which needs R+Bioconductor) must run before any release tag inside the heavier validation image; they cannot be skipped.
 - Property-style invariants (tip-count, coordinate bounds, SVG determinism) are part of the manifest, not separate "extra tests."
 
-## v0.1 scope discipline
+## Scope discipline
 
-Tight: Newick + rectangular only + tip labels + SVG + one theme + `join_metadata` + tip color by metadata. Anything else (circular, PDF, clade highlighting, branch/node styling, Nexus, PhyloXML, polars dual-support, CLI, Jupyter rich display) is v0.2+. Resist scope creep — the plan was deliberately cut tight after a critique that an over-wide MVP is months-and-abandonment-risk.
+Each minor version has a tight, written scope in its `devdocs/plans/plan-v0.N.md`, including an explicit "NOT in this version" list. Resist scope creep: the original v0.1 plan was cut tight after a critique that an over-wide MVP is months-and-abandonment-risk, and every version since has kept that cadence (plan → conventions → claims → reference → Rust → review).
 
 ## When implementing layout
 

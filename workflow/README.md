@@ -10,7 +10,7 @@ Two-tier validation infrastructure for treescape's EVIDENT manifest.
 ## Files
 
 - `validate_manifest.py` — structural validator for `evident.yaml`. Adapted from `evident/workflow/validate_manifest.py`; same schema.
-- `Dockerfile.evident-base` — `ci`-tier image. (Phase 0 ships only the structural validator; the layered images land alongside Phase 2.)
+- `Dockerfile.evident-base` — lightweight manifest validator (`docker build -f workflow/Dockerfile.evident-base .` from the repo root).
 - `Dockerfile.evident-release` — `release`-tier image with R/Bioconductor.
 - `scripts/oracle_ggtree.R` — invoked by claim #5 runner.
 
