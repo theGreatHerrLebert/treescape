@@ -400,7 +400,12 @@ pub fn build_circular_scene_with_style(
 
     let root = match tree.root {
         Some(r) => r,
-        None => return Ok(Scene { canvas, items: Vec::new() }),
+        None => {
+            return Ok(Scene {
+                canvas,
+                items: Vec::new(),
+            })
+        }
     };
 
     let mut items: Vec<SceneItem> = Vec::new();
@@ -658,7 +663,7 @@ mod tests {
         let m = tip_map(&t, &l);
         // 4 tips → 90° apart, clockwise from 12 o'clock.
         for (name, expected_deg) in [("a", 90.0), ("b", 0.0), ("c", -90.0), ("d", -180.0)] {
-            let expected = (expected_deg as f64).to_radians();
+            let expected = f64::to_radians(expected_deg);
             assert!(
                 approx(m[name].1, expected, 1e-12),
                 "{name}: expected {expected} got {}",
@@ -674,7 +679,7 @@ mod tests {
         let l = circular_layout(&t);
         let m = tip_map(&t, &l);
         for (name, expected_deg) in [("a", 90.0), ("b", -30.0), ("c", -150.0)] {
-            assert!(approx(m[name].1, (expected_deg as f64).to_radians(), 1e-12));
+            assert!(approx(m[name].1, f64::to_radians(expected_deg), 1e-12));
         }
     }
 
@@ -682,11 +687,19 @@ mod tests {
     fn evenly_spread_children_take_the_arc_midpoint() {
         // Star roots: the unit-vector sum of the children is the origin,
         // so the angle is the midpoint of the tip arc, not rounding noise.
-        for (src, n) in [("(a:1.0,b:1.0,c:1.0);", 3.0), ("(a:1,b:1,c:1,d:1,e:1,f:1,g:1);", 7.0), ("(a:1.0,b:1.0);", 2.0)] {
+        for (src, n) in [
+            ("(a:1.0,b:1.0,c:1.0);", 3.0),
+            ("(a:1,b:1,c:1,d:1,e:1,f:1,g:1);", 7.0),
+            ("(a:1.0,b:1.0);", 2.0),
+        ] {
             let t = parse(src).unwrap();
             let root = t.root.unwrap();
             let mid = (n - 1.0) / 2.0;
-            assert_eq!(circular_layout(&t).theta[root], PI / 2.0 - (mid / n) * 2.0 * PI, "{src}");
+            assert_eq!(
+                circular_layout(&t).theta[root],
+                PI / 2.0 - (mid / n) * 2.0 * PI,
+                "{src}"
+            );
         }
         // A drawn inner node, 120° children (tips b..f, arc > π): it takes
         // its own arc's midpoint (tip index 3 of 6, i.e. -90°), the
@@ -700,7 +713,9 @@ mod tests {
         let t = parse("((a:1,b:1):1,c:1,d:1);").unwrap();
         let root = t.root.unwrap();
         let c = circular_layout(&t);
-        let (sx, sy) = t.children[root].iter().fold((0.0, 0.0), |(x, y), &k| (x + c.theta[k].cos(), y + c.theta[k].sin()));
+        let (sx, sy) = t.children[root].iter().fold((0.0, 0.0), |(x, y), &k| {
+            (x + c.theta[k].cos(), y + c.theta[k].sin())
+        });
         assert_eq!(c.theta[root], f64::atan2(sy, sx));
     }
 
@@ -738,9 +753,9 @@ mod tests {
         let m = tip_map(&t, &l);
         for (name, expected_deg) in [("a", 90.0), ("b", 45.0), ("c", 0.0), ("d", -45.0)] {
             assert!(
-                approx(m[name].1, (expected_deg as f64).to_radians(), 1e-12),
+                approx(m[name].1, f64::to_radians(expected_deg), 1e-12),
                 "{name}: expected {}° got {}°",
-                expected_deg as f64,
+                expected_deg,
                 m[name].1.to_degrees()
             );
         }

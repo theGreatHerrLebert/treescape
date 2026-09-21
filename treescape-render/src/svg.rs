@@ -312,7 +312,10 @@ mod tests {
 
     #[test]
     fn xml_forbidden_characters_are_replaced() {
-        assert_eq!(xml_escape("a\u{1}b\tc\u{ffff}<"), "a\u{fffd}b\tc\u{fffd}&lt;");
+        assert_eq!(
+            xml_escape("a\u{1}b\tc\u{ffff}<"),
+            "a\u{fffd}b\tc\u{fffd}&lt;"
+        );
     }
 
     #[test]

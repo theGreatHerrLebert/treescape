@@ -155,10 +155,7 @@ impl Scene {
                     }
                 }
                 SceneItem::AnnularSector {
-                    cx,
-                    cy,
-                    r_outer,
-                    ..
+                    cx, cy, r_outer, ..
                 } => {
                     if *cx - *r_outer < -eps || *cx + *r_outer > w {
                         return false;
