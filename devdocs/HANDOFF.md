@@ -8,16 +8,17 @@ Plan: `devdocs/plans/plan-v0.6.md` (approved; decisions 1 and 3 at their default
 |---|---|
 | `7e5a386` (tag `v0.5.0`) | v0.5 review round 2 closed; release tier 8/8 run locally in Docker before tagging |
 | `a7db379` | v0.6 plan |
+| `f059765` | Fix: circular θ of a node with evenly spread children (Rust/reference drift, found by Phase 2) — arc-midpoint rule |
+| `55d77f6` | **Phase 2**: pinned random corpus (`layout-v2`, 66 trees), external oracles check Rust + reference node by node, macOS determinism job. Reviewed; findings closed. Release tier 265/265 locally. |
 | `872a325` | **Phase 1**: manifest on the upstream EVIDENT schema, pinned oracles (`tests/requirements-oracles.txt`), `tests/oracle/test_manifest.py`, named hashed corpora (`tests/fixtures/corpora.toml`), typed-trust claim viewer at `/trust/`. Reviewed by an independent agent; findings closed. |
 
 ## Open, in order
 
-1. **Check CI once** for `872a325` (first run of the rewritten `ci.yml`/`docs.yml`: upstream validator, typed-trust build, pinned oracles) and the `v0.5.0` tag's release-tier run: `gh run list --limit 6`. Then check `/trust/` on the Pages site. One check, no watching.
+1. **Check CI once** for `55d77f6`: the first run of the `determinism-macos` job. If it passes, change "verified on Linux" to "Linux and macOS" in `README.md` ("Known limits"), `docs/index.md` and `cases/treescape.md`. If it fails, that is a real cross-platform byte finding: investigate, don't paper over it. (Phase 1 CI, the v0.5.0 tag run and `/trust/` were all verified green.)
 2. **Decisions for the user** (don't edit claim text without them):
-   - The "Noted, not changed" items in the CHANGELOG `[Unreleased]` section: circular-ete3 1e-4 vs the runner's 1e-6; "small and medium fixtures" wording; external-oracle claims naming Rust sources but testing the reference; two inaccurate ete3 sentences. Phase 2 resolves most of them by rewriting those claims' text and inputs.
+   - CHANGELOG "Noted, not changed": circular-ete3 claims 1e-4 while its runner asserts 1e-6 (tighten the claim?). The other Phase 1 items were resolved in Phase 2.
    - Plan decision 2: can MATLAB (with the Bioinformatics Toolbox) be run once to export the course fixtures' distance matrices and trees as Newick? Decision 4: may course-derived data (distance matrices, labels, GenBank accessions) be published? Both gate only Phase 3.
-3. **Phase 2** (plan §Phase 2): pinned random corpus, oracles compare Rust directly, primates + random in every layout claim, macOS leg. From the Phase 1 review: make the runners load their fixture lists from `tests/fixtures/corpora.toml`, so corpus and runner cannot drift apart.
-4. **Phase 3**: NJ/UPGMA from distance matrices, speed benchmark. Course use cases are at the Seafile share in memory (`project_course_use_cases.md`).
+3. **Phase 3**: NJ/UPGMA from distance matrices, speed benchmark. Course use cases are at the Seafile share in memory (`project_course_use_cases.md`).
 
 ## Environment notes
 
