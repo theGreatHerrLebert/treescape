@@ -23,14 +23,17 @@ from pathlib import Path
 def main(repo: Path, report: Path) -> int:
     import treescape
     import treescape_connector
+    import treescape_reference
 
-    for module in (treescape, treescape_connector):
+    for module in (treescape, treescape_connector, treescape_reference):
         where = Path(module.__file__).resolve()
         assert repo.resolve() not in where.parents, f"{module.__name__} imported from the repository ({where})"
 
     files = {Path(f).name for f in importlib.metadata.files("treescape_connector") or []}
     missing = {"LICENSE", "LICENSE.DejaVu.txt"} - files
     assert not missing, f"connector wheel lacks {sorted(missing)}"
+    font = Path(treescape_reference.__file__).parent / "fonts" / "DejaVuSans.ttf"
+    assert font.is_file(), f"treescape-reference wheel lacks its font ({font})"
 
     spec = importlib.util.spec_from_file_location("regen_assets", repo / "scripts" / "regen_assets.py")
     regen = importlib.util.module_from_spec(spec)

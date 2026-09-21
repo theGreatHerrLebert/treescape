@@ -21,15 +21,20 @@ treescape is built to fill that gap.
 
 ## Quickstart
 
-treescape is not yet on PyPI or the Julia General registry; install from a checkout.
-
-**Python** (≥ 3.11)
+**Install** (from v0.7.0; no Rust toolchain needed). Prebuilt for Linux (x86-64, aarch64), macOS (arm64, x86-64) and Windows (x86-64):
 
 ```bash
-git clone https://github.com/theGreatHerrLebert/treescape.git && cd treescape
-pip install maturin polars
-pip install -e ./treescape-connector -e packages/treescape-reference -e packages/treescape
+pip install treescape                     # Python ≥ 3.11
 ```
+
+```julia
+using Pkg                                 # Julia ≥ 1.10; downloads the prebuilt library on first use
+Pkg.add(url = "https://github.com/theGreatHerrLebert/treescape", subdir = "packages/Treescape.jl", rev = "v0.7.0")
+```
+
+To work on treescape itself, build from a checkout instead (see [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md)).
+
+**Python**
 
 ```python
 import polars as pl
@@ -77,13 +82,15 @@ Every correctness claim is pinned in [`evident.yaml`](evident.yaml) — the [EVI
 | Rust core vs readable Python reference | `treescape-reference` | 1e-9 layout; exact styling rules |
 | Trees from distance matrices: neighbor joining | scikit-bio, Biopython, R/ape; and recovery of the true tree from exact tree distances | exact splits; edge lengths 1e-9 |
 | Trees from distance matrices: UPGMA | SciPy, R/phangorn | exact clades; heights 1e-9 |
+| Distances from aligned sequences (p, JC69, K2P; protein p, JC69, Poisson) | scikit-bio, R/ape; hand-computed protein values | 1e-12 per pair |
+| Installed packages, all five platforms | the committed gallery | byte-identical |
 | Label widths | fontTools reading the same font | 0.5 px |
 | Python ↔ Julia output | each other, and every gallery file | byte-identical |
 | Julia boundary | ~1,600 hostile and fuzzed inputs; Miri | never aborts the process |
 
 Where the external tools disagree with each other or with treescape — sweep direction, default ladderization, y offsets — the difference is documented in [conventions](docs/conventions.md), not hidden in a tolerance.
 
-**Known limits of that evidence**, stated plainly: external layout agreement is established on 66 trees of 2–200 tips (hand-written fixtures plus a pinned random corpus with multifurcations, zero-length branches and ladders), not on large real-world trees; rendered SVG geometry is snapshot-tested rather than checked against the validated coordinates; byte determinism is verified on Linux x86-64 and macOS arm64, not on Windows; branch styling is O(nodes × depth); neighbor joining is exact O(n³) and slower than scikit-bio's (see the [performance page](https://thegreatherrlebert.github.io/treescape/performance/)).
+**Known limits of that evidence**, stated plainly: external layout agreement is established on 66 trees of 2–200 tips (hand-written fixtures plus a pinned random corpus with multifurcations, zero-length branches and ladders), not on large real-world trees; rendered SVG geometry is snapshot-tested rather than checked against the validated coordinates; byte determinism is verified on every published platform (Linux x86-64/aarch64, macOS arm64/x86-64, Windows x86-64); branch styling is O(nodes × depth); neighbor joining is exact O(n³) and slower than scikit-bio's (see the [performance page](https://thegreatherrlebert.github.io/treescape/performance/)).
 
 ## Design philosophy
 

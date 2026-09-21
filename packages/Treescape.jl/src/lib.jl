@@ -1,6 +1,6 @@
 # C-ABI loading and error plumbing (docs/conventions.md, "Julia binding").
 
-const ABI_VERSION = UInt32(2)
+const ABI_VERSION = UInt32(4)
 
 const TS_OK = Int32(0)
 const TS_INVALID_ARGUMENT = Int32(1)
@@ -29,7 +29,9 @@ const _LOCK = ReentrantLock()
 # table is only read, so `sym` needs no lock (and is safe in finalizers).
 const _SYMBOL_NAMES = (
     :ts_abi_version, :ts_string_free,
-    :ts_tree_parse_newick, :ts_tree_from_distances, :ts_tree_from_linkage, :ts_tree_write_newick, :ts_tree_free, :ts_tree_n_nodes, :ts_tree_n_tips, :ts_tree_root,
+    :ts_tree_parse_newick, :ts_tree_from_distances, :ts_tree_from_linkage, :ts_tree_write_newick, :ts_tree_free,
+    :ts_seq_distances_from_fasta, :ts_seq_distances_from_records, :ts_distances_n, :ts_distances_copy,
+    :ts_distances_label, :ts_distances_doubtful, :ts_distances_free, :ts_tree_n_nodes, :ts_tree_n_tips, :ts_tree_root,
     :ts_tree_preorder, :ts_tree_is_tip, :ts_tree_node_name, :ts_tree_tip_name,
     :ts_style_new, :ts_style_free, :ts_style_add_highlight, :ts_style_set_tip_color,
     :ts_style_set_branch_color, :ts_style_set_branch_width, :ts_style_set_scale_bar,
@@ -80,7 +82,14 @@ function _artifact_library()
     toml = joinpath(@__DIR__, "..", "Artifacts.toml")
     isfile(toml) || return nothing
     Artifacts.artifact_meta(_ARTIFACT, toml) === nothing && return nothing
-    dir = Pkg.Artifacts.ensure_artifact_installed(_ARTIFACT, toml)
+    dir = try
+        Pkg.Artifacts.ensure_artifact_installed(_ARTIFACT, toml)
+    catch e
+        error(
+            "could not download the treescape connector library (first use needs network access): " *
+            sprint(showerror, e) * ". Offline, point ENV[\"TREESCAPE_JL_LIB\"] or Treescape.set_library!(path) at a local copy.",
+        )
+    end
     for name in _LIB_NAMES
         candidate = joinpath(dir, name)
         isfile(candidate) && return candidate

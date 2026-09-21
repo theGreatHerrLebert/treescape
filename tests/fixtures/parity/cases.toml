@@ -17,6 +17,9 @@ support = { newick = "((a:0.1,b:0.2)95:0.3,(c:0.15,(d:0.05,e:0.07)70:0.1)88:0.2)
 multi = { newick = "((a:1,b:1,c:1):1,(d:1,:1):2,e:0.5);" }
 # Trees built from distance matrices (v0.6 Phase 3).
 textbook_nj = { distances = "tests/fixtures/distances/ties_textbook_5.tsv", method = "nj" }
+gaps_k2p_nj = { sequences = "tests/fixtures/alignments/gaps_and_ambiguity.fasta", model = "k2p", method = "nj" }
+protein_poisson_upgma = { sequences = "tests/fixtures/alignments/protein.fasta", model = "poisson", method = "upgma" }
+doubtful_protein_nj = { sequences = "tests/fixtures/alignments/doubtful_protein.fasta", model = "jc69", alphabet = "protein", method = "nj" }
 textbook_upgma = { distances = "tests/fixtures/distances/ties_textbook_5.tsv", method = "upgma" }
 zeros_upgma = { distances = "tests/fixtures/distances/ties_zero_pairs_6.tsv", method = "upgma" }
 
@@ -402,3 +405,20 @@ ops = [
   { op = "options", kwargs = { padding = 16, px_per_x = 40, font_size = 12 } },
   { op = "scale_bar", args = [1.0] },
 ]
+
+# --- trees from aligned sequences (v0.7 Phase 2) ----------------------------
+
+[[cases]]
+name = "sequences_k2p_nj"
+tree = "gaps_k2p_nj"
+ops = [{ op = "scale_bar", args = [0.05] }]
+
+[[cases]]
+name = "sequences_protein_poisson_upgma_circular"
+tree = "protein_poisson_upgma"
+ops = [{ op = "layout", args = ["circular"] }]
+
+[[cases]]
+name = "sequences_explicit_protein_alphabet"
+tree = "doubtful_protein_nj"
+ops = []

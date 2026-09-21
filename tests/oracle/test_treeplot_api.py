@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import pathlib
 
 import pytest
@@ -233,3 +234,74 @@ def test_from_distances_rejects_bad_input(matrix, labels, method, message) -> No
 def test_from_linkage_rejects_malformed_matrices(z, labels, message) -> None:
     with pytest.raises(ValueError, match=message):
         TreePlot.from_linkage(z, labels)
+
+
+ALIGN = WORKSPACE / "tests" / "fixtures" / "alignments"
+
+
+def test_distances_from_fasta_and_from_sequences() -> None:
+    from treescape import distances
+
+    d, labels = distances.from_fasta(ALIGN / "gaps_and_ambiguity.fasta", model="k2p")
+    assert labels == ["s1", "s2", "s3", "s4"]
+    # s1/s2: 10 usable columns (a gap and an N dropped), one transversion: P = 0, Q = 0.1.
+    assert abs(d[0][1] - (-0.5 * math.log(0.9) - 0.25 * math.log(0.8))) < 1e-12
+    assert d[0][3] == 0.0 and str(d[0][3]) == "0.0"
+    records = distances.read_fasta(ALIGN / "protein.fasta")
+    assert TreePlot.from_sequences(records, model="poisson").to_newick() == TreePlot.from_sequences(
+        ALIGN / "protein.fasta", model="poisson"
+    ).to_newick()
+
+
+@pytest.mark.parametrize(
+    "fixture,model,message",
+    [
+        ("unaligned.fasta", "p", "must be aligned"),
+        ("saturated.fasta", "jc69", "is saturated for jc69"),
+        ("no_overlap.fasta", "p", "share no column"),
+        ("protein.fasta", "k2p", "not available for protein sequences"),
+        ("boundary_jc69.fasta", "jc69", "is saturated for jc69"),
+        ("boundary_k2p.fasta", "k2p", "are saturated for k2p"),
+        ("invalid_character.fasta", "p", r"\"it's\\x01odd\" has '\?' at column 4"),
+    ],
+)
+def test_distances_reject_bad_input(fixture, model, message) -> None:
+    from treescape import distances
+
+    with pytest.raises(ValueError, match=message):
+        distances.from_fasta(ALIGN / fixture, model=model)
+
+
+def test_sequence_inputs_and_alphabets() -> None:
+    import warnings
+
+    from treescape import TreescapeSequenceWarning, distances
+
+    text = (ALIGN / "doubtful_protein.fasta").read_text()
+    with pytest.warns(TreescapeSequenceWarning, match="alphabet='protein'"):
+        auto, _ = distances.from_source(text, model="p")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        protein, labels = distances.from_source(text, model="p", alphabet="protein")
+    assert labels == ["p1", "p2", "p3"] and auto != protein
+    # Protein U (selenocysteine) is not definite: MKUWLLE / MKTWLLE differ nowhere usable.
+    d, _ = distances.from_fasta(ALIGN / "protein_u.fasta", model="p")
+    assert d[0][1] == 0.0 and abs(d[0][2] - 1 / 6) < 1e-15
+    # A mapping, pairs and FASTA text give the same matrix.
+    pairs = distances.read_fasta_text(text)
+    assert distances.from_records(dict(pairs), alphabet="protein") == distances.from_records(pairs, alphabet="protein")
+    with pytest.raises(TypeError, match="record 1"):
+        distances.from_records([("a", "ACGT"), ("b",)])
+    with pytest.raises(ValueError, match="alphabet must be"):
+        distances.from_records(pairs, alphabet="dna")
+
+
+def test_fasta_file_bare_cr_is_not_a_line_break(tmp_path) -> None:
+    """Read without newline translation, as Julia reads the same file."""
+    from treescape import distances
+
+    path = tmp_path / "cr.fasta"
+    path.write_bytes(b">a\rACGT\r>b\rACGA\r")
+    assert distances.read_fasta(path) == [("a", "")]
+    path.write_bytes(b">a\r\nACGT\r\n>b\r\nACGA\r\n")
+    assert distances.read_fasta(path) == [("a", "ACGT"), ("b", "ACGA")]

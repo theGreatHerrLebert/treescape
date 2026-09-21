@@ -23,11 +23,13 @@
 
 mod ffi;
 mod render;
+mod seq;
 mod style;
 mod tree;
 
 pub use ffi::{ts_abi_version, ts_string_free};
 pub use render::*;
+pub use seq::*;
 pub use style::*;
 pub use tree::*;
 

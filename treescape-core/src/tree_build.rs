@@ -84,19 +84,34 @@ impl std::fmt::Display for TreeBuildError {
 impl std::error::Error for TreeBuildError {}
 
 /// Python's `str(float)` for the values that appear in error messages.
-fn py_float(v: f64) -> String {
+pub(crate) fn py_float(v: f64) -> String {
     if v.is_nan() {
-        "nan".into()
-    } else if v.is_infinite() {
-        if v > 0.0 {
-            "inf".into()
+        return "nan".into();
+    }
+    if v.is_infinite() {
+        return if v > 0.0 { "inf".into() } else { "-inf".into() };
+    }
+    if v == 0.0 {
+        return if v.is_sign_negative() {
+            "-0.0".into()
         } else {
-            "-inf".into()
-        }
-    } else if v == v.trunc() && v.abs() < 1e16 {
-        format!("{v:.1}")
+            "0.0".into()
+        };
+    }
+    // Python's repr: shortest round-trip digits, scientific notation when
+    // the decimal exponent is below -4 or at least 16 ("1e-05", "1.5e+16").
+    let sci = format!("{v:e}");
+    let (mantissa, exp) = sci.split_once('e').unwrap_or((&sci, "0"));
+    let exp: i32 = exp.parse().unwrap_or(0);
+    if !(-4..16).contains(&exp) {
+        let sign = if exp < 0 { '-' } else { '+' };
+        return format!("{mantissa}e{sign}{:02}", exp.abs());
+    }
+    let fixed = format!("{v}");
+    if fixed.contains('.') {
+        fixed
     } else {
-        format!("{v}")
+        format!("{fixed}.0")
     }
 }
 

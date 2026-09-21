@@ -3,15 +3,17 @@ name: release
 # Builds, tests and publishes the installable packages (docs/conventions.md,
 # "Distribution"; claim treescape-installed-packages-reproduce-gallery).
 #
-#   * Manual run, stage "build-and-test": build every wheel and test it
-#     installed on every platform (and the Julia artifact, once
-#     packages/Treescape.jl/Artifacts.toml exists). Publishes nothing.
+#   * Manual run, stage "build-and-test": build every wheel and sdist and
+#     test them installed on every platform, and the Julia artifact once
+#     packages/Treescape.jl/Artifacts.toml exists. Publishes nothing.
 #   * Manual run, stage "julia-libs": build the Julia connector library on
-#     every platform, attach the tarballs to the GitHub release
-#     jl-connector-v<version>, and produce Artifacts.toml (download the
-#     workflow artifact and commit it) — step 1 of a release.
-#   * Tag v*: build and test everything, then publish to PyPI through
-#     trusted publishing after the owner approves the `pypi` environment.
+#     every platform and produce Artifacts.toml + ARTIFACTS_SOURCE (download
+#     the workflow artifact and commit both). With publish_jl_release the
+#     tarballs go to the GitHub release jl-connector-v<version>; otherwise a
+#     dry run downloads them from file:// URLs into a fresh depot.
+#   * Tag v*: check versions and artifact provenance, build and test
+#     everything, then publish to PyPI through trusted publishing after the
+#     owner approves the `pypi` environment.
 
 on:
   push:
@@ -24,7 +26,7 @@ on:
         options: [build-and-test, julia-libs]
         default: build-and-test
       publish_jl_release:
-        description: "julia-libs only: create the public jl-connector-v<version> release (otherwise a dry run with file:// URLs, checked on Linux)"
+        description: "julia-libs only: create the public jl-connector-v<version> release (otherwise a dry run with file:// URLs)"
         type: boolean
         default: false
 
@@ -32,6 +34,34 @@ permissions:
   contents: read
 
 jobs:
+  check-versions:
+    name: versions and artifact provenance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the provenance check diffs against an older commit
+      - name: Every package has the same version (and it matches the tag)
+        shell: bash
+        run: |
+          v() { sed -n "s/^version = \"\(.*\)\"$/\1/p" "$1" | head -1; }
+          CARGO=$(v Cargo.toml); PY1=$(v packages/treescape/pyproject.toml); PY2=$(v packages/treescape-reference/pyproject.toml)
+          PY3=$(v treescape-connector/pyproject.toml); JL=$(v packages/Treescape.jl/Project.toml)
+          echo "Cargo $CARGO | treescape $PY1 | treescape-reference $PY2 | treescape-connector $PY3 | Treescape.jl $JL"
+          for x in "$PY1" "$PY2" "$PY3" "$JL"; do [ "$x" = "$CARGO" ] || { echo "::error::versions differ"; exit 1; }; done
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            [ "${GITHUB_REF_NAME#v}" = "$CARGO" ] || { echo "::error::tag $GITHUB_REF_NAME does not match version $CARGO"; exit 1; }
+          fi
+      - name: The Julia artifacts were built from this commit's Rust code
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          SRC=packages/Treescape.jl/ARTIFACTS_SOURCE
+          [ -f packages/Treescape.jl/Artifacts.toml ] && [ -f "$SRC" ] || { echo "::error::Artifacts.toml and ARTIFACTS_SOURCE must be committed before tagging (stage julia-libs)"; exit 1; }
+          SHA=$(tr -d '[:space:]' < "$SRC")
+          git diff --quiet "$SHA" HEAD -- treescape-core treescape-render treescape-jl-connector Cargo.toml Cargo.lock \
+            || { echo "::error::Rust sources changed since the artifacts were built at $SHA; rerun stage julia-libs"; exit 1; }
+
   wheels:
     if: github.event_name == 'push' || inputs.stage == 'build-and-test'
     name: wheel ${{ matrix.name }}
@@ -61,7 +91,7 @@ jobs:
 
   sdist-and-pure:
     if: github.event_name == 'push' || inputs.stage == 'build-and-test'
-    name: sdist and pure-Python wheels
+    name: sdists and pure-Python wheels
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -72,11 +102,11 @@ jobs:
         with:
           command: sdist
           args: --out dist -m treescape-connector/Cargo.toml
-      - name: Pure-Python wheels
+      - name: Pure-Python wheels and sdists
         run: |
           python -m pip install --upgrade pip build
-          python -m build --wheel --outdir dist packages/treescape
-          python -m build --wheel --outdir dist packages/treescape-reference
+          python -m build --outdir dist packages/treescape
+          python -m build --outdir dist packages/treescape-reference
       - uses: actions/upload-artifact@v4
         with:
           name: dist-pure
@@ -95,6 +125,35 @@ jobs:
       - run: |
           python -m pip install --upgrade twine
           twine check --strict dist/*
+
+  test-sdist:
+    name: wheel built from the connector sdist
+    needs: sdist-and-pure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: repo
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-pure
+          path: dist
+      - name: Build a wheel from the sdist (what platforms without a wheel do)
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"; PY="$RUNNER_TEMP/venv/bin/python"; echo "PY=$PY" >> "$GITHUB_ENV"
+          "$PY" -m pip install --upgrade pip
+          "$PY" -m pip wheel --no-deps -w "$RUNNER_TEMP/built" dist/treescape_connector-*.tar.gz
+          "$PY" -m pip install --no-index --no-deps "$RUNNER_TEMP"/built/*.whl dist/treescape-*.whl dist/treescape_reference-*.whl
+          "$PY" -m pip install --find-links dist treescape treescape-reference
+      - name: Reproduce the gallery (also checks the license files)
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: '"$PY" "$GITHUB_WORKSPACE/repo/workflow/installed/check_installed.py" "$GITHUB_WORKSPACE/repo" installed-check-sdist.json'
 
   test-installed:
     name: installed ${{ matrix.name }} py${{ matrix.python }}
@@ -145,12 +204,14 @@ jobs:
           path: ${{ runner.temp }}/installed-check.json
 
   test-julia-installed:
-    name: installed Julia ${{ matrix.name }}
+    name: installed Julia ${{ matrix.julia }} ${{ matrix.name }}
     if: github.event_name == 'push' || inputs.stage == 'build-and-test'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        julia: ["1.10", "1.12"]
+        name: [linux-x86_64, linux-aarch64, macos-arm64, macos-x86_64, windows-x86_64]
         include:
           - { name: linux-x86_64, os: ubuntu-latest }
           - { name: linux-aarch64, os: ubuntu-24.04-arm }
@@ -166,21 +227,25 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
             echo "::error::A release tag needs packages/Treescape.jl/Artifacts.toml (run stage julia-libs and commit it first)"; exit 1
           fi
-          echo "::notice::No Artifacts.toml yet; Julia installed check skipped (run stage julia-libs first)"
+          echo "::warning::No Artifacts.toml yet: the Julia installed check did NOT run (run stage julia-libs first)"
+          echo "### Julia installed check SKIPPED: no Artifacts.toml (nothing was checked)" >> "$GITHUB_STEP_SUMMARY"
           echo "SKIP_JULIA=1" >> "$GITHUB_ENV"
       - uses: julia-actions/setup-julia@v2
         if: env.SKIP_JULIA != '1'
         with:
-          version: "1.12"
-      - name: Reproduce the gallery with the artifact library
+          version: ${{ matrix.julia }}
+      - name: Reproduce the gallery with the artifact library (fresh depot, real download)
         if: env.SKIP_JULIA != '1'
         shell: bash
-        run: julia workflow/installed/check_installed.jl "$GITHUB_WORKSPACE" installed-check-julia.toml
+        run: |
+          export JULIA_DEPOT_PATH="$RUNNER_TEMP/depot"
+          julia workflow/installed/check_installed.jl "$GITHUB_WORKSPACE" installed-check-julia.toml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: installed-check-julia-${{ matrix.name }}
+          name: installed-check-julia-${{ matrix.julia }}-${{ matrix.name }}
           path: installed-check-julia.toml
+          if-no-files-found: ignore
 
   julia-libs:
     if: github.event_name == 'workflow_dispatch' && inputs.stage == 'julia-libs'
@@ -194,9 +259,12 @@ jobs:
           - { triplet: aarch64-linux-gnu, os: ubuntu-latest, target: aarch64-unknown-linux-gnu, zig: "2.17", lib: libtreescape_jl_connector.so }
           - { triplet: aarch64-apple-darwin, os: macos-14, target: aarch64-apple-darwin, lib: libtreescape_jl_connector.dylib }
           - { triplet: x86_64-apple-darwin, os: macos-15-intel, target: x86_64-apple-darwin, lib: libtreescape_jl_connector.dylib }
-          - { triplet: x86_64-w64-mingw32, os: windows-latest, target: x86_64-pc-windows-msvc, lib: treescape_jl_connector.dll }
+          # Static C runtime: Julia (a mingw build) does not ship the MSVC
+          # runtime, and a clean Windows may not have it.
+          - { triplet: x86_64-w64-mingw32, os: windows-latest, target: x86_64-pc-windows-msvc, lib: treescape_jl_connector.dll, rustflags: "-C target-feature=+crt-static" }
     env:
       MACOSX_DEPLOYMENT_TARGET: "11.0"
+      RUSTFLAGS: ${{ matrix.rustflags }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -221,7 +289,7 @@ jobs:
 
   julia-artifacts:
     if: github.event_name == 'workflow_dispatch' && inputs.stage == 'julia-libs'
-    name: Julia artifacts and release jl-connector-v<version>
+    name: Julia artifacts (and release jl-connector-v<version>)
     needs: julia-libs
     runs-on: ubuntu-latest
     permissions:
@@ -235,12 +303,17 @@ jobs:
         with:
           pattern: jl-lib-*
           path: libs
-      - name: Tarballs and Artifacts.toml
+      - name: Tarballs, Artifacts.toml and ARTIFACTS_SOURCE
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' packages/Treescape.jl/Project.toml)
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           if [ "${{ inputs.publish_jl_release }}" = "true" ]; then
+            if gh release view "jl-connector-v$VERSION" > /dev/null 2>&1; then
+              echo "::error::release jl-connector-v$VERSION already exists; its tarballs back committed hashes and are never replaced (bump the version)"; exit 1
+            fi
             BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/jl-connector-v$VERSION"
           else
             BASE="file://$GITHUB_WORKSPACE/out"
@@ -248,11 +321,13 @@ jobs:
           args=()
           for d in libs/jl-lib-*; do args+=("${d#libs/jl-lib-}=$(ls "$d"/* | head -1)"); done
           julia workflow/installed/make_artifacts.jl "$GITHUB_WORKSPACE" out "$BASE" "${args[@]}"
-      - name: Dry run - load the artifact and reproduce the gallery (Linux x86-64)
+          echo "$GITHUB_SHA" > out/ARTIFACTS_SOURCE
+      - name: Dry run - download the artifact into a fresh depot and reproduce the gallery (Linux x86-64)
         if: ${{ !inputs.publish_jl_release }}
         shell: bash
         run: |
           cp out/Artifacts.toml packages/Treescape.jl/Artifacts.toml
+          export JULIA_DEPOT_PATH="$RUNNER_TEMP/fresh-depot"
           julia workflow/installed/check_installed.jl "$GITHUB_WORKSPACE" installed-check-julia.toml
       - name: Release jl-connector-v<version>
         if: ${{ inputs.publish_jl_release }}
@@ -261,25 +336,27 @@ jobs:
         run: |
           gh release create "jl-connector-v$VERSION" out/*.tar.gz --target "$GITHUB_SHA" \
             --title "Julia connector library v$VERSION" \
-            --notes "Prebuilt libtreescape_jl_connector for Treescape.jl (loaded through packages/Treescape.jl/Artifacts.toml). Built from $GITHUB_SHA." \
-            || gh release upload "jl-connector-v$VERSION" out/*.tar.gz --clobber
+            --notes "Prebuilt libtreescape_jl_connector for Treescape.jl (loaded through packages/Treescape.jl/Artifacts.toml). Built from $GITHUB_SHA."
       - uses: actions/upload-artifact@v4
         with:
-          name: Artifacts.toml
-          path: out/Artifacts.toml
+          name: julia-artifacts-toml
+          path: |
+            out/Artifacts.toml
+            out/ARTIFACTS_SOURCE
 
   publish:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     name: Publish to PyPI
-    needs: [check-metadata, test-installed, test-julia-installed]
+    needs: [check-versions, check-metadata, test-sdist, test-installed, test-julia-installed]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
       id-token: write   # trusted publishing; no token is stored anywhere
     steps:
-      - uses: actions/download-artifact@v4
+      # Pinned by commit: this job holds the publishing identity.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           pattern: dist-*
           merge-multiple: true
           path: dist
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # release/v1

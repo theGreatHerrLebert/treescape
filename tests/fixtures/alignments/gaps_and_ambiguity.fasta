@@ -1,0 +1,9 @@
+>s1
+ACGTACGTACGT
+>s2
+ACGA-CGTNCGT
+>s3 description after the label is ignored
+AC-TACCTACGA
+>s4
+ACGTAC
+GTACGT

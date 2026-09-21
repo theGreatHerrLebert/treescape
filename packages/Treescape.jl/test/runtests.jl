@@ -183,6 +183,37 @@ const META = (tip=["a", "b", "c", "d", "e"], grp=["x", "x", "y", "y", "z"], w=[0
         @test occursin("<svg", to_svg(layout!(TreePlot(D, labels), :circular)))
     end
 
+    @testset "distances from sequences" begin
+        fx = joinpath(@__DIR__, "..", "..", "..", "tests", "fixtures", "alignments")
+        D, labels = distances(joinpath(fx, "gaps_and_ambiguity.fasta"); model = :k2p)
+        @test labels == ["s1", "s2", "s3", "s4"]
+        # s1/s2: 10 usable columns (a gap and an N dropped), one transversion: P = 0, Q = 0.1.
+        @test D[1, 2] ≈ -0.5 * log(0.9) - 0.25 * log(0.8) atol = 1e-12
+        @test D == permutedims(D) && all(iszero, (D[i, i] for i in 1:4))
+        @test D[1, 4] === 0.0   # identical sequences: +0.0, not -0.0
+        P, _ = distances(joinpath(fx, "protein.fasta"); model = :p)
+        @test P[1, 3] ≈ 2 / 21 atol = 1e-15
+        @test_throws "must be aligned" distances(joinpath(fx, "unaligned.fasta"))
+        @test_throws "is saturated for jc69" distances(joinpath(fx, "saturated.fasta"))
+        @test_throws "not available for protein" distances(joinpath(fx, "protein.fasta"); model = :k2p)
+        D2, _ = distances(["a" => "ACGT", "b" => "ACGA"]; model = :p)
+        @test D2 == [0.0 0.25; 0.25 0.0]
+        @test occursin("<svg", to_svg(TreePlot(distances(joinpath(fx, "protein.fasta"))...)))
+        @test_throws "is saturated for jc69" distances(joinpath(fx, "boundary_jc69.fasta"))
+        @test_throws "are saturated for k2p" distances(joinpath(fx, "boundary_k2p.fasta"); model = :k2p)
+        @test_throws "\"it's\\x01odd\" has '?' at column 4" distances(joinpath(fx, "invalid_character.fasta"); model = :p)
+        U, _ = distances(joinpath(fx, "protein_u.fasta"); model = :p)   # protein U is not definite
+        @test U[1, 2] === 0.0
+        @test U[1, 3] ≈ 1 / 6 atol = 1e-15
+        text = read(joinpath(fx, "doubtful_protein.fasta"), String)
+        A, _ = @test_logs (:warn, r"alphabet = :protein") distances(text; model = :p)
+        B, labels = @test_logs distances(text; model = :p, alphabet = :protein)
+        @test labels == ["p1", "p2", "p3"] && A != B
+        @test distances(Dict("a" => "ACGT", "b" => "ACGA"); model = :p)[1] == [0.0 0.25; 0.25 0.0]
+        @test distances(["a b" => "ACGT", "c" => "ACGA"]; model = :p)[2] == ["a b", "c"]
+        @test_throws "alphabet must be" distances(text; alphabet = :dna)
+    end
+
     @testset "annotations" begin
         p = scale_bar!(TreePlot(NEWICK), 1e-5)
         @test p.scale_bar == (1e-5, "1e-05")

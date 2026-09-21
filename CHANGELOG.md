@@ -4,6 +4,33 @@ All notable changes to treescape are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — v0.7.0
+
+### Added — v0.7 Phase 1: installable packages
+
+- **Python wheels** for Linux (manylinux2014, x86-64 and aarch64), macOS (arm64 and x86-64) and Windows (x86-64), built against CPython's stable ABI: one `treescape-connector` wheel per platform covers Python 3.11 and later. There are also pure-Python wheels and an sdist. They are published by `.github/workflows/release.yml` through PyPI trusted publishing on a `v*` tag, after the owner approves the `pypi` environment. No API token exists.
+- **Julia**: the connector library is prebuilt for the same platforms (Linux against glibc 2.17). It is attached to a `jl-connector-v<version>` GitHub release and bound lazily in `packages/Treescape.jl/Artifacts.toml`, so `Pkg.add(url = …, subdir = "packages/Treescape.jl")` works without Rust. Library discovery gains the artifact as its last step, after a development build.
+- **Claim `treescape-installed-packages-reproduce-gallery`** (release): the wheels, installed in a clean environment with no repository sources, reproduce every gallery SVG byte for byte on all five platforms, on Python 3.11 and 3.13. The Julia artifact does the same. Byte determinism therefore now holds on every published platform, **including Windows**. Before, it was verified on Linux and macOS arm64 only.
+- `twine check --strict` caught a connector package with no README (its PyPI page would have been blank). The package now has one.
+
+### Added — v0.7 Phase 2: distances from aligned sequences
+
+- `treescape.distances.from_fasta(path, model=…)`, `from_records(…)` and `TreePlot.from_sequences(…)` in Python; `distances(path_or_pairs; model = …)` in Julia, which feeds straight into `TreePlot(D, labels; method)`. Models: `p`, `jc69` (4 states for nucleotides, 20 for proteins), `k2p` (nucleotides), `poisson` (proteins). Gaps and ambiguity codes are removed pair by pair. Saturation, unaligned input and a pair with no comparable column are errors that name the pair or the sequence. There is never a NaN in a matrix. Reference first (`treescape_reference.seq_distance`), Rust port in `treescape-core::seq_distance`.
+- **Three claims**: agreement with scikit-bio (`pdist`, `jc69`, `k2p`, every pair, with gaps and ambiguity codes, within 1e-12); agreement with R ape (`dist.dna`, `dist.aa`, release); Rust↔reference within 1e-12 with identical error messages, plus hand-computed protein values. The corpus: 54 alignments simulated along the pinned random trees under JC69 and K2P, plus 12 hand-written edge cases (every IUPAC code and the `.` gap, the exact JC69 and K2P saturation boundaries, protein `U`, an invalid character under an escaped label, a short protein that auto-detection reads as nucleotides).
+- **Oracle finding**: ape's `dist.aa` counts a protein gap as a difference even with `pairwise.deletion = TRUE`, unlike its own `dist.dna`. It is documented in the disagreement log, and protein pairs with a gap, or with one of the rarer codes `B Z J U O *`, are excluded from the ape comparison by rule and listed in the report.
+- **Oracle finding**: at the exact K2P boundary (`L − 2s − v = 0`) scikit-bio computes `1 − 2P − Q` in floating point, gets about `5.5e−17` and returns a finite distance near 19. treescape decides saturation on the integer counts and raises. R ape does the same. Documented in the disagreement log. A pair is excluded only when it is on the boundary by the integer rule and the oracle's value is finite: 23 K2P pairs per oracle; every other boundary pair is still compared.
+- Phase 2 review fixes:
+  - Protein `U` (selenocysteine) is no longer read as `T`; only nucleotides map `U` to `T`.
+  - Saturation for JC69, K2P and Poisson is decided on integer counts, in both implementations.
+  - `alphabet="auto"` warns (Python `TreescapeSequenceWarning`, Julia `@warn` group `:treescape_sequence`) when it chose nucleotides for sequences that are mostly nucleotide ambiguity codes, which a short protein can be.
+  - FASTA: ASCII-only whitespace, `\r\n` endings, and non-ASCII characters rejected before uppercasing. Error messages quote labels exactly like Python's `repr`, in both implementations.
+  - Julia: pairs and `Dict`s go through a records entry point (`ts_seq_distances_from_records`, C ABI 4), so labels may contain spaces. The Julia boundary counts FASTA headers before building records, with limits of 64 MiB and 10,000 sequences.
+  - Python: `from_sequences` accepts FASTA text, a path, a mapping or pairs, and rejects malformed records with a `TypeError`.
+  - Error messages quote labels as Python's `ascii()` does (every non-ASCII character escaped), so Rust and the reference agree byte for byte without Unicode tables, and both check the alphabet at the same point.
+  - Python reads FASTA files without newline translation, so a bare `\r` is not a line break, as documented and as in Julia.
+  - The Rust↔reference claim now also runs every alignment under explicit `alphabet="nucleotide"` and `"protein"`, and checks the warning flag.
+- Found while building: identical sequences gave `-0.0` (from `−c·ln(1)`); both implementations now return `+0.0`. "poisson" in the plan named the 20-state Jukes–Cantor formula; the conventions pin the correct Poisson `−ln(1−p)` and offer both.
+
 ## [0.6.0] — 2026-09-21
 
 Trees from distance matrices, on hardened evidence. The trust manifest moves to the upstream EVIDENT schema with pinned oracles and a published claim viewer (Phase 1). The layout oracles now check the Rust core node by node on 66 trees (Phase 2). Neighbor joining and UPGMA build trees straight from a distance matrix in Python and Julia, checked against scikit-bio, Biopython, SciPy, ape and phangorn, with an honest performance claim (Phase 3). 28 EVIDENT claims.

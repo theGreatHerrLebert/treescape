@@ -84,3 +84,7 @@ Fixtures live at `tests/fixtures/trees/` and are referenced by ID from claim run
 ## Asking questions
 
 Open an issue with the `question` label. For design discussions, prefer GitHub Discussions over PR comments.
+
+## Releasing
+
+The steps are in `docs/conventions.md` ("Distribution", "Order of a release"). In short: bump every version; run the `release` workflow (stage `julia-libs`, publish ticked) and commit the `Artifacts.toml` and `ARTIFACTS_SOURCE` it produces; run stage `build-and-test`; run the `ci` workflow manually for the release tier; then push the `v<version>` tag and approve the `pypi` environment. The tag run refuses a version mismatch or Rust sources changed since the artifacts were built.

@@ -45,7 +45,7 @@ p = TreePlot(D, labels; method = :nj)
 - **Gaps and ambiguity codes: pairwise deletion.** A site is used for a pair only if both sequences have a definite character there. This matches ape's `dist.dna(pairwise.deletion = TRUE)` and scikit-bio. A pair with no usable sites is an error.
 - **Models:**
   - DNA: `p` (proportion of differing sites), `jc69` (Jukes–Cantor 1969), `k2p` (Kimura 1980, transitions and transversions).
-  - Protein: `p` and `poisson`, the 20-state Jukes–Cantor correction.
+  - Protein: `p`, `jc69` (the 20-state Jukes–Cantor form) and `poisson` (`−ln(1 − p)`). *(Corrected while pinning the conventions: "poisson" is not the 20-state Jukes–Cantor.)*
 
   Formulas are pinned with their references.
 - **Saturation:** when a correction's logarithm is undefined (for example p ≥ 3/4 under JC69), the result is an error that names the pair and the observed p, never NaN or ∞ in the matrix.

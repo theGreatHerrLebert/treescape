@@ -34,7 +34,11 @@ end
 
 function run_case(case, trees, tables, repo)
     source = trees[case["tree"]]
-    p = if haskey(source, "distances")
+    p = if haskey(source, "sequences")
+        D, labels = distances(joinpath(repo, source["sequences"]); model = Symbol(source["model"]),
+                                alphabet = Symbol(get(source, "alphabet", "auto")))
+        TreePlot(D, labels; method = Symbol(source["method"]))
+    elseif haskey(source, "distances")
         lines = readlines(joinpath(repo, source["distances"]))
         D = permutedims(reduce(hcat, [parse.(Float64, split(l, '\t')) for l in lines[2:end]]))
         TreePlot(D, split(lines[1], '\t'); method = Symbol(source["method"]))

@@ -36,11 +36,13 @@ export TreePlot,
     support_labels!,
     to_svg,
     to_newick,
+    distances,
     save
 
 include("lib.jl")
 include("tree.jl")
 include("colors.jl")
 include("plot.jl")
+include("seq.jl")
 
 end

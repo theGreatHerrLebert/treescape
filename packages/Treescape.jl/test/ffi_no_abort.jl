@@ -154,6 +154,80 @@ case("linkage cluster out of range", [1]) do err
         [0.0, 9.0, 1.0, 2.0, 2.0, 3.0, 2.0, 3.0], 3, [pointer(l) for l in L3], out, err)
 end
 
+# v0.7: distances from aligned sequences.
+function seq_distances(text, model, alphabet, err)
+    out = Ref{Ptr{Cvoid}}(C_NULL)
+    status = ccall(sym(:ts_seq_distances_from_fasta), Int32, (Ptr{UInt8}, Ptr{UInt8}, Ptr{UInt8}, Ptr{Ptr{Cvoid}}, Ptr{Ptr{UInt8}}),
+        text === nothing ? C_NULL : pointer(text), model === nothing ? C_NULL : pointer(model),
+        alphabet === nothing ? C_NULL : pointer(alphabet), out, err)
+    out[] == C_NULL || ccall(sym(:ts_distances_free), Cvoid, (Ptr{Cvoid},), out[])
+    status
+end
+const FASTA_OK = ">a\nACGT\n>b\nACGA\n\0"
+for (name, text, model, alphabet, expected) in (
+    ("seq valid", FASTA_OK, "jc69\0", "auto\0", [0]),
+    ("seq null text", nothing, "jc69\0", "auto\0", [1]),
+    ("seq null model", FASTA_OK, nothing, "auto\0", [1]),
+    ("seq null alphabet", FASTA_OK, "jc69\0", nothing, [1]),
+    ("seq bad model", FASTA_OK, "gtr\0", "auto\0", [1]),
+    ("seq bad alphabet", FASTA_OK, "p\0", "rna\0", [1]),
+    ("seq unaligned", ">a\nACGT\n>b\nACG\n\0", "p\0", "auto\0", [1]),
+    ("seq no header", "ACGT\n\0", "p\0", "auto\0", [1]),
+    ("seq one sequence", ">a\nACGT\n\0", "p\0", "auto\0", [1]),
+    ("seq saturated", ">a\nAAAA\n>b\nCCCC\n\0", "jc69\0", "auto\0", [1]),
+    ("seq invalid utf8", ">a\nAC\xffT\n>b\nACGA\n\0", "p\0", "auto\0", [1]),
+)
+    case(name, expected) do err
+        GC.@preserve text model alphabet seq_distances(text === nothing ? nothing : Vector{UInt8}(text),
+            model === nothing ? nothing : Vector{UInt8}(model), alphabet === nothing ? nothing : Vector{UInt8}(alphabet), err)
+    end
+end
+case("distances accessors on null", [1]) do err
+    ccall(sym(:ts_distances_n), Int32, (Ptr{Cvoid}, Ptr{Csize_t}, ERR), C_NULL, Ref{Csize_t}(0), err)
+end
+case("distances doubtful on null", [1]) do err
+    ccall(sym(:ts_distances_doubtful), Int32, (Ptr{Cvoid}, Ptr{UInt8}, ERR), C_NULL, Ref{UInt8}(0), err)
+end
+function seq_records(labels, seqs, n, model, alphabet, err)
+    out = Ref{Ptr{Cvoid}}(C_NULL)
+    lp = labels === nothing ? C_NULL : [l === nothing ? C_NULL : pointer(l) for l in labels]
+    sp = seqs === nothing ? C_NULL : [s === nothing ? C_NULL : pointer(s) for s in seqs]
+    status = GC.@preserve labels seqs lp sp ccall(sym(:ts_seq_distances_from_records), Int32,
+        (Ptr{Ptr{UInt8}}, Ptr{Ptr{UInt8}}, Csize_t, Ptr{UInt8}, Ptr{UInt8}, Ptr{Ptr{Cvoid}}, Ptr{Ptr{UInt8}}),
+        lp, sp, n, model, alphabet, out, err)
+    if out[] != C_NULL
+        flag = Ref{UInt8}(2)
+        @assert ccall(sym(:ts_distances_doubtful), Int32, (Ptr{Cvoid}, Ptr{UInt8}, ERR), out[], flag, C_NULL) == 0
+        @assert flag[] in (0, 1)
+        ccall(sym(:ts_distances_free), Cvoid, (Ptr{Cvoid},), out[])
+    end
+    status
+end
+const REC_L = ["a\0", "b c\0"]
+const REC_S = ["ACGT\0", "ACGA\0"]
+for (name, labels, seqs, n, model, alphabet, expected) in (
+    ("records valid", REC_L, REC_S, 2, "p\0", "auto\0", [0]),
+    ("records doubtful", REC_L, ["MKWRAC\0", "MKWRAG\0"], 2, "p\0", "auto\0", [0]),
+    ("records null labels", nothing, REC_S, 2, "p\0", "auto\0", [1]),
+    ("records null seqs", REC_L, nothing, 2, "p\0", "auto\0", [1]),
+    ("records null label entry", ["a\0", nothing], REC_S, 2, "p\0", "auto\0", [1]),
+    ("records null sequence entry", REC_L, ["ACGT\0", nothing], 2, "p\0", "auto\0", [1]),
+    ("records n zero", REC_L, REC_S, 0, "p\0", "auto\0", [1]),
+    ("records n over limit", REC_L, REC_S, 10_001, "p\0", "auto\0", [1]),
+    ("records duplicate label", ["a\0", "a\0"], REC_S, 2, "p\0", "auto\0", [1]),
+    ("records bad alphabet", REC_L, REC_S, 2, "p\0", "dna\0", [1]),
+    ("records null model", REC_L, REC_S, 2, nothing, "auto\0", [1]),
+    ("records invalid utf8", REC_L, ["AC\xffT\0", "ACGA\0"], 2, "p\0", "auto\0", [1]),
+)
+    case(name, expected) do err
+        lb = labels === nothing ? nothing : [l === nothing ? nothing : Vector{UInt8}(l) for l in labels]
+        sb = seqs === nothing ? nothing : [s === nothing ? nothing : Vector{UInt8}(s) for s in seqs]
+        m = model === nothing ? C_NULL : Vector{UInt8}(model)
+        a = Vector{UInt8}(alphabet)
+        GC.@preserve m a seq_records(lb, sb, n, m === C_NULL ? C_NULL : pointer(m), pointer(a), err)
+    end
+end
+
 status, tree = parse_tree(VALID)
 @assert status == 0
 n_nodes = Ref{Csize_t}(0)

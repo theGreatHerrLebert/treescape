@@ -59,7 +59,14 @@ def _tuplify(value):
 
 def _python_svg(case: dict) -> str:
     source = SPEC["trees"][case["tree"]]
-    if "distances" in source:
+    if "sequences" in source:
+        from treescape import distances
+
+        matrix, labels = distances.from_fasta(
+            REPO / source["sequences"], model=source["model"], alphabet=source.get("alphabet", "auto")
+        )
+        plot = TreePlot.from_distances(matrix, labels, method=source["method"])
+    elif "distances" in source:
         lines = (REPO / source["distances"]).read_text().splitlines()
         matrix = [[float(v) for v in line.split("\t")] for line in lines[1:]]
         plot = TreePlot.from_distances(matrix, lines[0].split("\t"), method=source["method"])

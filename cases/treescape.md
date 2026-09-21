@@ -33,4 +33,4 @@ Predominantly **validation**, with a small **proof-by-construction** component (
 - Newick edge cases (negative branches, NHX, quoted names, trifurcation roots) silently parsed differently across libraries.
 - Layout convention drift between Rust and the Python reference, undetected because both are ours.
 - Three external oracles agreeing only because they share a heritage (the Agreement Trap — explicitly addressed by picking three lineages that don't).
-- SVG output drifting between runs or platforms because of float formatting or HashMap iteration order, breaking figure reproducibility. (Cross-platform determinism is verified in CI on Linux x86-64 and macOS arm64; Windows is not tested.)
+- SVG output drifting between runs or platforms because of float formatting or HashMap iteration order, breaking figure reproducibility. (Cross-platform determinism is verified in CI on every published platform: Linux x86-64 and aarch64, macOS arm64 and x86-64, Windows x86-64.)

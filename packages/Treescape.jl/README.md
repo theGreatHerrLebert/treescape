@@ -9,19 +9,21 @@ produce byte-identical SVG (EVIDENT claim
 Architecture follows rustims' `imsjl_connector` / `IMSJL`: a C-ABI
 cdylib (`treescape-jl-connector`) called through `ccall`.
 
-## Install (development)
+## Install
 
-The connector library is not yet shipped as a JLL; build it from a
-checkout of the treescape repository:
+From v0.7.0 the connector library is prebuilt for Linux (x86-64, aarch64), macOS (arm64, x86-64) and Windows (x86-64); no Rust toolchain is needed:
 
-```bash
-cargo build -p treescape-jl-connector --release
-julia --project=packages/Treescape.jl -e 'using Pkg; Pkg.instantiate()'
+```julia
+using Pkg
+Pkg.add(url = "https://github.com/theGreatHerrLebert/treescape", subdir = "packages/Treescape.jl", rev = "v0.7.0")
 ```
 
-`Treescape.jl` finds the library through `ENV["TREESCAPE_JL_LIB"]`, then
-the `libpath` preference (`Treescape.set_library!(path)`), then
-`target/release/` of the checkout it lives in.
+It is not in the General registry yet (and there is no JLL). The library is found in this order:
+
+1. `ENV["TREESCAPE_JL_LIB"]`: full path to the shared library;
+2. the `libpath` preference, set once with `Treescape.set_library!(path)`;
+3. a development build at `target/release/` of the checkout the package lives in (`cargo build -p treescape-jl-connector --release`);
+4. the prebuilt release artifact for your platform, downloaded on first use (offline, use 1 or 2).
 
 Requires Julia ≥ 1.10 (tested on 1.10 and 1.12).
 

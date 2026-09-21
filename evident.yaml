@@ -3,7 +3,7 @@ project: treescape
 # Structured fields follow docs/conventions.md, "EVIDENT manifest";
 # tests/oracle/test_manifest.py checks pins and corpus hashes.
 vocabularies:
-  subsystem: [parser, layout, text-metrics, render, style, metadata, julia-binding, ffi, tree-building]
+  subsystem: [parser, layout, text-metrics, render, style, metadata, julia-binding, ffi, tree-building, sequence-distances]
   oracle:
     - Biopython
     - ete3
@@ -362,9 +362,12 @@ claims:
     assumptions:
       - All randomness in the render path is seeded or eliminated.
       - Float formatting locale-independent.
-      - Platforms verified by CI (v0.6) - Linux x86-64 (ci-tier job) and
-        macOS arm64 (determinism-macos job) run this runner against the
-        same committed goldens.
+      - Platforms verified by CI - this runner on Linux x86-64 (ci-tier
+        job) and macOS arm64 (determinism-macos job); and since v0.7 the
+        installed wheels reproduce every gallery file on all five
+        published platforms (Linux x86-64 and aarch64, macOS arm64 and
+        x86-64, Windows x86-64; claim
+        treescape-installed-packages-reproduce-gallery).
     failure_modes:
       - HashMap iteration order leaks into attribute order.
       - Float formatting "{:.}" differs across platforms or locales.
@@ -1160,9 +1163,9 @@ claims:
     subsystem: julia-binding
     inputs:
       corpus: "parity-cases"
-      n: 51
+      n: 58
       class: fixture
-      corpus_sha: "sha256:fc5704460be09ad68a2de46a7571084ae344b82fb66f996ce9f858a931dcec39"
+      corpus_sha: "sha256:6a8169c22afa22aee01df44970fd846f47387354001244c734f370f385186aaf"
     pinned_versions:
       treescape: "0.6.0"
       julia: "1.10 and 1.12"
@@ -1224,7 +1227,7 @@ claims:
     subsystem: ffi
     inputs:
       corpus: "packages/Treescape.jl/test/ffi_no_abort.jl"
-      n: 1611
+      n: 1636
       class: synthetic
     pinned_versions:
       treescape: "0.6.0"
@@ -1625,10 +1628,13 @@ claims:
       macOS arm64 and x86-64, Windows x86-64), the wheels built by
       .github/workflows/release.yml, installed into a clean virtual
       environment with no access to the repository's sources, reproduce
-      every gallery and README SVG byte for byte; and on the platforms
-      with a Julia runner (Linux x86-64, macOS arm64 and x86-64, Windows
-      x86-64), Treescape.jl loading the connector library from its
-      release artifact reproduces every gallery SVG byte for byte too.
+      every gallery and README SVG byte for byte, on Python 3.11 and 3.13
+      (the connector wheel is abi3: one wheel serves both); a wheel built
+      from the connector sdist does the same on Linux x86-64; and on all
+      five platforms, with Julia 1.10 and 1.12, Treescape.jl (a develop
+      install of the tagged package) loading the connector library from
+      its release artifact, downloaded into a fresh depot, reproduces
+      every gallery SVG byte for byte too.
       This tests what users install, not the development build, and it
       extends byte determinism to every published platform.
     subsystem: render
@@ -1648,16 +1654,167 @@ claims:
     evidence:
       oracle:
         - golden-snapshots
-      command: python workflow/installed/check_installed.py (release.yml, per platform)
-      artifact: installed-check-<platform>.json (release.yml artifacts)
+      command: .github/workflows/release.yml jobs test-installed, test-sdist, test-julia-installed (workflow/installed/check_installed.py and .jl)
+      artifact: release.yml artifacts installed-check-<platform>-py<version> and installed-check-julia-<version>-<platform>
     assumptions:
       - The check runs from a directory outside the repository with the
         repository's package sources not on sys.path, so it can only
         import the installed wheels (it asserts this).
-      - aarch64 Linux wheels are built but tested under emulation only if
-        the runner provides it; the release notes say which platforms ran.
+      - All five platforms run natively (Linux aarch64 on GitHub's arm
+        runners); nothing is emulated.
     failure_modes:
       - A platform's floating-point or font path differs and one byte
         changes; that is reported per platform, not averaged away.
       - A wheel is missing the embedded font license; caught by the
         wheel-contents check in the same job.
+
+  - id: treescape-seq-distances-vs-scikit-bio
+    title: Nucleotide distances (p, JC69, K2P) agree with scikit-bio, gaps and ambiguity codes included
+    case: cases/treescape.md
+    source: treescape-core
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
+    claim: >
+      For every pair of sequences in the aligned-sequence corpus
+      (alignments simulated along the pinned random trees under JC69 and
+      K2P, plus hand-written edge cases with gaps, N and other ambiguity
+      codes, lowercase letters and U), the p, JC69 and K2P distances from
+      both treescape implementations (the Rust core via
+      treescape_connector, and treescape_reference.seq_distance) agree
+      with scikit-bio's pdist, jc69 and k2p within 1e-12 absolute, with
+      gaps and ambiguity codes removed pair by pair (pairwise deletion)
+      as scikit-bio does. Where scikit-bio returns NaN (saturation, or no
+      comparable column), treescape raises an error that names the pair.
+      Exception, by rule: a pair exactly on a saturation boundary by
+      integer counts (JC69 k*d = (k-1)*L; K2P L - 2s - v = 0 or L - 2v = 0)
+      for which scikit-bio returns a finite value (its floating-point
+      1 - 2P - Q rounds to about 5.5e-17, giving a distance near 19) is
+      excluded, listed in the report, and documented in the disagreement
+      log. Boundary pairs where scikit-bio returns NaN are still checked.
+    subsystem: sequence-distances
+    inputs:
+      corpus: "alignments-v1"
+      n: 66
+      classes: [synthetic, fixture]
+      corpus_sha: "sha256:1041412324b1a27970ce9dcf211544a1f5a7d21f53159cc038648162409e8fd6"
+    pinned_versions:
+      treescape: "0.6.0"
+      scikit-bio: "0.7.3"
+    tolerances:
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-12
+        prose: "1e-12 absolute on every pairwise distance."
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Every scikit-bio NaN is a treescape error for the same pair, and vice versa."
+    evidence:
+      oracle:
+        - scikit-bio
+      command: pytest tests/oracle/test_seq_distances_vs_oracles.py -v
+      artifact: tests/oracle/reports/seq_distances_vs_oracles.json
+    assumptions:
+      - scikit-bio's distance functions (0.7.2+) are independent of
+        treescape; they cover nucleotides only, so protein models are
+        checked by treescape-seq-distances-vs-ape and hand-computed cases.
+    failure_modes:
+      - Both implementations share a misreading of the pairwise-deletion
+        rule; ape (release tier) is the second lineage.
+
+  - id: treescape-seq-distances-vs-ape
+    title: Sequence distances agree with R ape (dist.dna, dist.aa)
+    case: cases/treescape.md
+    source: treescape-core
+    tier: release
+    trust_strategy:
+      - validation
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
+    claim: >
+      On the aligned-sequence corpus, both treescape implementations agree
+      within 1e-12 absolute with R ape's dist.dna(model = "raw", "JC69",
+      "K80"; pairwise.deletion = TRUE) for nucleotides and with
+      dist.aa(pairwise.deletion = TRUE, scaled = TRUE) for the protein
+      p-distance on protein pairs where neither sequence has a gap or one
+      of B, Z, J, U, O, * (ape counts a protein gap as a difference, and
+      its handling of the rarer codes is undocumented; see the
+      disagreement log). As with scikit-bio, a pair exactly on the JC69
+      or K2P saturation boundary by integer counts for which ape returns
+      a finite value is excluded. Excluded pairs are listed in the
+      report; ape NaN/Inf must be a treescape error.
+      Tier release because it requires R; runs inside
+      workflow/Dockerfile.evident-release before any release tag.
+    subsystem: sequence-distances
+    inputs:
+      corpus: "alignments-v1"
+      n: 66
+      classes: [synthetic, fixture]
+      corpus_sha: "sha256:1041412324b1a27970ce9dcf211544a1f5a7d21f53159cc038648162409e8fd6"
+    pinned_versions:
+      treescape: "0.6.0"
+      ape: "5.8.1"
+    tolerances:
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-12
+        prose: "1e-12 absolute on every pairwise distance."
+    evidence:
+      oracle:
+        - ape
+      command: pytest tests/oracle/test_seq_distances_vs_ape.py -v -m release_only
+      artifact: tests/oracle/reports/seq_distances_vs_ape.json
+    assumptions:
+      - ape reads the same alignments as FASTA; its K80 is Kimura's
+        two-parameter model.
+    failure_modes:
+      - ape and treescape treat an ambiguity code differently; that is
+        documented in docs/conventions.md, not absorbed.
+
+  - id: treescape-seq-distances-rust-vs-reference
+    title: Rust sequence distances match the Python reference, including every error
+    case: cases/treescape.md
+    source: treescape-core
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/docs/reference/patterns.md#reference-shadowing
+    claim: >
+      On the aligned-sequence corpus and every model (p, jc69, k2p for
+      nucleotides; p, jc69, poisson for proteins), the Rust
+      implementation's distance matrices equal
+      treescape_reference.seq_distance's within 1e-12 absolute, and every
+      input the reference rejects (unaligned, unknown character, no
+      comparable column, saturation) the Rust core rejects with the same
+      message. Protein models are also checked against hand-computed
+      values from their formulas (docs/conventions.md).
+    subsystem: sequence-distances
+    inputs:
+      corpus: "alignments-v1"
+      n: 66
+      classes: [synthetic, fixture]
+      corpus_sha: "sha256:1041412324b1a27970ce9dcf211544a1f5a7d21f53159cc038648162409e8fd6"
+    pinned_versions:
+      treescape: "0.6.0"
+      treescape-reference: "0.6.0"
+    tolerances:
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-12
+        prose: "1e-12 absolute on every distance."
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Identical error messages for every rejected input."
+    evidence:
+      oracle:
+        - treescape-reference
+      command: pytest tests/oracle/test_seq_distances_vs_reference.py -v
+      artifact: tests/oracle/reports/seq_distances_vs_reference.json
+    assumptions:
+      - The reference is the convention owner; its formulas are checked
+        against scikit-bio (ci) and ape (release).
+    failure_modes:
+      - Both implementations compute a protein model wrong in the same way;
+        the hand-computed cases are the guard.

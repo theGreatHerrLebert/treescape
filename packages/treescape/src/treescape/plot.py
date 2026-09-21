@@ -139,6 +139,24 @@ class TreePlot:
         plot._init_state(_RustTree.from_linkage(flat, [str(label) for label in labels]))
         return plot
 
+    @classmethod
+    def from_sequences(
+        cls, source, model: str = "jc69", method: str = "nj", alphabet: str = "auto"
+    ) -> "TreePlot":
+        """Build the tree from aligned sequences: distances, then a tree.
+
+        ``source`` is FASTA text (a string starting with ``>``), the path of
+        an aligned FASTA file, a ``{label: sequence}`` mapping, or
+        ``(label, sequence)`` pairs. ``model`` is the distance model and
+        ``alphabet`` the alphabet (see :mod:`treescape.distances`; pass
+        ``alphabet="protein"`` for short proteins); ``method`` is ``"nj"``
+        or ``"upgma"`` (see :meth:`from_distances`).
+        """
+        from . import distances
+
+        matrix, labels = distances.from_source(source, model=model, alphabet=alphabet)
+        return cls.from_distances(matrix, labels, method=method)
+
     def to_newick(self) -> str:
         """The tree as a Newick string (for trees built from distances, too)."""
         return self._tree.write_newick()

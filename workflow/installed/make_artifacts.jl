@@ -21,6 +21,9 @@ for spec in ARGS[4:end]
     triplet, lib = split(spec, "="; limit = 2)
     hash = create_artifact() do dir
         cp(lib, joinpath(dir, basename(lib)))
+        # The execute bit is lost when CI moves files between jobs, and on
+        # Windows a DLL without it cannot be loaded (Tar keeps the mode).
+        chmod(joinpath(dir, basename(lib)), 0o755)
         for l in licenses
             cp(l, joinpath(dir, basename(l)))
         end
