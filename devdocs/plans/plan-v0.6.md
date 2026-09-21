@@ -135,7 +135,7 @@ The comparison is on topology (unrooted splits for NJ, rooted clades for UPGMA) 
 **As implemented (2026-09-21), differences from the text above:**
 - The claims are split by tier, because a claim has a single tier: NJ and UPGMA each have a ci claim (scikit-bio + Biopython; SciPy) and a release claim (ape; phangorn). That makes seven new claims, not five.
 - Biopython's `upgma` turned out to be WPGMA, and scikit-bio's `upgma` wraps SciPy. UPGMA is therefore checked against SciPy (ci) and phangorn (release) only.
-- The performance claim bounds ratios instead of claiming speed. Measured: NJ is 2.0–3.7× slower than scikit-bio, UPGMA 2.4–3.7× slower than SciPy, and NJ is about 1,000× faster than Biopython. treescape is **not** faster than the optimized tools. Faster NJ moves to v0.7 (user decision, 2026-09-21).
+- The performance claim bounds ratios instead of claiming speed. Measured: NJ is 2.0–3.7× slower than scikit-bio, UPGMA 2.3–3.9× slower than SciPy, and NJ is about 1,000× faster than Biopython. treescape is **not** faster than the optimized tools. Faster NJ moves to v0.7 (user decision, 2026-09-21).
 - Benchmark sizes are 500, 1000 and 2000 (not up to 10k), because Biopython and exact O(n³) NJ make larger sizes impractical per run. RapidNJ and FastME are not installed and not measured.
 - The course fixtures, the MATLAB oracle and the "Coming from MATLAB" page wait on decisions 2 and 4. The tested examples use the standard NJ teaching matrix instead.
 

@@ -1601,7 +1601,7 @@ claims:
       artifact: tests/oracle/reports/tree_build_performance.json
     assumptions:
       - Wall-clock ratios depend on the machine; the bounds leave headroom
-        over the measured ratios (NJ 2.0-3.7x scikit-bio, UPGMA 2.4-3.7x
+        over the measured ratios (NJ 2.0-3.7x scikit-bio, UPGMA 2.3-3.9x
         SciPy on the reference machine) and are a regression guard, not a
         speed ranking.
       - Single-threaded (OMP_NUM_THREADS=1 and friends); multi-threaded
