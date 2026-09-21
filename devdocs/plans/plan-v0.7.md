@@ -1,6 +1,6 @@
 # v0.7 plan
 
-**Status: draft (2026-09-21), awaiting approval.** Same cadence as v0.1–v0.6: tight scope, EVIDENT claims pinned **before** the code, Python reference first then Rust port, external review at the end of each phase.
+**Status: approved 2026-09-21** (all decisions at the recommendations; decision 4 had none, so the MATLAB page uses public GenBank data unless the user allows the course data later). Same cadence as v0.1–v0.6: tight scope, EVIDENT claims pinned **before** the code, Python reference first then Rust port, external review at the end of each phase.
 
 ## Theme
 
@@ -94,7 +94,10 @@ For each phase:
 6. External review at the end of each phase: Codex if available, otherwise independent review agents plus the code-review skill. Close the findings before the next phase.
 7. Commit and push per phase; run the release tier and the benchmark before the `v0.7.0` tag.
 
-## Decisions (to lock)
+## Decisions (locked 2026-09-21)
+
+PyPI trusted publishing uses workflow `.github/workflows/release.yml` and the GitHub environments `testpypi` and `pypi` (created 2026-09-21; `pypi` requires the owner's approval for every publish). The PyPI-side pending publishers are the user's one-time setup.
+
 
 1. **PyPI:** publish to PyPI through trusted publishing (recommended). This needs a one-time setup by you: a PyPI account, and a trusted publisher for the three projects pointing at this repository's workflow. The alternative is GitHub release assets only (`pip install <url>`), which needs no account but is clumsier for students.
 2. **Julia distribution:** artifacts from GitHub releases plus `Pkg.add(url = …)` (recommended; available this semester). The alternative is a JLL through Yggdrasil plus General-registry registration, which takes review time outside our control. That fits v0.8, once ABI 2 has held for a release.
