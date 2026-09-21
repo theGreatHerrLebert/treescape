@@ -20,3 +20,4 @@ docs/site/
 tests/oracle/reports/
 .claude/settings.local.json
 .codex
+packages/Treescape.jl/Manifest.toml

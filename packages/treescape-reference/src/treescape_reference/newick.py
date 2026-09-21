@@ -119,6 +119,10 @@ def _tokenize(s: str) -> List[Token]:
                 i += 1
             if depth != 0:
                 raise ValueError("unterminated comment")
+        elif c == "]":
+            # Without this branch the name scanner below stops at "]"
+            # without advancing and loops forever (v0.5 fuzz finding).
+            raise ValueError("unmatched ']' outside a comment")
         elif c.isspace():
             i += 1
         else:

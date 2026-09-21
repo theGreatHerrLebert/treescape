@@ -72,6 +72,64 @@ jobs:
           name: oracle-reports-ci
           path: tests/oracle/reports/
 
+  julia:
+    name: Julia binding (Julia ${{ matrix.julia }})
+    runs-on: ubuntu-latest
+    needs: rust-test
+    strategy:
+      fail-fast: false
+      matrix:
+        julia: ["1.10", "1.12"]   # compat floor + development version
+    env:
+      TREESCAPE_JULIA: julia
+      # Julia claims fail rather than skip if a prerequisite is missing.
+      TREESCAPE_REQUIRE_JULIA: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true   # see rust-test job for why not recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.julia }}
+      - uses: julia-actions/cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build C-ABI connector
+        run: cargo build -p treescape-jl-connector --release
+      - name: Treescape.jl unit tests
+        run: julia --project=packages/Treescape.jl -e 'using Pkg; Pkg.test()'
+      - name: Install Python side (parity reference)
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest hypothesis
+          pip install -e ./treescape-connector
+          pip install -e packages/treescape-reference -e packages/treescape
+      - name: Julia claims (parity + FFI no-abort)
+        run: pytest tests/oracle/test_julia_parity.py tests/oracle/test_jl_ffi_no_abort.py -v
+      - name: Upload oracle artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle-reports-julia-${{ matrix.julia }}
+          path: tests/oracle/reports/
+
+  miri:
+    name: Miri (C-ABI connector)
+    runs-on: ubuntu-latest
+    needs: rust-test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri, rust-src
+      - name: Run connector tests under Miri
+        run: cargo miri test -p treescape-jl-connector
+
   release-tier-claims:
     name: release-tier oracle claims (ggtree)
     runs-on: ubuntu-latest

@@ -4,7 +4,19 @@ All notable changes to treescape are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — v0.4.1
+## [Unreleased] — v0.5.0
+
+### Added — v0.5 Phase 2: Julia binding
+
+- **`Treescape.jl`** (`packages/Treescape.jl`) — the full TreePlot grammar in Julia (`layout!`, `options!`, `highlight_clade!`, `color_tips!`, `join_metadata!` over any Tables.jl source, `color_tips_by!`, `color_branches_by!`, `width_branches_by!`, `scale_bar!`, `support_labels!`, `to_svg`, `save`, inline SVG display). Julia ≥ 1.10; CI on 1.10 and 1.12.
+- **`treescape-jl-connector`** — C-ABI cdylib in the rustims `imsjl_connector` style: opaque handles, status codes with owned error messages, finalizer-managed memory, ABI version check, library discovery via `TREESCAPE_JL_LIB` / Preferences.jl / the dev build. Unlike `imsjl_connector` it cannot panic across the boundary (clippy deny-list on `unwrap`/`expect`/`panic`/indexing; null, alignment and size checks on every pointer). Unit tests call the C functions in-process and run under Miri in CI.
+- Claims `treescape-julia-python-svg-parity` (37 data-only cases in `tests/fixtures/parity/cases.toml`, including every gallery file, byte-identical between Julia and Python) and `treescape-jl-ffi-no-abort` (1,596 hostile/fuzzed inputs through the raw ABI; the Julia process must survive). Both fail rather than skip in the CI `julia` job.
+
+### Fixed
+
+- **Newick: a `]` outside a comment hung the parser until the process ran out of memory** — in both the Rust core and `treescape-reference`, so `TreePlot("a];")` could take down a Python session. The tokenizer's name scanner stopped at `]` without advancing and appended empty names forever. Found by the Phase 2 fuzz runner; now a parse error (`unmatched ']' outside a comment`) with regression tests on both sides.
+
+## v0.4.1 (Phase 1, untagged)
 
 v0.5 Phase 1: metadata-driven styling resolution moved from `plot.py` into `treescape-core::style` (exposed as `treescape_connector.py_style`), in preparation for the Julia binding. No API changes. New EVIDENT claim `treescape-style-resolution-rust-vs-reference` (19 claims).
 

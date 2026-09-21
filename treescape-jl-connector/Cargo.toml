@@ -1,0 +1,15 @@
+[package]
+name = "treescape-jl-connector"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "C-ABI bindings exposing treescape Rust crates to Julia (Treescape.jl)."
+
+[lib]
+name = "treescape_jl_connector"
+crate-type = ["cdylib"]
+
+[dependencies]
+treescape-core = { path = "../treescape-core", version = "0.1.0" }
+treescape-render = { path = "../treescape-render", version = "0.1.0" }

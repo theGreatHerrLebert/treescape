@@ -1,0 +1,353 @@
+# Parity cases for claim treescape-julia-python-svg-parity.
+#
+# Data only: each case names a tree source and a chain of TreePlot
+# operations. tests/oracle/test_julia_parity.py interprets it for the
+# Python package and packages/Treescape.jl/test/parity_runner.jl for
+# Treescape.jl; the SVG bytes must match. TOML because both languages
+# parse it with their standard library.
+#
+# ops: {op = "<method>", args = [...], kwargs = {...}}. Method names are
+# Python's (`color_tips_by`); Julia calls the `!` form. Colors given as
+# arrays are tuples. `join_metadata` takes a table name from [tables].
+# `expect_file`, when set, is a committed SVG both hosts must also match.
+
+[trees]
+primates = { path = "tests/fixtures/trees/medium/primates.nwk" }
+support = { newick = "((a:0.1,b:0.2)95:0.3,(c:0.15,(d:0.05,e:0.07)70:0.1)88:0.2);" }
+multi = { newick = "((a:1,b:1,c:1):1,(d:1,:1):2,e:0.5);" }
+
+[tables.primates]
+tip = ["Homo_sapiens", "Pan_troglodytes", "Gorilla_gorilla", "Pongo_abelii", "Hylobates_lar", "Macaca_mulatta", "Papio_anubis", "Cercopithecus_mitis", "Chlorocebus_sabaeus", "Callithrix_jacchus", "Saimiri_sciureus"]
+clade = ["great_apes", "great_apes", "great_apes", "great_apes", "lesser_apes", "old_world_monkeys", "old_world_monkeys", "old_world_monkeys", "old_world_monkeys", "new_world_monkeys", "new_world_monkeys"]
+support = [0.99, 0.97, 0.95, 0.91, 0.88, 0.93, 0.92, 0.85, 0.83, 0.78, 0.75]
+
+# Tips missing from the table get missing values.
+[tables.primates_partial]
+tip = ["Homo_sapiens", "Pan_troglodytes", "Macaca_mulatta", "Papio_anubis", "Callithrix_jacchus"]
+group = ["ape", "ape", "monkey", "monkey", "monkey"]
+score = [3.5, 2.25, 1.0, 0.5, 4.0]
+
+[tables.support]
+tip = ["a", "b", "c", "d", "e"]
+grp = ["x", "x", "y", "y", "y"]
+count = [1, 5, 2, 8, 3]
+weight = [0.1, 0.9, 0.4, 0.4, 0.7]
+
+[tables.multi]
+tip = ["a", "b", "c", "d"]
+kind = ["p", "p", "p", "q"]
+value = [1.0, 2.0, 4.0, 8.0]
+
+# --- the committed gallery (scripts/regen_assets.py) ----------------------
+
+[[cases]]
+name = "marketing"
+tree = "primates"
+expect_file = "assets/primates.svg"
+ops = [{ op = "options", kwargs = { padding = 16, px_per_x = 1500, px_per_y = 20, font_size = 12 } }]
+
+[[cases]]
+name = "gallery_01_rectangular"
+tree = "primates"
+expect_file = "assets/gallery/01_rectangular.svg"
+ops = [{ op = "options", kwargs = { padding = 16, px_per_x = 1200, px_per_y = 24, font_size = 12 } }]
+
+[[cases]]
+name = "gallery_02_circular"
+tree = "primates"
+expect_file = "assets/gallery/02_circular.svg"
+ops = [
+  { op = "layout", args = ["circular"] },
+  { op = "options", kwargs = { padding = 16, px_per_x = 900, font_size = 12 } },
+]
+
+[[cases]]
+name = "gallery_03_rectangular_highlight"
+tree = "primates"
+expect_file = "assets/gallery/03_rectangular_highlight.svg"
+ops = [
+  { op = "options", kwargs = { padding = 16, px_per_x = 1200, px_per_y = 24, font_size = 12 } },
+  { op = "highlight_clade", args = [["Homo_sapiens", "Pan_troglodytes", "Gorilla_gorilla", "Pongo_abelii"]], kwargs = { color = "#ffb84d", alpha = 0.35 } },
+]
+
+[[cases]]
+name = "gallery_04_circular_highlight"
+tree = "primates"
+expect_file = "assets/gallery/04_circular_highlight.svg"
+ops = [
+  { op = "layout", args = ["circular"] },
+  { op = "options", kwargs = { padding = 16, px_per_x = 900, font_size = 12 } },
+  { op = "highlight_clade", args = [["Homo_sapiens", "Pan_troglodytes", "Gorilla_gorilla", "Pongo_abelii"]], kwargs = { color = "#ffb84d", alpha = 0.35 } },
+]
+
+[[cases]]
+name = "gallery_05_color_tips_by_clade"
+tree = "primates"
+expect_file = "assets/gallery/05_color_tips_by_clade.svg"
+ops = [
+  { op = "options", kwargs = { padding = 16, px_per_x = 1200, px_per_y = 24, font_size = 12 } },
+  { op = "join_metadata", args = ["primates"], kwargs = { on = "tip" } },
+  { op = "color_tips_by", args = ["clade"] },
+]
+
+[[cases]]
+name = "gallery_06_color_branches_by_clade"
+tree = "primates"
+expect_file = "assets/gallery/06_color_branches_by_clade.svg"
+ops = [
+  { op = "options", kwargs = { padding = 16, px_per_x = 1200, px_per_y = 24, font_size = 12 } },
+  { op = "join_metadata", args = ["primates"], kwargs = { on = "tip" } },
+  { op = "color_branches_by", args = ["clade"] },
+]
+
+[[cases]]
+name = "gallery_07_color_tips_by_support"
+tree = "primates"
+expect_file = "assets/gallery/07_color_tips_by_support.svg"
+ops = [
+  { op = "options", kwargs = { padding = 16, px_per_x = 1200, px_per_y = 24, font_size = 12 } },
+  { op = "join_metadata", args = ["primates"], kwargs = { on = "tip" } },
+  { op = "color_tips_by", args = ["support"] },
+]
+
+[[cases]]
+name = "gallery_08_color_branches_by_support"
+tree = "primates"
+expect_file = "assets/gallery/08_color_branches_by_support.svg"
+ops = [
+  { op = "options", kwargs = { padding = 16, px_per_x = 1200, px_per_y = 24, font_size = 12 } },
+  { op = "join_metadata", args = ["primates"], kwargs = { on = "tip" } },
+  { op = "color_branches_by", args = ["support"] },
+]
+
+[[cases]]
+name = "gallery_09_scale_bar"
+tree = "primates"
+expect_file = "assets/gallery/09_scale_bar.svg"
+ops = [
+  { op = "options", kwargs = { padding = 16, px_per_x = 1200, px_per_y = 24, font_size = 12 } },
+  { op = "scale_bar", args = [0.05, "0.05 substitutions/site"] },
+]
+
+[[cases]]
+name = "gallery_10_combined"
+tree = "primates"
+expect_file = "assets/gallery/10_combined.svg"
+ops = [
+  { op = "options", kwargs = { padding = 16, px_per_x = 1200, px_per_y = 24, font_size = 12 } },
+  { op = "join_metadata", args = ["primates"], kwargs = { on = "tip" } },
+  { op = "color_tips_by", args = ["clade"] },
+  { op = "highlight_clade", args = [["Homo_sapiens", "Pan_troglodytes", "Gorilla_gorilla", "Pongo_abelii"]], kwargs = { color = "#ffb84d", alpha = 0.25 } },
+  { op = "scale_bar", args = [0.05, "0.05 substitutions/site"] },
+]
+
+[[cases]]
+name = "gallery_11_circular_color_tips_by_clade"
+tree = "primates"
+expect_file = "assets/gallery/11_circular_color_tips_by_clade.svg"
+ops = [
+  { op = "layout", args = ["circular"] },
+  { op = "options", kwargs = { padding = 16, px_per_x = 900, font_size = 12 } },
+  { op = "join_metadata", args = ["primates"], kwargs = { on = "tip" } },
+  { op = "color_tips_by", args = ["clade"] },
+]
+
+[[cases]]
+name = "gallery_12_circular_scale_bar"
+tree = "primates"
+expect_file = "assets/gallery/12_circular_scale_bar.svg"
+ops = [
+  { op = "layout", args = ["circular"] },
+  { op = "options", kwargs = { padding = 16, px_per_x = 900, font_size = 12 } },
+  { op = "scale_bar", args = [0.05, "0.05 subs/site"] },
+]
+
+[[cases]]
+name = "gallery_13_branch_width_by_support"
+tree = "primates"
+expect_file = "assets/gallery/13_branch_width_by_support.svg"
+ops = [
+  { op = "options", kwargs = { padding = 16, px_per_x = 1200, px_per_y = 24, font_size = 12 } },
+  { op = "join_metadata", args = ["primates"], kwargs = { on = "tip" } },
+  { op = "width_branches_by", args = ["support"] },
+]
+
+# --- defaults and options ---------------------------------------------------
+
+[[cases]]
+name = "rectangular_defaults"
+tree = "support"
+ops = []
+
+[[cases]]
+name = "circular_defaults"
+tree = "support"
+ops = [{ op = "layout", args = ["circular"] }]
+
+[[cases]]
+name = "rectangular_every_option"
+tree = "support"
+ops = [{ op = "options", kwargs = { px_per_x = 100, px_per_y = 30, padding = 5, font_size = 14, label_offset = 8, stroke_width = 2.5 } }]
+
+[[cases]]
+name = "circular_every_option"
+tree = "support"
+ops = [
+  { op = "layout", args = ["circular"] },
+  { op = "options", kwargs = { px_per_x = 150, padding = 5, font_size = 14, label_offset = 8, stroke_width = 2.5 } },
+]
+
+[[cases]]
+name = "chained_options_keep_earlier_values"
+tree = "support"
+ops = [
+  { op = "options", kwargs = { label_offset = 12, stroke_width = 2 } },
+  { op = "options", kwargs = { font_size = 18 } },
+  { op = "layout", args = ["circular"] },
+]
+
+# --- highlights and explicit colors -----------------------------------------
+
+[[cases]]
+name = "highlight_tuple_color_alpha_tie"
+tree = "support"
+# 0.7 * 255 = 178.5: round-half-to-even gives 178 (ties-away would give 179).
+ops = [{ op = "highlight_clade", args = [["a", "b"]], kwargs = { color = [200, 30, 30], alpha = 0.7 } }]
+
+[[cases]]
+name = "highlight_explicit_alpha_wins"
+tree = "support"
+ops = [
+  { op = "highlight_clade", args = [["d", "e"]], kwargs = { color = [10, 120, 200, 90], alpha = 0.9 } },
+  { op = "highlight_clade", args = [["c", "e"]], kwargs = { color = "#33aa5580" } },
+]
+
+[[cases]]
+name = "highlight_alpha_one_is_opaque"
+tree = "support"
+ops = [
+  { op = "layout", args = ["circular"] },
+  { op = "highlight_clade", args = [["a", "b"]], kwargs = { color = "##e07b00", alpha = 1.0 } },
+  { op = "highlight_clade", args = [["d", "e"]], kwargs = { alpha = 0.3 } },
+]
+
+[[cases]]
+name = "explicit_tip_colors"
+tree = "support"
+ops = [{ op = "color_tips", args = [{ a = "#ff0000", c = [0, 128, 0], e = [0, 0, 255, 128] }] }]
+
+# --- metadata-driven styling ------------------------------------------------
+
+[[cases]]
+name = "discrete_tips_explicit_palette"
+tree = "support"
+ops = [
+  { op = "join_metadata", args = ["support"], kwargs = { on = "tip" } },
+  { op = "color_tips_by", args = ["grp"], kwargs = { palette = { x = "#123456", y = [250, 100, 0] } } },
+]
+
+[[cases]]
+name = "discrete_branches_partial_data_warns"
+tree = "primates"
+ops = [
+  { op = "join_metadata", args = ["primates_partial"], kwargs = { on = "tip" } },
+  { op = "color_branches_by", args = ["group"] },
+  { op = "color_tips_by", args = ["group"] },
+]
+
+[[cases]]
+name = "continuous_integer_column_pinned_range"
+tree = "support"
+ops = [
+  { op = "join_metadata", args = ["support"], kwargs = { on = "tip" } },
+  { op = "color_tips_by", args = ["count"], kwargs = { vmin = 0, vmax = 10 } },
+  { op = "color_branches_by", args = ["count"], kwargs = { vmin = 2, vmax = 6 } },
+]
+
+[[cases]]
+name = "continuous_forced_by_cmap_circular"
+tree = "support"
+ops = [
+  { op = "layout", args = ["circular"] },
+  { op = "join_metadata", args = ["support"], kwargs = { on = "tip" } },
+  { op = "color_branches_by", args = ["weight"], kwargs = { cmap = "viridis" } },
+  { op = "color_tips_by", args = ["weight"] },
+]
+
+[[cases]]
+name = "continuous_degenerate_range"
+tree = "support"
+ops = [
+  { op = "join_metadata", args = ["support"], kwargs = { on = "tip" } },
+  { op = "color_tips_by", args = ["weight"], kwargs = { vmin = 0.5, vmax = 0.5 } },
+]
+
+[[cases]]
+name = "continuous_partial_data"
+tree = "primates"
+ops = [
+  { op = "layout", args = ["circular"] },
+  { op = "join_metadata", args = ["primates_partial"], kwargs = { on = "tip" } },
+  { op = "color_branches_by", args = ["score"] },
+  { op = "width_branches_by", args = ["score"] },
+]
+
+[[cases]]
+name = "widths_pinned"
+tree = "support"
+ops = [
+  { op = "join_metadata", args = ["support"], kwargs = { on = "tip" } },
+  { op = "width_branches_by", args = ["weight"], kwargs = { wmin = 0.5, wmax = 6, vmin = 0.2, vmax = 0.8 } },
+]
+
+[[cases]]
+name = "multifurcation_unnamed_tip"
+tree = "multi"
+ops = [
+  { op = "join_metadata", args = ["multi"], kwargs = { on = "tip" } },
+  { op = "color_branches_by", args = ["kind"] },
+  { op = "width_branches_by", args = ["value"] },
+  { op = "color_tips_by", args = ["value"] },
+]
+
+# --- annotations ------------------------------------------------------------
+
+[[cases]]
+name = "scale_bar_default_labels"
+tree = "support"
+ops = [{ op = "scale_bar", args = [0.05] }]
+
+[[cases]]
+name = "scale_bar_default_label_exponent"
+tree = "support"
+ops = [{ op = "scale_bar", args = [1e-05] }]
+
+[[cases]]
+name = "scale_bar_integer_length"
+tree = "support"
+ops = [{ op = "layout", args = ["circular"] }, { op = "scale_bar", args = [1] }]
+
+[[cases]]
+name = "support_labels_all"
+tree = "support"
+ops = [{ op = "support_labels" }]
+
+[[cases]]
+name = "support_labels_threshold_circular"
+tree = "support"
+ops = [{ op = "layout", args = ["circular"] }, { op = "support_labels", kwargs = { min_value = 80 } }]
+
+[[cases]]
+name = "everything_circular"
+tree = "support"
+ops = [
+  { op = "layout", args = ["circular"] },
+  { op = "options", kwargs = { px_per_x = 200, font_size = 11 } },
+  { op = "join_metadata", args = ["support"], kwargs = { on = "tip" } },
+  { op = "highlight_clade", args = [["c", "e"]], kwargs = { color = "#ffb84d", alpha = 0.25 } },
+  { op = "color_tips_by", args = ["grp"] },
+  { op = "color_branches_by", args = ["weight"] },
+  { op = "width_branches_by", args = ["count"] },
+  { op = "scale_bar", args = [0.1, "0.1 subs/site"] },
+  { op = "support_labels", kwargs = { min_value = 90 } },
+]

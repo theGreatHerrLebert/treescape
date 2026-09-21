@@ -240,6 +240,37 @@ v0.3–v0.4 resolved metadata-driven styling in `plot.py`. v0.5 Phase 1 moves th
 - **Observed min/max follow Python `min()`/`max()`**: start from the first observed value, replace on strict `<` (min) / `>` (max). With NaN present the result is order-dependent — preserved rather than "fixed", since fixing it would be a behavior change.
 - **NaN through viridis is an error**, with Python's message: `cannot convert float NaN to integer` (what `int(round(nan))` raised in v0.4). A callable `cmap` receives the NaN `t` unchanged, as before.
 
+## Julia binding (v0.5 Phase 2)
+
+`Treescape.jl` (`packages/Treescape.jl/`) drives the same Rust core through `treescape-jl-connector`, a C-ABI cdylib — the rustims `imsjl_connector` pattern. Its contract is **byte-identical SVG to Python for the same inputs** (claim `treescape-julia-python-svg-parity`); everything below exists to make that true or to keep the Julia process alive.
+
+### C ABI
+
+- Symbols are prefixed `ts_`. `ts_abi_version()` returns `1`; `Treescape.jl` refuses to load a library with a different version rather than calling into a mismatched ABI.
+- **Status codes:** every fallible call returns `int32`: `0` ok, `1` invalid argument (null pointer, invalid UTF-8, out-of-range node id, column-length mismatch), `2` Newick parse error, `3` styling-resolution error (e.g. NaN through viridis, palette exhausted), `4` render error (e.g. highlight MRCA is the root). A non-zero status comes with an owned UTF-8 message through the `char **err` out-parameter (may be null to discard). The message text is the same string Python's exception carries.
+- **Ownership:** handles (`TsTree`, `TsStyle`) and returned strings are owned by the caller and released with `ts_tree_free` / `ts_style_free` / `ts_string_free`; each accepts null. Julia attaches these as finalizers, so user code never frees anything.
+- **No panics across the boundary.** The workspace release profile sets `panic = "abort"` (not overridable per package), so a Rust panic would kill the Julia process. The connector denies `clippy::unwrap_used`, `expect_used`, `panic` and `indexing_slicing`, validates every pointer, string and id before touching the core, and returns a status instead. The only panic site on core/render paths is the `expect` on parsing the compile-time-embedded DejaVu Sans, which cannot fail for a correctly built library.
+- **Pointer checks:** every pointer argument is checked for null, alignment for its element type, and a total size within `isize::MAX` bytes before a slice is formed, so a wrong length or misaligned buffer becomes status `1` rather than undefined behavior. What cannot be checked — a dangling or already-freed handle, a buffer shorter than its stated length — is the caller's contract; `Treescape.jl` never exposes raw handles or buffers.
+- **Columns** cross as `(values*, present*, len)` pairs: `double` or `uint32` values plus a `uint8` presence mask (0 = missing), aligned to tip order — the Phase 1 boundary shape. Node ids are 0-based on the C side.
+
+### Host semantics mirrored from `plot.py`
+
+`Treescape.jl` re-implements only the host-side concerns listed under *Styling resolution in Rust*; each mirrors `plot.py` so the resulting render calls are identical:
+
+- **Source heuristic:** same as `_load_tree` — inline Newick if the string contains a newline, ends with `;` or starts with `(` (after stripping), otherwise a file path; an existing path that does not start with `(` wins.
+- **`options!`**: `px_per_x` also sets the circular `px_per_r`; `px_per_y` is rectangular-only; unspecified values keep their current setting.
+- **Colors:** `"#rrggbb"` / `"#rrggbbaa"` (leading `#`s stripped) or 3-/4-tuples of reals truncated toward zero, as Python's `int()`. Python additionally accepts oddities such as sign or whitespace inside a hex pair (`int("+f", 16)`); Julia rejects them — an error-path-only divergence.
+- **`highlight_clade!` alpha:** applied iff the color is opaque and `alpha != 1.0`; `clamp(round(Int, alpha * 255), 0, 255)`. Julia's default `round` is ties-to-even, matching Python's.
+- **Numeric vs discrete:** all observed values are `Real` and none is `Bool` → continuous. Missing is `missing` or `nothing`.
+- **Discrete values** are deduplicated in first-occurrence tip order with `isequal`. (Python uses `==` with an identity shortcut; they differ only for NaN category values.)
+- **Default scale-bar label** is the length formatted like Python's `str(float(x))` (`0.05`, `1.0`, `1e-05`, `1e+16`), not Julia's `string(x)` (`1.0e-5`).
+- **Warnings:** non-monophyletic branches log `@warn` with `_group = :treescape_style` and the same message text as `TreescapeStyleWarning`, emitted before the atomic assignment.
+- **Metadata:** any Tables.jl source; `on` is a column name (`Symbol` or `String`). Join validation (missing `on` column, duplicate keys, non-tip keys, column collisions) follows the v0.3 semantics with the same messages.
+
+### Library discovery
+
+`ENV["TREESCAPE_JL_LIB"]` → Preferences.jl `libpath` (`Treescape.set_library!(path)`) → the development build `<repo>/target/release/libtreescape_jl_connector.{so,dylib}` next to a source checkout → an error that says how to build it (`cargo build -p treescape-jl-connector --release`). No JLL in v0.5.
+
 ## Convention gaps vs external oracles
 
 | Convention | treescape | ete3 | Biopython.Phylo | ggtree |

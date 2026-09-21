@@ -35,10 +35,12 @@ pytest tests/oracle -m "not release_only" -v   # ~180 ci-tier tests; rest skip c
 ```
 Rust:    treescape-core/, treescape-render/
 PyO3:    treescape-connector/
+C ABI:   treescape-jl-connector/
 Python:  packages/treescape, packages/treescape-reference
+Julia:   packages/Treescape.jl
 ```
 
-Mirrors the proven rustims layout (Rust workspace + PyO3 connector cdylib + thin Python packages on top).
+Mirrors the proven rustims layout (Rust workspace + PyO3 connector cdylib + thin Python packages on top, plus a C-ABI connector for Julia). Python and Julia render byte-identical SVG for the same inputs; see [`packages/Treescape.jl`](packages/Treescape.jl/README.md).
 
 ## Trust
 

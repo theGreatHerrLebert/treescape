@@ -189,6 +189,27 @@ def test_rust_matches_python_reference_topology(fixture: pathlib.Path) -> None:
     assert rust_tree.n_nodes == len(ref_tree.postorder())
 
 
+# v0.5 fuzz finding: a ']' outside a comment made both tokenizers loop
+# forever appending empty names until the process ran out of memory.
+STRAY_BRACKET_INPUTS = ["a];", "(a,b)];", "]", '8"312XZXE6-; E7E()X]9c-" 5\n']
+
+
+@pytest.mark.parametrize("src", STRAY_BRACKET_INPUTS)
+def test_reference_rejects_stray_close_bracket(src: str) -> None:
+    with pytest.raises(ValueError, match=r"unmatched '\]' outside a comment"):
+        ref_parse(src)
+
+
+@pytest.mark.skipif(
+    not HAVE_CONNECTOR,
+    reason="treescape_connector not built (run maturin develop)",
+)
+@pytest.mark.parametrize("src", STRAY_BRACKET_INPUTS)
+def test_rust_rejects_stray_close_bracket(src: str) -> None:
+    with pytest.raises(ValueError, match=r"unmatched '\]' outside a comment"):
+        RustTree.parse_newick(src)
+
+
 # ----- Artifact emission ----------------------------------------------------
 
 

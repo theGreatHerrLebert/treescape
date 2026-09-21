@@ -3,6 +3,7 @@ members = [
     "treescape-core",
     "treescape-render",
     "treescape-connector",
+    "treescape-jl-connector",
 ]
 
 resolver = "2"

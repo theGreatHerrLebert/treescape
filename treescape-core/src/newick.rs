@@ -24,6 +24,7 @@ pub enum NewickError {
     UnclosedParen,
     UnterminatedQuote,
     UnterminatedComment,
+    UnmatchedCloseBracket,
     InvalidNumber(String),
     MissingSemicolon,
     TrailingContent,
@@ -37,6 +38,7 @@ impl std::fmt::Display for NewickError {
             Self::UnclosedParen => write!(f, "unclosed parenthesis"),
             Self::UnterminatedQuote => write!(f, "unterminated quoted name"),
             Self::UnterminatedComment => write!(f, "unterminated comment"),
+            Self::UnmatchedCloseBracket => write!(f, "unmatched ']' outside a comment"),
             Self::InvalidNumber(s) => write!(f, "invalid number: {}", s),
             Self::MissingSemicolon => write!(f, "missing trailing semicolon"),
             Self::TrailingContent => write!(f, "trailing content after semicolon"),
@@ -141,6 +143,9 @@ fn tokenize(input: &str) -> Result<Vec<Token>, NewickError> {
                     return Err(NewickError::UnterminatedComment);
                 }
             }
+            // Without this arm the name scanner below stops at ']' without
+            // advancing and pushes empty names forever (v0.5 fuzz finding).
+            ']' => return Err(NewickError::UnmatchedCloseBracket),
             c if c.is_whitespace() => {
                 i += 1;
             }
@@ -326,6 +331,17 @@ fn write_float(f: f64, buf: &mut String) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn stray_close_bracket_is_an_error_not_an_endless_loop() {
+        for input in ["a];", "(a,b)];", "]", "8\"312XZXE6-; E7E()X]9c-\" 5\n"] {
+            assert_eq!(
+                parse(input).unwrap_err(),
+                NewickError::UnmatchedCloseBracket,
+                "{input:?}"
+            );
+        }
+    }
+
     use super::*;
 
     fn tree_eq_structural(a: &Tree, b: &Tree) -> bool {

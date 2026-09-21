@@ -231,6 +231,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "treescape-jl-connector"
+version = "0.1.0"
+dependencies = [
+ "treescape-core",
+ "treescape-render",
+]
+
+[[package]]
 name = "treescape-render"
 version = "0.1.0"
 dependencies = [
