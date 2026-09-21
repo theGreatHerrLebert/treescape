@@ -13,8 +13,6 @@ authors = [
     { name = "David Teschner", email = "davidteschner@googlemail.com" },
 ]
 dependencies = [
-    "pandas>=2.1",
-    "numpy>=1.24",
     "polars>=1.0",
     "treescape_connector>=0.1.0",
 ]

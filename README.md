@@ -1,53 +1,136 @@
 # treescape
 
-Phylogenetic tree visualization for Python and Julia with a Rust core and EVIDENT-style trust scaffolding.
+Phylogenetic tree figures for **Python** and **Julia**: one Rust core, byte-deterministic SVG, and layouts checked against ete3, Biopython and ggtree.
 
 <p align="center">
-  <img src="assets/primates.svg" alt="treescape rendering of a 12-tip primate phylogeny" width="640"/>
+  <img src="assets/primates.svg" alt="treescape rendering of an 11-tip primate phylogeny" width="640"/>
 </p>
-<p align="center"><em>Rectangular phylogram, deterministic SVG, byte-identical Rust↔Python reference output. See <a href="assets/gallery/">assets/gallery/</a> for circular layouts, metadata-driven coloring, clade highlights, and feature combinations.</em></p>
 
-## Status
+**Docs, tested examples and the full claim list:** <https://thegreatherrlebert.github.io/treescape/>
 
-v0.5.0: rectangular and circular layouts; metadata-driven discrete (Tableau-10) and continuous (viridis) tip and branch coloring, branch widths, clade highlights, scale bars and support labels on both layouts — now from **Python and Julia**, with byte-identical SVG output. Documentation, tested examples in both languages, and the full claim list: **<https://thegreatherrlebert.github.io/treescape/>**. See `CHANGELOG.md` for what landed and `evident.yaml` for the trust manifest.
+## Why
 
-## Gallery
+R has [ggtree](https://bioconductor.org/packages/ggtree/): join a table onto a tree, map columns to colors, widths and highlights, get a publication figure. Python and Julia have good tools with narrower scope — [ete3](https://github.com/etetoolkit/ete) (GPL, Qt-based rendering), Biopython's `Bio.Phylo.draw` (matplotlib, basic styling), [toytree](https://github.com/eaton-lab/toytree) (the closest Python equivalent), and in Julia [Phylo.jl](https://github.com/EcoJulia/Phylo.jl)'s Plots recipes and [PhyloPlots.jl](https://github.com/JuliaPhylo/PhyloPlots.jl). None of them combines
 
-`assets/gallery/` shows ten variants on a single 12-tip primate phylogeny — same fixture, same options, one feature toggled per file — so you can compare layouts and styling apples-to-apples. The gallery's [README](assets/gallery/) lists each file with the line of code that produced it.
+- **metadata-driven styling** — color tips and branches by a category or a number, scale branch widths, highlight clades;
+- **reproducible output** — the same input gives the same SVG bytes, so figures can be diffed and pinned in CI;
+- **checked geometry** — layout coordinates compared against independent tools, with every deliberate difference documented;
+- **one implementation for two languages** — Python and Julia call the same Rust core and produce identical files.
 
-## Quickstart (development)
+treescape is built to fill that gap.
+
+## Quickstart
+
+treescape is not yet on PyPI or the Julia General registry; install from a checkout.
+
+**Python** (≥ 3.11)
 
 ```bash
-git clone --recursive https://github.com/theGreatHerrLebert/treescape.git
-cd treescape
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install maturin pytest biopython ete3 hypothesis polars fonttools
-(cd treescape-connector && maturin develop --release)
-pip install -e packages/treescape-reference -e packages/treescape
-
-python -c "from treescape import TreePlot; TreePlot('((a:1,b:1):1,(c:1,d:1):1);').save('/tmp/tree.svg')"
-pytest tests/oracle -m "not release_only" -v   # ~180 ci-tier tests; rest skip cleanly when prereqs are missing
+git clone --recursive https://github.com/theGreatHerrLebert/treescape.git && cd treescape
+pip install maturin polars
+pip install -e ./treescape-connector -e packages/treescape-reference -e packages/treescape
 ```
 
-## Quick architecture
+```python
+import polars as pl
+from treescape import TreePlot
 
+meta = pl.DataFrame({"tip": ["a", "b", "c", "d"], "clade": ["x", "x", "y", "y"]})
+
+(TreePlot("((a:1,b:1):1,(c:1,d:1):1);")
+    .layout("circular")
+    .join_metadata(meta, on="tip")
+    .color_tips_by("clade")
+    .save("tree.svg"))
 ```
-Rust:    treescape-core/, treescape-render/
-PyO3:    treescape-connector/
-C ABI:   treescape-jl-connector/
-Python:  packages/treescape, packages/treescape-reference
-Julia:   packages/Treescape.jl
+
+**Julia** (≥ 1.10)
+
+```bash
+cargo build -p treescape-jl-connector --release
+julia --project=packages/Treescape.jl -e 'using Pkg; Pkg.instantiate()'
 ```
 
-Mirrors the proven rustims layout (Rust workspace + PyO3 connector cdylib + thin Python packages on top, plus a C-ABI connector for Julia). Python and Julia render byte-identical SVG for the same inputs; see [`packages/Treescape.jl`](packages/Treescape.jl/README.md).
+```julia
+using Treescape
 
-## Trust
+meta = (tip = ["a", "b", "c", "d"], clade = ["x", "x", "y", "y"])   # or a DataFrame
 
-Every numerical and structural claim made by treescape is pinned in [`evident.yaml`](./evident.yaml) with an oracle, a tolerance, a reproducible command, and a recorded artifact — **before** the code that implements the claim lands. As of v0.3.0, sixteen claims are pinned and green, validated against three independent layout oracles (ete3, Biopython.Phylo, R/ggtree) plus a Python reference implementation that users can `pip install treescape-reference` and verify themselves.
+p = TreePlot("((a:1,b:1):1,(c:1,d:1):1);")
+layout!(p, :circular)
+join_metadata!(p, meta; on=:tip)
+color_tips_by!(p, :clade)
+save(p, "tree.svg")        # identical bytes to the Python file
+```
 
-`evident.yaml` is the source of truth for what's claimed and how it's tested. The runners live at `tests/oracle/test_*.py`; ci-tier claims run on every push, the release-tier ggtree claim runs on tag push inside `workflow/Dockerfile.evident-release`. When a prerequisite is absent locally, the corresponding test skips cleanly — it does not silently pass. Run `pytest tests/oracle -v` and read the `SKIPPED` reasons to see which prerequisites are missing in your environment.
+More: the [examples](https://thegreatherrlebert.github.io/treescape/examples/) (both languages, each tested against the image it shows) and the [gallery](assets/gallery/).
+
+## What to trust
+
+Every correctness claim is pinned in [`evident.yaml`](evident.yaml) — the [EVIDENT](https://github.com/theGreatHerrLebert/evident) trust manifest — with an oracle, a tolerance, and the command that checks it. The [claims page](https://thegreatherrlebert.github.io/treescape/claims/) renders all of them.
+
+| What | Checked against | Tolerance |
+|---|---|---|
+| Newick parsing | Biopython | exact topology; branch lengths 1e-9 |
+| Rectangular layout | ete3, Biopython, R/ggtree | 1e-6 (ggtree 1e-4) |
+| Circular layout | ete3, R/ggtree | 1e-4 (ggtree 1e-3) in (r, θ) |
+| Rust core vs readable Python reference | `treescape-reference` | 1e-9 layout; exact styling rules |
+| Label widths | fontTools reading the same font | 0.5 px |
+| Python ↔ Julia output | each other, and every gallery file | byte-identical |
+| Julia boundary | ~1,600 hostile and fuzzed inputs; Miri | never aborts the process |
+
+Where the external tools disagree with each other or with treescape — sweep direction, default ladderization, y offsets — the difference is documented in [conventions](docs/conventions.md), not hidden in a tolerance.
+
+**Known limits of that evidence**, stated plainly: external layout agreement is currently established on small fixtures (2–5 tips); rendered SVG geometry is snapshot-tested rather than checked against the validated coordinates; byte determinism is verified on Linux only; branch styling is O(nodes × depth). Closing these is tracked for the next release.
+
+## Design philosophy
+
+- **One implementation, many hosts.** Layout, styling rules and SVG emission live in Rust. Python and Julia add only host concerns (data frames, color parsing, warnings) and are held to byte-identical output.
+- **Oracle first.** A slow, readable Python reference is written before the Rust port and stays as the oracle; external tools from independent lineages check the reference. A claim is pinned before the code that backs it.
+- **Document disagreement, don't absorb it.** Convention gaps between tools are written down; tolerances are never widened to make a test pass.
+- **Deterministic by construction.** Fixed float formatting, sorted attributes, no timestamps, a bundled font for text measurement.
+- **Tight scope.** Newick in, SVG out, two layouts, metadata-driven styling. No matplotlib, no GUI.
+
+## Repo shape
+
+```text
+treescape-core/          tree model, Newick, layouts, styling rules (Rust)
+treescape-render/        deterministic SVG emitter + bundled DejaVu Sans (Rust)
+treescape-connector/     PyO3 bindings        → packages/treescape            (Python)
+treescape-jl-connector/  C-ABI bindings       → packages/Treescape.jl         (Julia)
+packages/treescape-reference/   readable Python reference: the oracle for the Rust core
+tests/oracle/            one runner per EVIDENT claim
+docs/, mkdocs.yml        documentation site
+```
+
+The layout follows [rustims](https://github.com/theGreatHerrLebert/rustims): a Rust workspace with a PyO3 connector for Python and a C-ABI connector for Julia.
+
+## Acknowledgements
+
+treescape contains **no code** from the tools below. Its layout conventions and styling semantics were designed against their published behavior, and several of them serve as test oracles.
+
+- **Layout conventions and oracles:** ete3 (Huerta-Cepas et al.), Bio.Phylo (Talevich et al., Biopython), ggtree (Yu et al.). Test-only; not linked or redistributed. ete3 is GPL-3.0 and is imported only by the test suite.
+- **Ladderization** follows the tip-count ordering popularized by ape's `ladderize` (Paradis & Schliep).
+- **Newick** follows Felsenstein's PHYLIP specification.
+- **viridis** keystops sample matplotlib's viridis (van der Walt & Smith; CC0). **Tableau 10** palette values by Maureen Stone (Tableau Software).
+- **Subtree means** use Neumaier-compensated summation (Neumaier 1974), matching CPython ≥ 3.12's `sum()`.
+- **Bundled font:** DejaVu Sans (Bitstream Vera Fonts License).
+- **Built with** PyO3, fontdue, polars, fontTools, Tables.jl and Preferences.jl; tested with Hypothesis and Miri.
+
+Licenses for everything bundled, linked, reproduced or tested against are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## References
+
+- Huerta-Cepas, Serra & Bork. "ETE 3: Reconstruction, Analysis, and Visualization of Phylogenomic Data." *Mol Biol Evol* 33(6), 1635–1638 (2016). https://doi.org/10.1093/molbev/msw046
+- Talevich, Invergo, Cock & Chapman. "Bio.Phylo: A unified toolkit for processing, analyzing and visualizing phylogenetic trees in Biopython." *BMC Bioinformatics* 13, 209 (2012). https://doi.org/10.1186/1471-2105-13-209
+- Cock et al. "Biopython: freely available Python tools for computational molecular biology and bioinformatics." *Bioinformatics* 25(11), 1422–1423 (2009). https://doi.org/10.1093/bioinformatics/btp163
+- Yu, Smith, Zhu, Guan & Lam. "ggtree: an R package for visualization and annotation of phylogenetic trees with their covariates and other associated data." *Methods Ecol Evol* 8(1), 28–36 (2017). https://doi.org/10.1111/2041-210X.12628
+- Paradis & Schliep. "ape 5.0: an environment for modern phylogenetics and evolutionary analyses in R." *Bioinformatics* 35(3), 526–528 (2019). https://doi.org/10.1093/bioinformatics/bty633
+- Eaton. "Toytree: A minimalist tree visualization and manipulation library for Python." *Methods Ecol Evol* 11(1), 187–191 (2020). https://doi.org/10.1111/2041-210X.13313
+- Felsenstein. "The Newick tree format." PHYLIP documentation. https://evolution.genetics.washington.edu/phylip/newicktree.html
+- Neumaier. "Rundungsfehleranalyse einiger Verfahren zur Summation endlicher Summen." *ZAMM* 54(1), 39–51 (1974). https://doi.org/10.1002/zamm.19740540106
+- MacIver, Hatfield-Dodds et al. "Hypothesis: A new approach to property-based testing." *JOSS* 4(43), 1891 (2019). https://doi.org/10.21105/joss.01891
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE). Third-party notices, including the DejaVu Sans font license, are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
