@@ -9,8 +9,7 @@ use treescape_core::layout::scene::Color;
 use treescape_core::style as core_style;
 
 use crate::ffi::{
-    column, finish, handle, handle_mut, out_slice, slice_arg, str_arg, write_out, Failure,
-    FfiResult,
+    column, copy_out, finish, handle, handle_mut, slice_arg, str_arg, write_out, Failure, FfiResult,
 };
 use crate::tree::TsTree;
 use crate::TS_STYLE_ERROR;
@@ -170,8 +169,7 @@ pub extern "C" fn ts_style_set_support_labels(
 pub extern "C" fn ts_viridis(t: f64, out_rgba: *mut u8, err: *mut *mut c_char) -> i32 {
     let run = || {
         let (r, g, b, a) = core_style::viridis(t).map_err(style_err)?;
-        out_slice(out_rgba, 4, "out_rgba")?.copy_from_slice(&[r, g, b, a]);
-        Ok(())
+        copy_out(out_rgba, &[r, g, b, a], "out_rgba")
     };
     finish(run(), err)
 }
@@ -192,11 +190,11 @@ fn parse_hex(hex: &str) -> FfiResult<[u8; 4]> {
 pub extern "C" fn ts_default_palette(n: usize, out_rgba: *mut u8, err: *mut *mut c_char) -> i32 {
     let run = || {
         let palette = core_style::default_palette(n).map_err(style_err)?;
-        let out = out_slice(out_rgba, 4 * palette.len(), "out_rgba")?;
-        for (chunk, hex) in out.as_chunks_mut::<4>().0.iter_mut().zip(palette) {
-            chunk.copy_from_slice(&parse_hex(hex)?);
+        let mut rgba = Vec::with_capacity(4 * palette.len());
+        for hex in palette {
+            rgba.extend_from_slice(&parse_hex(hex)?);
         }
-        Ok(())
+        copy_out(out_rgba, &rgba, "out_rgba")
     };
     finish(run(), err)
 }
@@ -244,12 +242,11 @@ pub extern "C" fn ts_continuous_tip_t(
         let t = handle(tree, "tree")?;
         let col = column(values, present, len)?;
         let resolved = core_style::continuous_tip_t(&t.tree, &col, lo, hi).map_err(style_err)?;
-        let out_t = out_slice(out_t, len, "out_t")?;
-        let out_has = out_slice(out_has, len, "out_has")?;
-        out_has.fill(0);
+        let mut ts = vec![0.0; len];
+        let mut has = vec![0u8; len];
         // `resolved` lists present tips in tip order.
         let mut resolved = resolved.into_iter();
-        for ((slot_t, slot_has), value) in out_t.iter_mut().zip(out_has.iter_mut()).zip(&col) {
+        for ((slot_t, slot_has), value) in ts.iter_mut().zip(has.iter_mut()).zip(&col) {
             if value.is_some() {
                 if let Some((_, tval)) = resolved.next() {
                     *slot_t = tval;
@@ -257,7 +254,8 @@ pub extern "C" fn ts_continuous_tip_t(
                 }
             }
         }
-        Ok(())
+        copy_out(out_t, &ts, "out_t")?;
+        copy_out(out_has, &has, "out_has")
     };
     finish(run(), err)
 }
@@ -270,16 +268,16 @@ fn scatter(
     out_has: *mut u8,
 ) -> FfiResult<()> {
     let n = t.tree.len();
-    let out_vals = out_slice(out_vals, n, "out values")?;
-    let out_has = out_slice(out_has, n, "out_has")?;
-    out_has.fill(0);
+    let mut vals = vec![0.0; n];
+    let mut has = vec![0u8; n];
     for (node, v) in pairs {
-        if let (Some(slot), Some(flag)) = (out_vals.get_mut(node), out_has.get_mut(node)) {
+        if let (Some(slot), Some(flag)) = (vals.get_mut(node), has.get_mut(node)) {
             *slot = v;
             *flag = 1;
         }
     }
-    Ok(())
+    copy_out(out_vals, &vals, "out values")?;
+    copy_out(out_has, &has, "out_has")
 }
 
 /// Per-branch `t` from subtree means, indexed by node id.
@@ -346,22 +344,21 @@ pub extern "C" fn ts_discrete_branch_codes(
         let col = column(codes, present, len)?;
         let res = core_style::discrete_branch_codes(&t.tree, &col).map_err(style_err)?;
         let n = t.tree.len();
-        let out_code = out_slice(out_code, n, "out_code")?;
-        let out_state = out_slice(out_state, n, "out_state")?;
-        out_code.fill(0);
-        out_state.fill(0);
+        let mut codes = vec![0u32; n];
+        let mut states = vec![0u8; n];
         for (node, code) in res.colored {
-            if let (Some(c), Some(s)) = (out_code.get_mut(node), out_state.get_mut(node)) {
+            if let (Some(c), Some(s)) = (codes.get_mut(node), states.get_mut(node)) {
                 *c = code;
                 *s = 1;
             }
         }
         for node in res.non_monophyletic {
-            if let Some(s) = out_state.get_mut(node) {
+            if let Some(s) = states.get_mut(node) {
                 *s = 2;
             }
         }
-        Ok(())
+        copy_out(out_code, &codes, "out_code")?;
+        copy_out(out_state, &states, "out_state")
     };
     finish(run(), err)
 }

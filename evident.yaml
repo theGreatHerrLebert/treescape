@@ -813,7 +813,7 @@ claims:
       - validation
     pattern: evident/patterns/README.md#reference-shadowing
     claim: >
-      For every case in `tests/fixtures/parity/cases.json` — a data-only
+      For every case in `tests/fixtures/parity/cases.toml` — a data-only
       description of a tree source plus a chain of TreePlot operations,
       interpreted independently by a Python and a Julia driver — the
       SVG from `Treescape.jl` is byte-identical to the SVG from the
@@ -834,7 +834,7 @@ claims:
       — that evidence is the ete3, Biopython and ggtree oracle claims.
     evidence:
       oracle:
-        - treescape (Python) rendering the same cases.json in the same run
+        - treescape (Python) rendering the same cases.toml in the same run
         - committed assets/ SVGs
       tolerance: Byte equality.
       command: pytest tests/oracle/test_julia_parity.py -v
@@ -858,7 +858,7 @@ claims:
         color strings Python's int(x, 16) accepts (documented).
 
   - id: treescape-jl-ffi-no-abort
-    title: Malformed input through the C ABI returns an error, never aborts Julia
+    title: Malformed input through the C ABI returns a status, never aborts Julia
     case: cases/treescape.md
     source: treescape-jl-connector
     tier: ci
@@ -866,30 +866,38 @@ claims:
       - validation
     pattern: evident/patterns/README.md#property-based-testing
     claim: >
-      Every `ts_*` entry point of `treescape-jl-connector` returns a
-      non-zero status with an error message, instead of panicking, for
-      null pointers, invalid UTF-8, malformed Newick (seeded random
-      byte strings and mutations of valid trees), out-of-range node
-      ids, column-length mismatches, NaN and infinite values, and
-      render-time errors such as a whole-tree highlight. The runner
-      drives these cases through Treescape.jl's raw ccall layer in a
-      single Julia subprocess; because the release profile uses
-      `panic = "abort"`, any panic kills that process, which the
-      runner reports as a failure naming the last case started.
+      Driven through Treescape.jl's raw ccall layer in a single Julia
+      subprocess, no `ts_*` entry point panics or aborts: the process
+      survives every case. Two kinds of case are checked. Required-error
+      cases — null pointers, invalid UTF-8, out-of-range node and tip
+      ids, short or oversized buffers, column-length mismatches, a
+      misaligned or null out/options pointer, NaN through viridis, an
+      exhausted palette, a whole-tree circular highlight, a stray `]` in
+      Newick — must return their specific non-zero status. Survival-only
+      cases — seeded random byte strings and mutations of a valid tree
+      (parsed and, when they parse, rendered in both layouts), NaN and
+      infinite option, width and scale-bar values, unknown highlight
+      tips — may succeed or fail; if they fail, the status must carry a
+      message. Because the release profile uses `panic = "abort"`, any
+      panic kills the process, which the runner reports as a failure
+      naming the last case started.
     evidence:
       oracle:
-        - Julia subprocess survival + expected status codes per case
-        - Rust unit tests calling the extern "C" functions directly
-      tolerance: Exact (every case returns its expected non-zero status and the process exits cleanly).
+        - Julia subprocess survival + per-case status expectations
+        - Rust unit tests calling the extern "C" functions in-process, also run under Miri in CI
+      tolerance: >
+        Exact: the process exits cleanly; every required-error case
+        returns its expected status; every non-zero status has a message.
       command: pytest tests/oracle/test_jl_ffi_no_abort.py -v
       artifact: tests/oracle/reports/jl_ffi_no_abort.json
     assumptions:
       - Same Julia and library discovery as treescape-julia-python-svg-parity,
-        with the same skip-with-reason behavior.
-      - Memory-safety errors that do not panic (e.g. a caller passing
-        a dangling handle) are outside this claim; the ABI cannot
-        detect them. Treescape.jl never exposes raw handles.
+        with the same skip-with-reason (or fail under
+        TREESCAPE_REQUIRE_JULIA=1) behavior.
+      - Memory-safety errors that no check can detect (a dangling or
+        freed handle, a buffer shorter than its stated length) are
+        outside this claim; Treescape.jl never exposes raw handles.
     failure_modes:
       - A panic on a path the case list does not reach. Mitigated by
         the crate-level clippy deny-list (unwrap/expect/panic/
-        indexing) on the connector.
+        indexing) on the connector and by Miri over the in-process tests.

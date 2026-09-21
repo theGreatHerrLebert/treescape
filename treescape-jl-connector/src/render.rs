@@ -12,7 +12,7 @@ use treescape_render::{
     render_circular, render_circular_styled, render_rectangular, render_svg, text_width,
 };
 
-use crate::ffi::{finish, handle, to_c_string, write_out, Failure, FfiResult};
+use crate::ffi::{finish, handle, optional_handle, write_out, write_string, Failure, FfiResult};
 use crate::style::TsStyle;
 use crate::tree::TsTree;
 use crate::TS_RENDER_ERROR;
@@ -117,7 +117,8 @@ fn render_err(e: impl std::fmt::Display) -> Failure {
 }
 
 /// Rectangular SVG. `opts` null → defaults; `style` null → the unstyled
-/// path (Python uses it when no styling was requested).
+/// path (Python uses it when no styling was requested). `out_svg` is
+/// checked before rendering so a bad destination costs no work.
 #[no_mangle]
 pub extern "C" fn ts_render_rectangular_svg(
     tree: *const TsTree,
@@ -128,7 +129,8 @@ pub extern "C" fn ts_render_rectangular_svg(
 ) -> i32 {
     let run = || {
         let t = handle(tree, "tree")?;
-        let opts: SceneOptions = handle(opts, "opts")
+        write_out(out_svg, std::ptr::null_mut(), "out_svg")?;
+        let opts: SceneOptions = optional_handle(opts, "opts")?
             .map(SceneOptions::from)
             .unwrap_or_default();
         let svg = if style.is_null() {
@@ -146,7 +148,7 @@ pub extern "C" fn ts_render_rectangular_svg(
             );
             render_svg(&scene).map_err(render_err)?
         };
-        write_out(out_svg, to_c_string(&svg), "out_svg")
+        write_string(out_svg, &svg, "out_svg")
     };
     finish(run(), err)
 }
@@ -162,7 +164,8 @@ pub extern "C" fn ts_render_circular_svg(
 ) -> i32 {
     let run = || {
         let t = handle(tree, "tree")?;
-        let opts: CircularSceneOptions = handle(opts, "opts")
+        write_out(out_svg, std::ptr::null_mut(), "out_svg")?;
+        let opts: CircularSceneOptions = optional_handle(opts, "opts")?
             .map(CircularSceneOptions::from)
             .unwrap_or_default();
         let svg = if style.is_null() {
@@ -172,7 +175,7 @@ pub extern "C" fn ts_render_circular_svg(
             check_style_ids(t, style)?;
             render_circular_styled(&t.tree, &opts, &style.spec).map_err(render_err)?
         };
-        write_out(out_svg, to_c_string(&svg), "out_svg")
+        write_string(out_svg, &svg, "out_svg")
     };
     finish(run(), err)
 }

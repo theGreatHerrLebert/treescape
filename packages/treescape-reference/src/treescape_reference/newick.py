@@ -67,6 +67,13 @@ Token = Union[str, Tuple[str, object]]
 
 
 _SPECIAL = set("()[],:;'")
+_NUMBER_CHARS = set("0123456789.-+eE")
+
+
+def _is_space(c: str) -> bool:
+    """Unicode White_Space, as Rust's ``char::is_whitespace``. Python's
+    ``str.isspace`` also accepts the separators U+001C..U+001F."""
+    return c.isspace() and c not in "\x1c\x1d\x1e\x1f"
 
 
 def _tokenize(s: str) -> List[Token]:
@@ -81,7 +88,8 @@ def _tokenize(s: str) -> List[Token]:
         elif c == ":":
             i += 1
             j = i
-            while j < n and (s[j].isdigit() or s[j] in ".-+eE"):
+            # ASCII only, as the Rust tokenizer (str.isdigit accepts e.g. '١').
+            while j < n and s[j] in _NUMBER_CHARS:
                 j += 1
             raw = s[i:j]
             try:
@@ -123,11 +131,11 @@ def _tokenize(s: str) -> List[Token]:
             # Without this branch the name scanner below stops at "]"
             # without advancing and loops forever (v0.5 fuzz finding).
             raise ValueError("unmatched ']' outside a comment")
-        elif c.isspace():
+        elif _is_space(c):
             i += 1
         else:
             j = i
-            while j < n and s[j] not in _SPECIAL and not s[j].isspace():
+            while j < n and s[j] not in _SPECIAL and not _is_space(s[j]):
                 j += 1
             tokens.append(("name", s[i:j]))
             i = j

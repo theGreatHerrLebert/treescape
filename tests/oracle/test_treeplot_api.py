@@ -163,3 +163,11 @@ def test_color_tips_by_uses_deterministic_default_palette() -> None:
 
     assert "#4e79a7" in svg
     assert "#f28e2b" in svg
+
+
+@pytest.mark.parametrize("opts", [{"padding": float("nan")}, {"px_per_x": float("inf")}, {"font_size": 1e300}])
+def test_non_finite_geometry_raises_instead_of_writing_nan(opts):
+    """v0.5 review finding: NaN/inf options used to produce `NaN` / `inf`
+    SVG attributes (invalid SVG). The emitter now rejects them."""
+    with pytest.raises(RuntimeError, match="non-finite"):
+        TreePlot("((a:1,b:1):1,c:1);").options(**opts).to_svg()

@@ -102,7 +102,7 @@ Mirrors rustims' `imsjl_connector` / `IMSJL`, with three deliberate improvements
 
 ### Phase 3 — docs site (GitHub Pages) with Python + Julia examples
 
-- **GitHub Pages site** built from `docs/` and deployed by a CI workflow on push to `main` (and on tags): use cases (`cases/`), the examples page, `docs/conventions.md`, the EVIDENT claim table rendered from `evident.yaml`, and the gallery. Generator choice (MkDocs-Material vs Documenter.jl for the Julia API pages) is locked at the start of Phase 3. Enabling Pages in the repo settings is a one-time user action.
+- **GitHub Pages site** built from `docs/` and deployed by a CI workflow on push to `main` (and on tags): use cases (`cases/`), the examples page, `docs/conventions.md`, the EVIDENT claim table rendered from `evident.yaml`, and the gallery. Generator: MkDocs-Material (locked 2026-09-21). Enabling Pages in the repo settings is a one-time user action.
 
 - `docs/examples.md`: 6–8 examples on the primates fixture, each shown as a Python block and a Julia block producing the **same SVG** (embedded from `assets/gallery/`):
   1. Minimal rectangular render
@@ -123,6 +123,7 @@ Mirrors rustims' `imsjl_connector` / `IMSJL`, with three deliberate improvements
 - **Plots.jl / Makie recipes.** `show(::MIME"image/svg+xml")` covers notebook display; a Makie backend would be a second renderer and break the single-emitter determinism story.
 - **Phylo.jl interop** (`TreePlot(::Phylo.AbstractTree)`). Nice, but adds a heavy dep; Newick round-trip covers it for now.
 - **Phylo.jl as a 4th independent layout oracle.** Genuinely interesting (independent Julia lineage), but its coordinates live inside a Plots recipe; extracting them is its own investigation. Candidate for v0.6.
+- **Sub-quadratic branch styling.** Found in Phase 2 review: O(nodes × depth) on ladder trees. A faster algorithm must preserve the pinned summation order; v0.6.
 - **Moving `join_metadata` value storage into Rust / Arrow FFI.** Only key validation moves in Phase 1; columnar FFI waits for a >50k-tip use case (same deferral as v0.4).
 - Everything still deferred from v0.4 (PDF, Nexus/PhyloXML, node markers, CLI, label collision, unrooted layout).
 
@@ -143,7 +144,8 @@ For each phase:
 1. **Julia package location:** `packages/Treescape.jl/` (consistent with CLAUDE.md's `packages/` rule; rustims' root-level `IMSJL/` not mirrored here).
 2. **Julia API style:** bang-mutators returning the plot (`color_tips_by!(p, :clade)`). No curried/pipe forms in v0.5.
 3. **Julia CI matrix:** `1.12` + `1.10` (compat floor `julia = "1.10"`).
-4. **Phase 1 ships standalone as v0.4.1** — pure refactor, zero byte change, one source of truth for styling conventions before the Julia work starts.
+4. ~~Phase 1 ships standalone as v0.4.1~~ — revised 2026-09-21: no v0.4.1 tag; Phase 1 is logged in the v0.5.0 CHANGELOG and **v0.5.0 is tagged after Phase 3**.
+5. **Docs site generator: MkDocs (Material theme)** for the whole site; the Julia API is documented in `packages/Treescape.jl/README.md`, linked from the site (no Documenter.jl in v0.5).
 
 ## Success criteria
 

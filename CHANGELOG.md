@@ -12,6 +12,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **`treescape-jl-connector`** — C-ABI cdylib in the rustims `imsjl_connector` style: opaque handles, status codes with owned error messages, finalizer-managed memory, ABI version check, library discovery via `TREESCAPE_JL_LIB` / Preferences.jl / the dev build. Unlike `imsjl_connector` it cannot panic across the boundary (clippy deny-list on `unwrap`/`expect`/`panic`/indexing; null, alignment and size checks on every pointer). Unit tests call the C functions in-process and run under Miri in CI.
 - Claims `treescape-julia-python-svg-parity` (37 data-only cases in `tests/fixtures/parity/cases.toml`, including every gallery file, byte-identical between Julia and Python) and `treescape-jl-ffi-no-abort` (1,596 hostile/fuzzed inputs through the raw ABI; the Julia process must survive). Both fail rather than skip in the CI `julia` job.
 
+### Fixed — Phase 2 review round 1 (general + FFI robustness reviews)
+
+- **Julia memory safety.** Every `ccall` now passes the owning `Tree` (rooted for the call) instead of its raw pointer, which the GC could otherwise finalize mid-call; `deepcopy`/`copy` share the tree owner instead of duplicating the handle (two finalizers, one handle); the finalizer captures its free-function pointer at construction and never takes a lock; all symbols are resolved once under a lock at load; returned strings are freed in `finally`; a library that fails the ABI check is `dlclose`d.
+- **C ABI.** Output destinations are validated before strings are allocated (a rejected call leaked the whole SVG); the `err` pointer is validated before it is written; a non-null options pointer that fails validation is an error rather than a silent fallback to defaults; Rust writes caller buffers with raw copies and never forms `&mut [T]` over possibly-uninitialized Julia memory; Newick input over 64 MiB is rejected before parsing.
+- **Invalid SVG from non-finite numbers (Python too).** NaN/infinite options, branch lengths or scale bars — or finite values whose derived geometry overflows (e.g. `font_size=1e300`) — produced `NaN`/`inf` attributes. The SVG emitter now raises instead (`RuntimeError` in Python, `TreescapeError` in Julia). No golden changed.
+- **XML-forbidden control characters** (U+0000–U+0008, U+000B, U+000C, U+000E–U+001F, U+FFFE, U+FFFF) in tip names and labels are replaced with U+FFFD instead of producing a malformed document.
+- **Julia host parity:** `-0.0`/`0.0` (and `1`/`1.0`) are one category, as in Python; callable structs are accepted as colormaps; huge finite `alpha` clamps instead of overflowing.
+- **Newick tokenizers agree on Unicode:** branch-length digits are ASCII only and whitespace is Unicode White_Space in both the Rust core and `treescape-reference` (the reference accepted `'١'` as a digit and treated U+001C–U+001F as whitespace).
+
+### Known limitations
+
+- Metadata-driven branch styling is O(nodes × depth) — about 0.3 s for an 8,000-tip ladder tree. The pinned left-to-right Neumaier summation rules out combining child sums; a faster algorithm that preserves it is v0.6 work.
+- Allocation failure aborts the host process (Rust's default). The 64 MiB input limit bounds the common case; very large trees under tight memory can still abort.
+
 ### Fixed
 
 - **Newick: a `]` outside a comment hung the parser until the process ran out of memory** — in both the Rust core and `treescape-reference`, so `TreePlot("a];")` could take down a Python session. The tokenizer's name scanner stopped at `]` without advancing and appended empty names forever. Found by the Phase 2 fuzz runner; now a parse error (`unmatched ']' outside a comment`) with regression tests on both sides.

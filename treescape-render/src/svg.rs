@@ -39,6 +39,23 @@ impl std::fmt::Display for SvgError {
 impl std::error::Error for SvgError {}
 
 pub fn render_svg(scene: &Scene) -> Result<String, SvgError> {
+    NON_FINITE.with(|f| f.set(false));
+    let out = render_svg_unchecked(scene)?;
+    if NON_FINITE.with(|f| f.get()) {
+        return Err(SvgError::Format(String::from(
+            "scene contains a non-finite number (NaN or infinity); check option values, branch lengths and styling inputs",
+        )));
+    }
+    Ok(out)
+}
+
+thread_local! {
+    /// Set by `fmt_f` when asked to format NaN or ±inf, which would
+    /// otherwise land in the SVG as `NaN` / `inf` attribute values.
+    static NON_FINITE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+fn render_svg_unchecked(scene: &Scene) -> Result<String, SvgError> {
     let mut out = String::new();
     out.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     writeln!(
@@ -218,6 +235,9 @@ pub fn render_svg(scene: &Scene) -> Result<String, SvgError> {
 }
 
 fn fmt_f(v: f64) -> String {
+    if !v.is_finite() {
+        NON_FINITE.with(|f| f.set(true));
+    }
     let s = format!("{:.4}", v);
     // Trim trailing zeros and a trailing decimal point so "1.0000" -> "1",
     // "1.5000" -> "1.5". Keep "-0" -> "0" via parsing.
@@ -263,10 +283,16 @@ fn xml_escape(s: &str) -> String {
             '>' => out.push_str("&gt;"),
             '"' => out.push_str("&quot;"),
             '\'' => out.push_str("&apos;"),
+            // Not allowed anywhere in an XML 1.0 document, escaped or not.
+            c if is_xml_forbidden(c) => out.push('\u{fffd}'),
             c => out.push(c),
         }
     }
     out
+}
+
+fn is_xml_forbidden(c: char) -> bool {
+    matches!(c, '\u{0}'..='\u{8}' | '\u{b}' | '\u{c}' | '\u{e}'..='\u{1f}' | '\u{fffe}' | '\u{ffff}')
 }
 
 /// The bundled DejaVu Sans font, embedded at compile time. Provided
@@ -283,6 +309,11 @@ mod tests {
         build_rectangular_scene, rectangular_layout, SceneOptions,
     };
     use treescape_core::newick::parse;
+
+    #[test]
+    fn xml_forbidden_characters_are_replaced() {
+        assert_eq!(xml_escape("a\u{1}b\tc\u{ffff}<"), "a\u{fffd}b\tc\u{fffd}&lt;");
+    }
 
     #[test]
     fn fmt_f_trims_zeros() {

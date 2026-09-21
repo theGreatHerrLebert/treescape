@@ -23,8 +23,23 @@ end
 Base.showerror(io::IO, e::TreescapeError) = print(io, "TreescapeError: ", e.msg)
 
 const _HANDLE = Ref{Ptr{Cvoid}}(C_NULL)
-const _SYMBOLS = Dict{Symbol,Ptr{Cvoid}}()
 const _LOCK = ReentrantLock()
+
+# Every entry point, resolved once when the library loads. After that the
+# table is only read, so `sym` needs no lock (and is safe in finalizers).
+const _SYMBOL_NAMES = (
+    :ts_abi_version, :ts_string_free,
+    :ts_tree_parse_newick, :ts_tree_free, :ts_tree_n_nodes, :ts_tree_n_tips, :ts_tree_root,
+    :ts_tree_preorder, :ts_tree_is_tip, :ts_tree_node_name, :ts_tree_tip_name,
+    :ts_style_new, :ts_style_free, :ts_style_add_highlight, :ts_style_set_tip_color,
+    :ts_style_set_branch_color, :ts_style_set_branch_width, :ts_style_set_scale_bar,
+    :ts_style_set_support_labels,
+    :ts_viridis, :ts_default_palette, :ts_value_range, :ts_continuous_tip_t,
+    :ts_continuous_branch_t, :ts_branch_widths, :ts_discrete_branch_codes,
+    :ts_scene_options_default, :ts_circular_scene_options_default,
+    :ts_render_rectangular_svg, :ts_render_circular_svg,
+)
+const _SYMBOLS = Ref{Dict{Symbol,Ptr{Cvoid}}}()
 
 const _LIB_NAMES = ("libtreescape_jl_connector.so", "libtreescape_jl_connector.dylib", "treescape_jl_connector.dll")
 
@@ -59,35 +74,41 @@ Takes effect in new Julia sessions.
 """
 set_library!(path::AbstractString) = @set_preferences!("libpath" => abspath(path))
 
-function _handle()
-    _HANDLE[] != C_NULL && return _HANDLE[]
+function _load!()
     lock(_LOCK) do
-        _HANDLE[] != C_NULL && return _HANDLE[]
+        _HANDLE[] != C_NULL && return nothing
         path = library_path()
         handle = Libdl.dlopen(path)
-        version = ccall(Libdl.dlsym(handle, :ts_abi_version), UInt32, ())
-        if version != ABI_VERSION
+        try
+            version = ccall(Libdl.dlsym(handle, :ts_abi_version), UInt32, ())
+            version == ABI_VERSION ||
+                error("treescape connector at $path has ABI version $version; Treescape.jl needs $ABI_VERSION")
+            _SYMBOLS[] = Dict(name => Libdl.dlsym(handle, name) for name in _SYMBOL_NAMES)
+        catch
+            # Not a (compatible) treescape library: release it before rethrowing.
             Libdl.dlclose(handle)
-            error("treescape connector at $path has ABI version $version; Treescape.jl needs $ABI_VERSION")
+            rethrow()
         end
+        # Publish the handle last: a non-null handle means the table is complete.
         _HANDLE[] = handle
     end
+    return nothing
 end
 
-"""Function pointer for a `ts_*` symbol (cached)."""
+"""Function pointer for a `ts_*` symbol."""
 function sym(name::Symbol)
-    get(_SYMBOLS, name, C_NULL) != C_NULL && return _SYMBOLS[name]
-    lock(_LOCK) do
-        get!(() -> Libdl.dlsym(_handle(), name), _SYMBOLS, name)
-    end
+    _HANDLE[] == C_NULL && _load!()
+    return _SYMBOLS[][name]
 end
 
 """Take ownership of a string returned by the library."""
 function take_string!(p::Ptr{UInt8})
     p == C_NULL && return ""
-    s = unsafe_string(p)
-    ccall(sym(:ts_string_free), Cvoid, (Ptr{UInt8},), p)
-    return s
+    try
+        return unsafe_string(p)
+    finally
+        ccall(sym(:ts_string_free), Cvoid, (Ptr{UInt8},), p)
+    end
 end
 
 """Throw for a non-zero status, consuming the error message."""

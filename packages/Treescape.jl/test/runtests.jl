@@ -6,6 +6,10 @@ using Test
 using Treescape
 
 const NEWICK = "((a:0.1,b:0.2)95:0.3,(c:0.15,(d:0.05,e:0.07)70:0.1)88:0.2);"
+# A callable struct (not a Function) used as a colormap.
+struct RedMap end
+(::RedMap)(t) = "#ff0000"
+
 const META = (tip=["a", "b", "c", "d", "e"], grp=["x", "x", "y", "y", "z"], w=[0.1, 0.9, 0.4, 0.4, 0.7])
 
 @testset "Treescape.jl" begin
@@ -106,6 +110,39 @@ const META = (tip=["a", "b", "c", "d", "e"], grp=["x", "x", "y", "y", "z"], w=[0
         @test_throws ArgumentError width_branches_by!(q, :w; wmin=-1)
         width_branches_by!(q, :w; wmin=0.5, wmax=6)
         @test !isempty(q.branch_widths)
+    end
+
+    @testset "review round 1 regressions" begin
+        # -0.0 and 0.0 are one category, as in Python.
+        cat = (tip=["a", "b", "c", "d", "e"], z=Any[-0.0, 0.0, "x", "x", "x"])
+        p = join_metadata!(TreePlot(NEWICK), cat; on=:tip)
+        color_tips_by!(p, :z)
+        @test p.tip_colors["a"] == p.tip_colors["b"]
+        @test_logs color_branches_by!(join_metadata!(TreePlot(NEWICK), cat; on=:tip), :z; palette=Dict(0.0 => "#111111", "x" => "#222222"))
+
+        # Callable structs are colormaps too.
+        q = color_tips_by!(join_metadata!(TreePlot(NEWICK), META; on=:tip), :w; cmap=RedMap())
+        @test all(==((0xff, 0x00, 0x00, 0xff)), values(q.tip_colors))
+
+        # deepcopy shares the tree owner instead of duplicating the handle.
+        orig = TreePlot(NEWICK)
+        dup = deepcopy(orig)
+        @test dup.tree === orig.tree
+        orig = nothing
+        GC.gc(); GC.gc()
+        @test occursin("<svg", to_svg(dup))
+
+        # Non-finite geometry is an error, not NaN in the SVG.
+        @test_throws Treescape.TreescapeError to_svg(options!(TreePlot(NEWICK); padding=NaN))
+        @test_throws Treescape.TreescapeError to_svg(options!(TreePlot(NEWICK); font_size=1e300))
+
+        # XML-forbidden characters in names are replaced, not emitted raw.
+        @test !occursin('\x01', to_svg(TreePlot("('a\x01b':1,c:1);")))
+
+        # Huge finite alpha clamps to opaque; non-finite alpha is an error.
+        r = highlight_clade!(TreePlot(NEWICK), ["a", "b"]; alpha=1e20)
+        @test r.highlights[1][2][4] == 0xff
+        @test_throws ArgumentError highlight_clade!(TreePlot(NEWICK), ["a"]; alpha=Inf)
     end
 
     @testset "annotations" begin

@@ -56,16 +56,36 @@ pub fn to_c_string(s: &str) -> *mut c_char {
 }
 
 /// Convert a result into a status code, writing the message to `err`.
+/// An `err` that is null or fails the pointer checks gets no message
+/// (the status still reports the failure).
 pub fn finish(result: FfiResult<()>, err: *mut *mut c_char) -> i32 {
     match result {
         Ok(()) => crate::TS_OK,
         Err(f) => {
-            if !err.is_null() {
-                // SAFETY: caller passes a valid `char **` or null.
-                unsafe { *err = to_c_string(&f.message) };
+            if check_ptr(err, 1, "err").is_ok() {
+                // SAFETY: non-null and aligned; caller passes a writable
+                // `char **` per the ABI contract.
+                unsafe { err.write(to_c_string(&f.message)) };
             }
             f.code
         }
+    }
+}
+
+/// Write an owned copy of `s` through `out`. The destination is checked
+/// before the string is allocated, so a rejected `out` leaks nothing.
+pub fn write_string(out: *mut *mut c_char, s: &str, what: &str) -> FfiResult<()> {
+    check_ptr(out, 1, what)?;
+    write_out(out, to_c_string(s), what)
+}
+
+/// Borrow an optional handle: null means "use the default" (`None`);
+/// anything else must pass the pointer checks.
+pub fn optional_handle<'a, T>(p: *const T, what: &str) -> FfiResult<Option<&'a T>> {
+    if p.is_null() {
+        Ok(None)
+    } else {
+        handle(p, what).map(Some)
     }
 }
 
@@ -109,15 +129,20 @@ pub fn slice_arg<'a, T>(p: *const T, len: usize, what: &str) -> FfiResult<&'a [T
     Ok(unsafe { std::slice::from_raw_parts(p, len) })
 }
 
-/// Mutable output buffer of exactly `len` elements.
-pub fn out_slice<'a, T>(p: *mut T, len: usize, what: &str) -> FfiResult<&'a mut [T]> {
-    if len == 0 {
-        return Ok(&mut []);
+/// Copy `src` into a caller-provided buffer of at least `src.len()`
+/// elements. Writes through the raw pointer: the buffer may be
+/// uninitialized (Julia passes `Vector(undef, n)`), so no `&mut [T]` is
+/// ever formed over it.
+pub fn copy_out<T: Copy>(p: *mut T, src: &[T], what: &str) -> FfiResult<()> {
+    if src.is_empty() {
+        return Ok(());
     }
-    check_ptr(p, len, what)?;
-    // SAFETY: non-null, aligned, size-checked, and writable for `len`
-    // elements per the ABI contract.
-    Ok(unsafe { std::slice::from_raw_parts_mut(p, len) })
+    check_ptr(p, src.len(), what)?;
+    // SAFETY: non-null, aligned, size-checked, writable for `src.len()`
+    // elements per the ABI contract, and cannot overlap `src`, which this
+    // crate owns.
+    unsafe { std::ptr::copy_nonoverlapping(src.as_ptr(), p, src.len()) };
+    Ok(())
 }
 
 /// Write a scalar through an out-pointer.

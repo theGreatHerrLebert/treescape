@@ -29,15 +29,26 @@ function Tree(newick::AbstractString)
     )
     check(status, err)
     tree = Tree(out[], 0, -1, Int[], Bool[], String[], String[])
-    finalizer(t -> ccall(sym(:ts_tree_free), Cvoid, (Ptr{Cvoid},), t.ptr), tree)
+    # Resolve the pointer now so the finalizer does no lookup at GC time.
+    free = sym(:ts_tree_free)
+    finalizer(t -> ccall(free, Cvoid, (Ptr{Cvoid},), t.ptr), tree)
     _fill_caches!(tree)
     return tree
 end
 
+# Passing the `Tree` itself (not `tree.ptr`) to `ccall` roots it for the
+# duration of the call, so its finalizer cannot free the handle mid-call.
+Base.unsafe_convert(::Type{Ptr{Cvoid}}, t::Tree) = t.ptr
+
+# A Tree is never mutated after construction, so copies share the owner.
+# Copying the raw pointer would give two finalizers one handle.
+Base.deepcopy_internal(t::Tree, ::IdDict) = t
+Base.copy(t::Tree) = t
+
 function _size(tree::Tree, fn::Symbol)
     out = Ref{Csize_t}(0)
     err = Ref{Ptr{UInt8}}(C_NULL)
-    check(ccall(sym(fn), Int32, (Ptr{Cvoid}, Ptr{Csize_t}, Ptr{Ptr{UInt8}}), tree.ptr, out, err), err)
+    check(ccall(sym(fn), Int32, (Ptr{Cvoid}, Ptr{Csize_t}, Ptr{Ptr{UInt8}}), tree, out, err), err)
     return Int(out[])
 end
 
@@ -48,7 +59,7 @@ function _string(tree::Tree, fn::Symbol, i::Integer)
         sym(fn),
         Int32,
         (Ptr{Cvoid}, Csize_t, Ptr{Ptr{UInt8}}, Ptr{Ptr{UInt8}}),
-        tree.ptr,
+        tree,
         i,
         out,
         err,
@@ -62,14 +73,14 @@ function _fill_caches!(tree::Tree)
     tree.n_nodes = n
     n == 0 && return tree
     tree.root = _size(tree, :ts_tree_root)
-    buf = Vector{Csize_t}(undef, n)
+    buf = zeros(Csize_t, n)
     len = Ref{Csize_t}(0)
     err = Ref{Ptr{UInt8}}(C_NULL)
     status = ccall(
         sym(:ts_tree_preorder),
         Int32,
         (Ptr{Cvoid}, Ptr{Csize_t}, Csize_t, Ptr{Csize_t}, Ptr{Ptr{UInt8}}),
-        tree.ptr,
+        tree,
         buf,
         n,
         len,
@@ -82,7 +93,7 @@ function _fill_caches!(tree::Tree)
         out = Ref{UInt8}(0)
         e = Ref{Ptr{UInt8}}(C_NULL)
         check(
-            ccall(sym(:ts_tree_is_tip), Int32, (Ptr{Cvoid}, Csize_t, Ptr{UInt8}, Ptr{Ptr{UInt8}}), tree.ptr, i, out, e),
+            ccall(sym(:ts_tree_is_tip), Int32, (Ptr{Cvoid}, Csize_t, Ptr{UInt8}, Ptr{Ptr{UInt8}}), tree, i, out, e),
             e,
         )
         out[] != 0
@@ -156,7 +167,7 @@ function continuous_tip_t(tree::Tree, values::AbstractVector, lo::Float64, hi::F
         sym(:ts_continuous_tip_t),
         Int32,
         (Ptr{Cvoid}, Ptr{Float64}, Ptr{UInt8}, Csize_t, Float64, Float64, Ptr{Float64}, Ptr{UInt8}, Ptr{Ptr{UInt8}}),
-        tree.ptr,
+        tree,
         vals,
         present,
         n,
@@ -181,14 +192,14 @@ function _per_node(tree::Tree, fn::Symbol, values::AbstractVector, extra::Vararg
             sym(fn),
             Int32,
             (Ptr{Cvoid}, Ptr{Float64}, Ptr{UInt8}, Csize_t, Float64, Float64, Ptr{Float64}, Ptr{UInt8}, Ptr{Ptr{UInt8}}),
-            tree.ptr, vals, present, length(vals), extra[1], extra[2], out, out_has, err,
+            tree, vals, present, length(vals), extra[1], extra[2], out, out_has, err,
         )
     else
         ccall(
             sym(fn),
             Int32,
             (Ptr{Cvoid}, Ptr{Float64}, Ptr{UInt8}, Csize_t, Float64, Float64, Float64, Float64, Ptr{Float64}, Ptr{UInt8}, Ptr{Ptr{UInt8}}),
-            tree.ptr, vals, present, length(vals), extra[1], extra[2], extra[3], extra[4], out, out_has, err,
+            tree, vals, present, length(vals), extra[1], extra[2], extra[3], extra[4], out, out_has, err,
         )
     end
     check(status, err)
@@ -215,7 +226,7 @@ function discrete_branch_codes(tree::Tree, codes::AbstractVector)
         sym(:ts_discrete_branch_codes),
         Int32,
         (Ptr{Cvoid}, Ptr{UInt32}, Ptr{UInt8}, Csize_t, Ptr{UInt32}, Ptr{UInt8}, Ptr{Ptr{UInt8}}),
-        tree.ptr,
+        tree,
         vals,
         present,
         length(vals),

@@ -228,6 +228,10 @@ for fn in (:ts_render_rectangular_svg, :ts_render_circular_svg)
     case("$fn null out", [1]) do err
         ccall(sym(fn), Int32, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, ERR), tree, C_NULL, C_NULL, C_NULL, err)
     end
+    case("$fn misaligned options", [1]) do err
+        buf = zeros(UInt8, 128)
+        GC.@preserve buf render(tree, fn, pointer(buf) + 1, C_NULL, err)
+    end
     case("$fn branch id out of range", [1]) do err
         with_style() do s
             ccall(sym(:ts_style_set_branch_color), Int32, (Ptr{Cvoid}, Csize_t, UInt8, UInt8, UInt8, UInt8, ERR), s, N + 7, 1, 2, 3, 4, C_NULL)

@@ -210,6 +210,28 @@ def test_rust_rejects_stray_close_bracket(src: str) -> None:
         RustTree.parse_newick(src)
 
 
+# Tokenizer character classes must agree between Rust and the reference:
+# branch-length digits are ASCII only; whitespace is Unicode White_Space.
+UNICODE_INPUTS = ["(a:\u0661,b:2);", "(a\x1cb:1,c:1);", "(a\u00a0:1,b:1);", "(a:1,\u2003b:2);"]
+
+
+@pytest.mark.skipif(
+    not HAVE_CONNECTOR,
+    reason="treescape_connector not built (run maturin develop)",
+)
+@pytest.mark.parametrize("src", UNICODE_INPUTS)
+def test_unicode_character_classes_match(src: str) -> None:
+    def outcome(parse, tips):
+        try:
+            return ("ok", tips(parse(src)))
+        except ValueError as exc:
+            return ("error", str(exc).split(":")[0])
+
+    rust = outcome(RustTree.parse_newick, lambda t: sorted(t.name(i) for i in range(t.n_nodes) if t.is_tip(i)))
+    ref = outcome(ref_parse, lambda t: sorted(n.name for n in t.postorder() if n.is_tip()))
+    assert rust == ref
+
+
 # ----- Artifact emission ----------------------------------------------------
 
 

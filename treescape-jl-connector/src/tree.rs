@@ -6,8 +6,15 @@ use treescape_core::ladderize::tip_order;
 use treescape_core::newick;
 use treescape_core::tree::Tree;
 
-use crate::ffi::{finish, handle, out_slice, str_arg, to_c_string, write_out, Failure, FfiResult};
+use crate::ffi::{copy_out, finish, handle, str_arg, write_out, write_string, Failure, FfiResult};
 use crate::TS_PARSE_ERROR;
+
+/// Largest Newick input accepted (64 MiB; a million-tip tree is ~30 MB).
+/// Parsing amplifies input size several-fold, and allocation failure
+/// aborts the host process, so oversized input is rejected up front.
+/// This bounds the common case; it cannot rule out allocation failure
+/// under arbitrary memory pressure.
+pub const MAX_NEWICK_BYTES: usize = 64 * 1024 * 1024;
 
 /// Opaque tree handle.
 pub struct TsTree {
@@ -34,6 +41,12 @@ pub extern "C" fn ts_tree_parse_newick(
 ) -> i32 {
     let run = || -> FfiResult<()> {
         let src = str_arg(src, "src")?;
+        if src.len() > MAX_NEWICK_BYTES {
+            return Err(Failure::invalid(format!(
+                "Newick input is {} bytes; the limit is {MAX_NEWICK_BYTES}",
+                src.len()
+            )));
+        }
         let tree = newick::parse(src).map_err(|e| Failure::new(TS_PARSE_ERROR, e.to_string()))?;
         let tips = tip_order(&tree);
         let boxed = Box::into_raw(Box::new(TsTree { tree, tips }));
@@ -106,8 +119,7 @@ pub extern "C" fn ts_tree_preorder(
                 order.len()
             )));
         }
-        let buf = out_slice(buf, order.len(), "buf")?;
-        buf.copy_from_slice(&order);
+        copy_out(buf, &order, "buf")?;
         write_out(out_len, order.len(), "out_len")
     };
     finish(run(), err)
@@ -141,7 +153,7 @@ pub extern "C" fn ts_tree_node_name(
         let t = handle(tree, "tree")?;
         t.check_node(node)?;
         let name = t.tree.name.get(node).map(String::as_str).unwrap_or("");
-        write_out(out, to_c_string(name), "out")
+        write_string(out, name, "out")
     };
     finish(run(), err)
 }
@@ -160,7 +172,7 @@ pub extern "C" fn ts_tree_tip_name(
             .tips
             .get(k)
             .ok_or_else(|| Failure::invalid(format!("tip index {k} out of range")))?;
-        write_out(out, to_c_string(name), "out")
+        write_string(out, name, "out")
     };
     finish(run(), err)
 }

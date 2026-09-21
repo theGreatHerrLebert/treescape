@@ -124,7 +124,11 @@ function highlight_clade!(p::TreePlot, tips::AbstractVector; color="#e07b00", al
     isempty(tips) && throw(ArgumentError("highlight_clade requires at least one tip name"))
     r, g, b, a = parse_color(color)
     if a == 0xff && alpha != 1.0
-        a = UInt8(clamp(round(Int, alpha * 255), 0, 255))  # ties to even, as Python
+        # Python raises for non-finite alpha (round(inf) / round(nan)).
+        isfinite(alpha) || throw(ArgumentError("alpha must be finite; got $alpha"))
+        # Clamp before converting so huge finite alphas cannot overflow;
+        # rounding is ties-to-even, as Python's round().
+        a = UInt8(round(Int, clamp(alpha * 255, 0, 255)))
     end
     push!(p.highlights, (String.(collect(tips)), (r, g, b, a)))
     return p
@@ -216,9 +220,25 @@ function _resolve_cmap(cmap)
     (cmap === nothing || cmap == "viridis" || cmap === :viridis) && return viridis
     cmap isa Union{AbstractString,Symbol} &&
         throw(ArgumentError("unknown cmap $(pyrepr(String(cmap))); built-ins: ['viridis']"))
-    cmap isa Function && return cmap
+    # Any callable — a Function or a callable struct — as Python's callable().
+    applicable(cmap, 0.5) && return cmap
     throw(ArgumentError("cmap must be a string name or callable; got $(typeof(cmap))"))
 end
+
+# Category equality as Python's `==` with its identity shortcut: -0.0
+# and 0.0 are one category, as are 1 and 1.0; a NaN matches only itself.
+_pyeq(a, b) = a === b || (a == b) === true
+_pyfind(values, v) = findfirst(x -> _pyeq(x, v), values)
+
+"""Palette entry for `v`, matching keys the way a Python dict would."""
+function _palette_get(palette, v)
+    haskey(palette, v) && return palette[v]
+    for (k, c) in palette
+        _pyeq(k, v) && return c
+    end
+    throw(KeyError(v))
+end
+_palette_has(palette, v) = haskey(palette, v) || any(k -> _pyeq(k, v), keys(palette))
 
 _numeric_column(p::TreePlot, column) =
     [(v = _value(p, t, column); v === nothing ? nothing : Float64(v)) for t in p.tree.tip_order]
@@ -230,7 +250,7 @@ function _distinct_values(p::TreePlot, column)
     values = Any[]
     for tip in p.tree.tip_order
         v = _value(p, tip, column)
-        v !== nothing && !any(isequal(v), values) && push!(values, v)
+        v !== nothing && _pyfind(values, v) === nothing && push!(values, v)
     end
     return values
 end
@@ -238,7 +258,7 @@ end
 function _resolve_discrete_palette(p::TreePlot, column, palette)
     values = _distinct_values(p, column)
     palette === nothing && return Dict{Any,Any}(zip(values, default_palette(length(values))))
-    missing_values = [v for v in values if !haskey(palette, v)]
+    missing_values = [v for v in values if !_palette_has(palette, v)]
     isempty(missing_values) ||
         throw(ArgumentError("palette missing value(s) for $(pyrepr(column)): $(pyrepr(missing_values))"))
     return palette
@@ -269,7 +289,7 @@ function color_tips_by!(p::TreePlot, column; palette=nothing, cmap=nothing, vmin
     mapping = Pair{String,Any}[]
     for tip in p.tree.tip_order
         v = _value(p, tip, column)
-        v !== nothing && push!(mapping, tip => discrete[v])
+        v !== nothing && push!(mapping, tip => _palette_get(discrete, v))
     end
     return color_tips!(p, mapping)
 end
@@ -308,14 +328,14 @@ function color_branches_by!(p::TreePlot, column; palette=nothing, cmap=nothing, 
     distinct = _distinct_values(p, column)
     codes = map(p.tree.tip_order) do tip
         v = _value(p, tip, column)
-        v === nothing ? nothing : findfirst(isequal(v), distinct) - 1
+        v === nothing ? nothing : _pyfind(distinct, v) - 1
     end
     state, code = discrete_branch_codes(p.tree, codes)
     new_colors = Dict{Int,RGBA}()
     warnings = String[]
     for id in p.tree.preorder
         if state[id + 1] == 1
-            new_colors[id] = parse_color(discrete[distinct[code[id + 1] + 1]])
+            new_colors[id] = parse_color(_palette_get(discrete, distinct[code[id + 1] + 1]))
         elseif state[id + 1] == 2
             push!(
                 warnings,
@@ -485,7 +505,7 @@ function to_svg(p::TreePlot)
                 sym(:ts_render_rectangular_svg),
                 Int32,
                 (Ptr{Cvoid}, Ptr{SceneOptions}, Ptr{Cvoid}, Ptr{Ptr{UInt8}}, Ptr{Ptr{UInt8}}),
-                p.tree.ptr, opts, style, out, err,
+                p.tree, opts, style, out, err,
             )
         else
             opts = Ref(p.circular_opts)
@@ -493,7 +513,7 @@ function to_svg(p::TreePlot)
                 sym(:ts_render_circular_svg),
                 Int32,
                 (Ptr{Cvoid}, Ptr{CircularSceneOptions}, Ptr{Cvoid}, Ptr{Ptr{UInt8}}, Ptr{Ptr{UInt8}}),
-                p.tree.ptr, opts, style, out, err,
+                p.tree, opts, style, out, err,
             )
         end
         check(status, err)

@@ -22,11 +22,17 @@ from pathlib import Path
 
 import pytest
 
-pl = pytest.importorskip("polars", reason="polars required for metadata cases")
-pytest.importorskip(
-    "treescape_connector.py_render",
-    reason="treescape_connector not built (run pip install -e ./treescape-connector)",
-)
+if os.environ.get("TREESCAPE_REQUIRE_JULIA") == "1":
+    # Required mode (CI julia job): a missing Python prerequisite must fail
+    # the run, not skip the whole module.
+    import polars as pl
+    import treescape_connector.py_render  # noqa: F401
+else:
+    pl = pytest.importorskip("polars", reason="polars required for metadata cases")
+    pytest.importorskip(
+        "treescape_connector.py_render",
+        reason="treescape_connector not built (run pip install -e ./treescape-connector)",
+    )
 
 from _julia import JL_PACKAGE, REPO, REPORT_DIR, jl_library, julia_executable, require  # noqa: E402
 from treescape import TreePlot  # noqa: E402

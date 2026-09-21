@@ -348,10 +348,88 @@ mod tests {
     }
 
     #[test]
+    fn invalid_out_and_err_pointers_are_rejected_without_leaks_or_writes() {
+        let (_, tree, _) = parse(NEWICK);
+        // Null out_svg: rejected before rendering, nothing allocated.
+        let mut err = null_mut();
+        assert_eq!(
+            ts_render_rectangular_svg(tree, null(), null(), null_mut(), &mut err),
+            TS_INVALID_ARGUMENT
+        );
+        assert!(take(err).contains("out_svg"));
+        let mut name_err = null_mut();
+        assert_eq!(
+            ts_tree_node_name(tree, 0, null_mut(), &mut name_err),
+            TS_INVALID_ARGUMENT
+        );
+        take(name_err);
+        // Misaligned err: status only, no write.
+        #[repr(align(8))]
+        struct Aligned([u8; 16]);
+        let mut buf = Aligned([0u8; 16]);
+        let bad_err = buf.0[1..].as_mut_ptr().cast::<*mut c_char>();
+        let mut n = 0usize;
+        assert_eq!(
+            ts_tree_n_nodes(null(), &mut n, bad_err),
+            TS_INVALID_ARGUMENT
+        );
+        assert_eq!(buf.0, [0u8; 16]);
+        // Misaligned opts: an error, not a silent fallback to defaults.
+        let mut svg = null_mut();
+        let mut err = null_mut();
+        let bad_opts = buf.0[1..].as_ptr().cast::<TsSceneOptions>();
+        assert_eq!(
+            ts_render_rectangular_svg(tree, bad_opts, null(), &mut svg, &mut err),
+            TS_INVALID_ARGUMENT
+        );
+        assert!(svg.is_null());
+        assert!(take(err).contains("misaligned"));
+        ts_tree_free(tree);
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "allocates 64 MiB")]
+    fn oversized_newick_is_rejected_before_parsing() {
+        let big = "a".repeat(tree::MAX_NEWICK_BYTES + 1) + ";";
+        let (status, tree, msg) = parse(&big);
+        assert_eq!((status, tree.is_null()), (TS_INVALID_ARGUMENT, true));
+        assert!(msg.contains("limit"));
+    }
+
+    #[test]
+    fn non_finite_geometry_is_a_render_error() {
+        let (_, tree, _) = parse(NEWICK);
+        let mut opts = TsSceneOptions {
+            px_per_x: 60.0,
+            px_per_y: 18.0,
+            padding: f64::NAN,
+            font_size: 12.0,
+            label_offset: 4.0,
+            stroke_width: 1.0,
+        };
+        let (mut svg, mut err) = (null_mut(), null_mut());
+        assert_eq!(
+            ts_render_rectangular_svg(tree, &opts, null(), &mut svg, &mut err),
+            TS_RENDER_ERROR
+        );
+        assert!(svg.is_null());
+        assert!(take(err).contains("non-finite"));
+        opts.padding = 12.0;
+        let (mut svg, mut err) = (null_mut(), null_mut());
+        assert_eq!(
+            ts_render_rectangular_svg(tree, &opts, null(), &mut svg, &mut err),
+            TS_OK
+        );
+        take(svg);
+        ts_tree_free(tree);
+    }
+
+    #[test]
     fn nul_bytes_in_names_do_not_truncate_or_fail() {
         // Quoted Newick names may contain any character except NUL (a C
         // string cannot carry it), so to_c_string must never return null.
-        assert!(!ffi::to_c_string("a\u{0}b").is_null());
-        ts_string_free(ffi::to_c_string("a\u{0}b"));
+        let s = ffi::to_c_string("a\u{0}b");
+        assert!(!s.is_null());
+        assert_eq!(take(s), "a\u{fffd}b");
     }
 }
