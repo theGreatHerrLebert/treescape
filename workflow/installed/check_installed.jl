@@ -29,7 +29,10 @@ results = Dict{String,Bool}()
 for case in TOML.parsefile(cases)["cases"]
     haskey(case, "expect_file") || continue
     got = read(joinpath(out, case["name"] * ".svg"), String)
-    results[case["expect_file"]] = got == read(joinpath(repo, case["expect_file"]), String)
+    expected = read(joinpath(repo, case["expect_file"]), String)
+    results[case["expect_file"]] = got == expected
+    got == expected || replace(expected, "\r\n" => "\n") != got ||
+        println("$(case["expect_file"]): differs in line endings only (is the checkout converting them? see .gitattributes)")
 end
 mismatches = sort([k for (k, ok) in results if !ok])
 open(report, "w") do io

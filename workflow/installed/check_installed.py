@@ -40,8 +40,8 @@ def main(repo: Path, report: Path) -> int:
     spec.loader.exec_module(regen)
     results = {}
     for name, build in regen.GALLERY:
-        results[name] = build().to_svg() == (regen.GALLERY_DIR / name).read_text(encoding="utf-8")
-    results["primates.svg"] = regen._marketing().to_svg() == regen.TARGET.read_text(encoding="utf-8")
+        results[name] = build().to_svg().encode() == (regen.GALLERY_DIR / name).read_bytes()
+    results["primates.svg"] = regen._marketing().to_svg().encode() == regen.TARGET.read_bytes()
 
     summary = {
         "claim": "treescape-installed-packages-reproduce-gallery",
