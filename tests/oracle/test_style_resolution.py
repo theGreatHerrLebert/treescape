@@ -2,9 +2,9 @@
 
 The Rust resolver (``treescape_connector.py_style`` → ``treescape-core``
 ``style.rs``) must return exactly what ``treescape_reference.style``
-returns: identical integers and identical f64 bit patterns. NaN results
-are compared as "both NaN" — the claim is about which inputs produce NaN,
-not about NaN payload bits.
+returns: identical integers, bit-identical non-NaN floats, NaN compared
+by classification ("both NaN" — not sign or payload bits), and identical
+exception type + message for out-of-domain input.
 
 Coverage: pinned fixtures for each byte-parity trap in
 docs/conventions.md (v0.5 Phase 1) — Neumaier-sensitive subtree sums,
@@ -65,8 +65,8 @@ def _both(fn_name: str, *args):
     for impl in (ref, rust):
         try:
             outcomes.append(("ok", getattr(impl, fn_name)(*args)))
-        except ValueError as exc:
-            outcomes.append(("ValueError", str(exc)))
+        except Exception as exc:  # noqa: BLE001 - the error itself is compared
+            outcomes.append((type(exc).__name__, str(exc)))
     (ref_kind, ref_val), (rust_kind, rust_val) = outcomes
     assert ref_kind == rust_kind, f"{fn_name}: reference {ref_kind} {ref_val!r}, rust {rust_kind} {rust_val!r}"
     if ref_kind == "ok":
@@ -243,10 +243,61 @@ def test_neumaier_clade_actually_differs_from_naive():
     assert naive == 0.0 and means[clade] == pytest.approx(1 / 3)
 
 
-def test_column_length_mismatch_errors_match():
+@pytest.mark.parametrize("length", [0, 1, 2, 4, 7])
+def test_column_length_mismatch_errors_match(length):
+    """Every column-taking function rejects short, empty, and overlong
+    columns identically (the tree has 3 tips)."""
     tree = Tree.parse_newick("((a:1,b:1):1,c:1);")
-    _both("continuous_branch_t", tree, [0.1], 0.0, 1.0)
-    _both("discrete_branch_codes", tree, [0, 1, 1, 0])
+    values = [0.1] * length
+    codes = [0] * length
+    _both("continuous_tip_t", tree, values, 0.0, 1.0)
+    _both("continuous_branch_t", tree, values, 0.0, 1.0)
+    _both("branch_widths", tree, values, 0.0, 1.0, 1.0, 4.0)
+    _both("discrete_branch_codes", tree, codes)
+
+
+@pytest.mark.parametrize("n", [-1, 10, 11, 2**63 - 1, 2**63, 2**100, -(2**100), True, 3.0, "3", None])
+def test_default_palette_domain(n):
+    _both("default_palette", n)
+
+
+@pytest.mark.parametrize(
+    "codes",
+    [
+        [0, 2**32 - 1, None],
+        [2**32, 0, None],
+        [-1, 0, None],
+        [2**100, 0, None],
+        [True, False, None],
+        [1.0, 0, None],
+        ["a", 0, None],
+    ],
+)
+def test_discrete_code_domain(codes):
+    tree = Tree.parse_newick("((a:1,b:1):1,c:1);")
+    _both("discrete_branch_codes", tree, codes)
+
+
+@pytest.mark.parametrize("node", [0, 4, 5, -1, 2**63, 2**100, True, 1.0, "0", None])
+def test_node_id_domain(node):
+    tree = Tree.parse_newick("((a:1,b:1):1,c:1);")  # 5 nodes
+    _both("descendant_tips", tree, node)
+
+
+def test_neumaier_mean_through_treeplot_on_every_interpreter():
+    """v0.4 used builtin sum(): this width was 1.0 on Python 3.11 and 2.0
+    on 3.12. v0.5 pins 2.0 everywhere (docs/conventions.md, v0.5 Phase 1)."""
+    pl = pytest.importorskip("polars", reason="polars required for TreePlot metadata")
+    from treescape import TreePlot
+
+    newick, values = FIXTURES["neumaier_clade"]
+    plot = TreePlot(newick).join_metadata(
+        pl.DataFrame({"tip": ["a", "b", "c", "d"], "v": values}), on="tip"
+    )
+    plot.width_branches_by("v", vmin=0.0, vmax=1.0)
+    tree = plot._tree
+    clade = next(n for n in tree.preorder() if n != tree.root and not tree.is_tip(n))  # (a,b,c)
+    assert plot._branch_widths[clade] == 2.0
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -217,7 +217,7 @@ Closes the v0.2 `NotImplementedError` for `TreePlot.highlight_clade(...)` with `
 
 ### Styling resolution in Rust (v0.5 Phase 1)
 
-v0.3–v0.4 resolved metadata-driven styling in `plot.py`. v0.5 Phase 1 moves the resolution rules into `treescape-core::style` so every host language (Python now, Julia in Phase 2) shares one implementation. **Behavior-preserving:** every v0.4 golden and gallery SVG is byte-identical before and after. The Python oracle is `treescape_reference.style`, extracted from the v0.4 `plot.py` before the Rust port existed.
+v0.3–v0.4 resolved metadata-driven styling in `plot.py`. v0.5 Phase 1 moves the resolution rules into `treescape-core::style` so every host language (Python now, Julia in Phase 2) shares one implementation. **Behavior-preserving on Python ≥ 3.12:** every v0.4 golden and gallery SVG is byte-identical before and after. On Python 3.11 subtree means change to the 3.12 result (see *Subtree-mean summation* below). The Python oracle is `treescape_reference.style`, adapted from the v0.4 `plot.py` before the Rust port existed.
 
 **Moves to Rust:** Tableau-10 palette and default-palette assignment (>10 values raises), the pinned viridis LUT, `value_range`, `normalize`, the discrete monophyly rule, subtree means for continuous color and width, and width scaling.
 
@@ -229,11 +229,13 @@ v0.3–v0.4 resolved metadata-driven styling in `plot.py`. v0.5 Phase 1 moves th
 - **Callable `cmap`.** Rust returns per-node `t ∈ [0, 1]`; the built-in `"viridis"` maps through Rust, a callable maps in the host.
 - **`TreescapeStyleWarning`.** Rust returns the non-monophyletic node ids in preorder; the host formats the unchanged v0.4 message and emits it before the atomic assignment (v0.4 review round 3).
 
+**Input domains.** Palette sizes are ints ≥ 0; discrete codes are ints in `[0, 2**32)`; node ids are ints in `[0, n_nodes)`; every column's length equals the tree's tip count. Out-of-domain input raises `ValueError` (`IndexError` for node ids) with the same message from the reference and the connector.
+
 **Boundary shape.** Columns cross as vectors aligned to `tip_order()` (preorder tips, unnamed tips included): numeric as `Option<f64>`, discrete as `Option<u32>` codes. Codes are indices into the first-occurrence list of distinct values over tip order — the same order the default palette assigns in. Descendant-tip sets skip unnamed tips, as v0.4's `_descendant_tips` did.
 
 **Numeric semantics pinned for byte parity** (each one is a place a naive port silently diverges):
 
-- **Subtree-mean summation is Neumaier-compensated**, exactly as CPython ≥ 3.12's builtin `sum()` over floats: running sum `s`, compensation `c`; per term `t = s + x`, `c += (s − t) + x` if `|s| ≥ |x|` else `(x − t) + s`, `s = t`; at the end `s += c` only when `c` is nonzero and finite. Terms are added in `_descendant_tips` order (left-to-right preorder). *Why pinned:* v0.4 used builtin `sum()`, whose float algorithm changed in Python 3.12 (`sum([1e16, 1.0, -1e16])` is `0.0` on 3.11, `1.0` on 3.12). treescape supports Python ≥ 3.11, so v0.4 subtree-mean colors and widths could differ by interpreter version; goldens were generated on 3.12. Pinning the 3.12 algorithm in Rust keeps the goldens and makes 3.11 output match them.
+- **Subtree-mean summation** is Neumaier-compensated, exactly as CPython ≥ 3.12's builtin `sum()` over floats: running sum `s`, compensation `c`; per term `t = s + x`, `c += (s − t) + x` if `|s| ≥ |x|` else `(x − t) + s`, `s = t`; at the end `s += c` only when `c` is nonzero and finite. Terms are added in `_descendant_tips` order (left-to-right preorder). *Why pinned:* v0.4 used builtin `sum()`, whose float algorithm changed in Python 3.12 (`sum([1e16, 1.0, -1e16])` is `0.0` on 3.11, `1.0` on 3.12). treescape supports Python ≥ 3.11, so v0.4 subtree-mean colors and widths could differ by interpreter version; goldens were generated on 3.12. Pinning the 3.12 algorithm in Rust keeps the goldens and makes 3.11 output match them.
 - **Viridis channel rounding is round-half-to-even** (Python `round()`), i.e. Rust `f64::round_ties_even`, not `f64::round`.
 - **Observed min/max follow Python `min()`/`max()`**: start from the first observed value, replace on strict `<` (min) / `>` (max). With NaN present the result is order-dependent — preserved rather than "fixed", since fixing it would be a behavior change.
 - **NaN through viridis is an error**, with Python's message: `cannot convert float NaN to integer` (what `int(round(nan))` raised in v0.4). A callable `cmap` receives the NaN `t` unchanged, as before.

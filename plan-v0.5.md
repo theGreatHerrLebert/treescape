@@ -26,7 +26,7 @@ Behavior-preserving refactor. **Zero SVG bytes change** is the acceptance bar: e
 
 Reference-first, per cadence:
 
-1. **Extract** the resolution functions verbatim from `plot.py` into `packages/treescape-reference/src/treescape_reference/style.py` (`parse_color`, `TABLEAU_10`, `VIRIDIS_LUT`, `viridis`, `normalize`, `value_range`, `resolve_discrete_palette`, `discrete_branch_colors`, `continuous_branch_values`, `branch_widths`). `plot.py` temporarily calls the reference module; goldens must still pass. This pins the oracle **before** Rust exists.
+1. **Extract** the resolution functions from `plot.py` (adapted to the Rust boundary shape) into `packages/treescape-reference/src/treescape_reference/style.py` (`parse_color`, `TABLEAU_10`, `VIRIDIS_LUT`, `viridis`, `normalize`, `value_range`, `resolve_discrete_palette`, `discrete_branch_colors`, `continuous_branch_values`, `branch_widths`). `plot.py` temporarily calls the reference module; goldens must still pass. This pins the oracle **before** Rust exists.
 2. **Port** to `treescape-core::style` (pure Rust, no PyO3).
 3. **Rewire** `plot.py` to call the Rust resolver through a new `py_style` submodule (`wrap_pymodule!`, alongside `py_tree`/`py_layout`/`py_render`/`py_metadata`).
 

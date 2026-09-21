@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import pathlib
 import warnings
+from typing import Callable
 
 import polars as pl
 
@@ -30,7 +31,7 @@ from treescape import TreePlot
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SOURCE = REPO / "tests" / "fixtures" / "trees" / "medium" / "primates.nwk"
 TARGET = REPO / "assets" / "primates.svg"
-GALLERY = REPO / "assets" / "gallery"
+GALLERY_DIR = REPO / "assets" / "gallery"
 
 
 PRIMATES_METADATA = pl.DataFrame(
@@ -104,130 +105,91 @@ def _base_circular() -> TreePlot:
     )
 
 
-def _save(plot: TreePlot, name: str) -> pathlib.Path:
-    target = GALLERY / name
-    plot.save(str(target))
-    print(f"  wrote {target.relative_to(REPO)}")
-    return target
-
-
-def _render_marketing() -> None:
+def _marketing() -> TreePlot:
     """Top-level assets/primates.svg — the README screenshot."""
-    plot = TreePlot(str(SOURCE)).options(
+    return TreePlot(str(SOURCE)).options(
         padding=16,
         px_per_x=1500,
         px_per_y=20,
         font_size=12,
     )
-    plot.save(str(TARGET))
-    print(f"wrote {TARGET.relative_to(REPO)}")
 
 
-def _render_gallery() -> None:
-    GALLERY.mkdir(parents=True, exist_ok=True)
-    print(f"gallery → {GALLERY.relative_to(REPO)}/")
+def _meta(plot: TreePlot) -> TreePlot:
+    return plot.join_metadata(PRIMATES_METADATA, on="tip")
 
-    # 01 — plain rectangular (v0.1 baseline)
-    _save(_base_rectangular(), "01_rectangular.svg")
 
-    # 02 — plain circular (v0.2)
-    _save(_base_circular(), "02_circular.svg")
-
-    # 03 — rectangular + clade highlight (v0.2 styling)
-    _save(
-        _base_rectangular().highlight_clade(GREAT_APES, color="#ffb84d", alpha=0.35),
-        "03_rectangular_highlight.svg",
-    )
-
-    # 04 — circular + annular-sector highlight (v0.3 Phase 3)
-    _save(
-        _base_circular().highlight_clade(GREAT_APES, color="#ffb84d", alpha=0.35),
-        "04_circular_highlight.svg",
-    )
-
-    # 05 — discrete tip color via Tableau-10 (v0.3 Phase 2 discrete)
-    _save(
-        _base_rectangular().join_metadata(PRIMATES_METADATA, on="tip").color_tips_by("clade"),
-        "05_color_tips_by_clade.svg",
-    )
-
-    # 06 — discrete branch color via monophyly (v0.3 Phase 2). The
-    # primates topology has paraphyletic ancestors (e.g., the catarrhine
-    # MRCA mixes great_apes + lesser_apes + old_world_monkeys), which
-    # emit TreescapeStyleWarning and are left at the default stroke
+def _branches_by_clade() -> TreePlot:
+    # The primates topology has paraphyletic ancestors (e.g., the
+    # catarrhine MRCA mixes great_apes + lesser_apes + old_world_monkeys),
+    # which emit TreescapeStyleWarning and are left at the default stroke
     # color — visible in the SVG as default branches connecting the
     # colored monophyletic subtrees.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        _save(
-            _base_rectangular()
-            .join_metadata(PRIMATES_METADATA, on="tip")
-            .color_branches_by("clade"),
-            "06_color_branches_by_clade.svg",
-        )
+        return _meta(_base_rectangular()).color_branches_by("clade")
 
-    # 07 — continuous tip color via viridis (v0.3 Phase 2 continuous)
-    _save(
-        _base_rectangular().join_metadata(PRIMATES_METADATA, on="tip").color_tips_by("support"),
-        "07_color_tips_by_support.svg",
-    )
 
-    # 08 — continuous branch color via viridis (subtree mean)
-    _save(
-        _base_rectangular()
-        .join_metadata(PRIMATES_METADATA, on="tip")
-        .color_branches_by("support"),
+# (file name, builder). tests/oracle/test_gallery_bytes.py renders each
+# builder in memory and asserts the bytes equal the committed file, so
+# this list is both the regen recipe and the gallery's regression test.
+GALLERY: list[tuple[str, Callable[[], TreePlot]]] = [
+    # ---- v0.1 → v0.3 ----
+    ("01_rectangular.svg", _base_rectangular),
+    ("02_circular.svg", _base_circular),
+    (
+        "03_rectangular_highlight.svg",
+        lambda: _base_rectangular().highlight_clade(GREAT_APES, color="#ffb84d", alpha=0.35),
+    ),
+    (
+        "04_circular_highlight.svg",
+        lambda: _base_circular().highlight_clade(GREAT_APES, color="#ffb84d", alpha=0.35),
+    ),
+    ("05_color_tips_by_clade.svg", lambda: _meta(_base_rectangular()).color_tips_by("clade")),
+    ("06_color_branches_by_clade.svg", _branches_by_clade),
+    ("07_color_tips_by_support.svg", lambda: _meta(_base_rectangular()).color_tips_by("support")),
+    (
         "08_color_branches_by_support.svg",
-    )
-
-    # 09 — scale bar (v0.3 bonus). The primates fixture has no
-    # internal-node names, so .support_labels would be a no-op here;
-    # we focus on the scale bar to keep the example self-explanatory.
-    _save(
-        _base_rectangular().scale_bar(0.05, "0.05 substitutions/site"),
+        lambda: _meta(_base_rectangular()).color_branches_by("support"),
+    ),
+    # The primates fixture has no internal-node names, so .support_labels
+    # would be a no-op here; the scale bar keeps the example self-explanatory.
+    (
         "09_scale_bar.svg",
-    )
-
-    # 10 — combined: highlight + discrete tip color + scale bar.
-    # A near-publication-style render of what v0.3 can express.
-    _save(
-        _base_rectangular()
-        .join_metadata(PRIMATES_METADATA, on="tip")
+        lambda: _base_rectangular().scale_bar(0.05, "0.05 substitutions/site"),
+    ),
+    # Highlight + discrete tip color + scale bar: a near-publication render.
+    (
+        "10_combined.svg",
+        lambda: _meta(_base_rectangular())
         .color_tips_by("clade")
         .highlight_clade(GREAT_APES, color="#ffb84d", alpha=0.25)
         .scale_bar(0.05, "0.05 substitutions/site"),
-        "10_combined.svg",
-    )
-
+    ),
     # ---- v0.4 ----
-    # 11 — circular metadata coloring (v0.4 Phase 1)
-    _save(
-        _base_circular().join_metadata(PRIMATES_METADATA, on="tip").color_tips_by("clade"),
+    (
         "11_circular_color_tips_by_clade.svg",
-    )
-
-    # 12 — circular scale bar (v0.4 Phase 2). The primates fixture has
-    # no internal-node names, so .support_labels would be a no-op; we
-    # focus on the bottom-right radial scale bar.
-    _save(
-        _base_circular().scale_bar(0.05, "0.05 subs/site"),
-        "12_circular_scale_bar.svg",
-    )
-
-    # 13 — branch-stroke width by metadata (v0.4 Phase 3). Numeric
-    # support → width via subtree mean on internals, tip value on
+        lambda: _meta(_base_circular()).color_tips_by("clade"),
+    ),
+    ("12_circular_scale_bar.svg", lambda: _base_circular().scale_bar(0.05, "0.05 subs/site")),
+    # Numeric support → width via subtree mean on internals, tip value on
     # terminals. Default range (1.0, 4.0) px.
-    _save(
-        _base_rectangular()
-        .join_metadata(PRIMATES_METADATA, on="tip")
-        .width_branches_by("support"),
+    (
         "13_branch_width_by_support.svg",
-    )
+        lambda: _meta(_base_rectangular()).width_branches_by("support"),
+    ),
+]
 
 
 def main() -> None:
-    _render_marketing()
-    _render_gallery()
+    _marketing().save(str(TARGET))
+    print(f"wrote {TARGET.relative_to(REPO)}")
+    GALLERY_DIR.mkdir(parents=True, exist_ok=True)
+    print(f"gallery → {GALLERY_DIR.relative_to(REPO)}/")
+    for name, build in GALLERY:
+        target = GALLERY_DIR / name
+        build().save(str(target))
+        print(f"  wrote {target.relative_to(REPO)}")
 
 
 if __name__ == "__main__":

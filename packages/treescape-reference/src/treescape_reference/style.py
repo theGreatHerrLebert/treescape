@@ -1,7 +1,9 @@
 """Reference styling resolution for :class:`treescape.TreePlot`.
 
-Extracted from the v0.4 ``plot.py`` (v0.5 Phase 1) before the Rust port
-in ``treescape-core/src/style.rs`` existed. This module is the readable
+Adapted from the v0.4 ``plot.py`` (v0.5 Phase 1) before the Rust port
+in ``treescape-core/src/style.rs`` existed: same rules, reshaped to the
+Rust boundary (tip-order-aligned columns, RGBA tuples instead of hex,
+explicit Neumaier summation instead of builtin ``sum()``). This module is the readable
 convention owner: the Rust resolver is held to it with exact equality
 (claim ``treescape-style-resolution-rust-vs-reference``).
 
@@ -14,6 +16,10 @@ codes for discrete.
 
 Host-side concerns — dataframes, dtype detection, color-string parsing,
 callable cmaps, warning emission — are deliberately not here.
+
+Input domains (enforced identically by the connector): palette sizes are
+ints >= 0; discrete codes are ints in ``[0, 2**32)``; node ids are ints
+in ``[0, tree.n_nodes)``; every column's length equals the tree's tip count.
 """
 
 from __future__ import annotations
@@ -80,6 +86,8 @@ def viridis(t: float) -> tuple[int, int, int, int]:
 
 def default_palette(n_values: int) -> list[str]:
     """Tableau-10 in first-occurrence order; more than 10 values raise."""
+    if not isinstance(n_values, int) or n_values < 0:
+        raise ValueError(f"palette size must be a non-negative integer; got {n_values!r}")
     if n_values > len(TABLEAU_10):
         raise ValueError("default categorical palette supports at most 10 values")
     return list(TABLEAU_10[:n_values])
@@ -139,8 +147,14 @@ def _tip_value_by_node(tree, tip_values: Sequence) -> dict:
     return dict(zip(tips, tip_values))
 
 
+def _check_node_id(tree, node_id) -> None:
+    if not isinstance(node_id, int) or not 0 <= node_id < tree.n_nodes:
+        raise IndexError(f"node id {node_id!r} out of range")
+
+
 def descendant_tips(tree, node_id: int) -> list[int]:
     """Named descendant tips, left-to-right preorder (v0.4 ``_descendant_tips``)."""
+    _check_node_id(tree, node_id)
     out = []
     stack = [node_id]
     while stack:
@@ -157,6 +171,7 @@ def continuous_tip_t(
     tree, tip_values: Sequence[Optional[float]], lo: float, hi: float
 ) -> list[tuple[str, float]]:
     """``(tip_name, t)`` for every tip with a value, in tip order."""
+    _tip_value_by_node(tree, tip_values)  # length check
     out = []
     for name, value in zip(tree.tip_order(), tip_values):
         if value is None:
@@ -210,6 +225,9 @@ def discrete_branch_codes(
     and the node ids (preorder) of branches with mixed or partial data.
     All-missing subtrees appear in neither list.
     """
+    for code in tip_codes:
+        if code is not None and (not isinstance(code, int) or not 0 <= code < 2**32):
+            raise ValueError(f"discrete codes must be integers in [0, 2**32); got {code!r}")
     by_node = _tip_value_by_node(tree, tip_codes)
     root = tree.root
     colored = []

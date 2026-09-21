@@ -4,6 +4,22 @@ All notable changes to treescape are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — v0.4.1
+
+v0.5 Phase 1: metadata-driven styling resolution moved from `plot.py` into `treescape-core::style` (exposed as `treescape_connector.py_style`), in preparation for the Julia binding. No API changes. New EVIDENT claim `treescape-style-resolution-rust-vs-reference` (19 claims).
+
+### Changed
+
+- **Python 3.11: subtree-mean branch colors and widths now match Python 3.12.** v0.4 averaged subtree values with builtin `sum()`, whose float algorithm changed in Python 3.12 (Neumaier compensation). For cancellation-prone values (e.g. `[1e16, 1.0, -1e16]`) v0.4 produced different colors/widths on 3.11 than on 3.12 and than the committed goldens. v0.5 pins the 3.12 algorithm in Rust, so output is now interpreter-independent. Python 3.12+ output is unchanged: every golden and gallery SVG is byte-identical.
+
+### Added
+
+- `tests/oracle/test_gallery_bytes.py`: every `scripts/regen_assets.py` configuration is rendered in memory and compared byte-for-byte to the committed `assets/` files. `scripts/regen_assets.py` now exposes the configurations as a `GALLERY` list.
+
+### Fixed
+
+- `cargo clippy --workspace -- -D warnings` failed on `main` since v0.4 Phase 3 (`too_many_arguments` on the two `render_*_styled_svg` PyO3 functions); allowed explicitly.
+
 ## [0.4.0] — 2026-04-28
 
 The complete-the-styling-story release. v0.3 shipped metadata-driven coloring on rectangular layouts and circular `highlight_clade` via annular sectors. v0.4 lifts every remaining `NotImplementedError` on circular layouts so they reach feature parity with rectangular for everything v0.3+v0.4 covers, adds **width** to the metadata-driven styling vocabulary, and lifts v0.3's "internal branches only" restriction so terminal branches participate in styling. After v0.4, "I want to publish this figure" should not hit a `NotImplementedError` for any combination of layout + metadata-driven attribute the trio covers. Two EVIDENT claims added, one amended, three extended; 227 / 31 / 8 oracle suite green; cargo workspace 46 + 11 green.
