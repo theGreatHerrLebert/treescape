@@ -171,6 +171,12 @@ def _postorder(root: Node) -> List[Node]:
     return out
 
 
+# Below this norm the children's unit-vector sum is treated as the origin
+# (children evenly spread, so the mean direction is undefined). Sums that
+# are not exactly zero stay far above it (about 1e-5 even at 1e6 tips).
+DEGENERATE_MEAN_NORM = 1e-9
+
+
 def circular_layout(
     tree: Tree,
     *,
@@ -216,18 +222,34 @@ def circular_layout(
         for i, tip in enumerate(tips):
             theta[id(tip)] = start_angle - (i / n_tips) * sweep_total
 
+    # Pre-order index of each node's first and last descendant tip; a
+    # node's tips are contiguous in pre-order.
+    tip_index = {id(tip): i for i, tip in enumerate(tips)}
+    span: Dict[int, tuple] = {}
+
     for node in _postorder(tree.root):
         if node.is_tip():
+            span[id(node)] = (tip_index[id(node)], tip_index[id(node)])
             continue
-        if not node.children:
-            theta[id(node)] = start_angle
-            continue
+        span[id(node)] = (span[id(node.children[0])][0], span[id(node.children[-1])][1])
         # Wrap-aware mean: convert each child θ to its unit vector,
         # average, then atan2. Equivalent to arithmetic mean when
-        # children's angles span less than π.
-        sx = sum(math.cos(theta[id(c)]) for c in node.children)
-        sy = sum(math.sin(theta[id(c)]) for c in node.children)
-        theta[id(node)] = math.atan2(sy, sx)
+        # children's angles span less than π. Summed left to right, as
+        # the Rust core does (builtin sum() is Neumaier-compensated on
+        # Python 3.12+ and not on 3.11).
+        sx = sy = 0.0
+        for c in node.children:
+            sx += math.cos(theta[id(c)])
+            sy += math.sin(theta[id(c)])
+        if math.hypot(sx, sy) < DEGENERATE_MEAN_NORM:
+            # Children spread evenly around the node's arc (possible
+            # whenever the arc exceeds π): the vector sum is the origin
+            # and its angle is rounding noise. Use the midpoint of the
+            # node's own tip arc instead.
+            first, last = span[id(node)]
+            theta[id(node)] = start_angle - ((first + last) / 2 / n_tips) * sweep_total
+        else:
+            theta[id(node)] = math.atan2(sy, sx)
 
     return {key: (r[key], theta[key]) for key in r}
 

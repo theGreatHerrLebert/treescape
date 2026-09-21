@@ -22,6 +22,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   - Miri is no longer listed as an oracle of a command that does not run it.
   - The manifest test requires every oracle to have a pin check, and every fixture claim to name a hashed corpus.
 
+### Fixed — found by v0.6 Phase 2 node-level comparison
+
+- **Circular layout: a node whose children are spread evenly got a rounding-noise angle.** The wrap-aware mean of the children's unit vectors is the origin when they are spread evenly. Examples: a star root such as `(a,b,c);`, the two opposite children of a two-tip tree, and a drawn inner node whose arc exceeds π, such as `(b,(c,d,e),f)` in `(a,(b,(c,d,e),f));`. `atan2` then returned noise, and that noise differed between the Rust core and the Python reference. The reference also summed with Python's compensated `sum()` (Neumaier on 3.12+, naive on 3.11) instead of Rust's left-to-right fold.
+  - Both implementations now sum left to right.
+  - A sum with norm below 1e-9 now gives the node the midpoint of its own tip arc (`docs/conventions.md`), which keeps inner nodes on their descendants' side.
+  - Every golden and gallery SVG is byte-identical: none contains such an inner node, and a root's angle is not drawn.
+  - v0.5's tip-only comparisons could not see this. The Phase 2 runners compare every node, and an independent review then found the inner-node case, which the first version of this fix got wrong.
+
 ### Noted, not changed (claim text contradicted by the new structured fields; needs a decision)
 
 - `treescape-circular-layout-vs-ete3` claims 1e-4, but its runner asserts `< 1e-6`. The claim understates its own evidence.

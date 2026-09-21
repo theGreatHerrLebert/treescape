@@ -16,6 +16,11 @@ use crate::layout::rectangular::StyleSpec;
 use crate::layout::scene::{Canvas, Color, Scene, SceneItem, TextAnchor};
 use crate::tree::Tree;
 
+/// Below this norm the children's unit-vector sum is treated as the
+/// origin (children evenly spread, mean direction undefined); mirrors
+/// `DEGENERATE_MEAN_NORM` in `treescape_reference.layout`.
+const DEGENERATE_MEAN_NORM: f64 = 1e-9;
+
 /// Polar coordinates for every node, parallel-indexed by node id.
 /// `r[i]` is cumulative branch length from the root; `theta[i]` is in
 /// radians. The Cartesian projection used by the renderer is
@@ -96,21 +101,37 @@ pub fn circular_layout_with(tree: &Tree, start_angle: f64, sweep_total: f64) -> 
         }
     }
 
+    // Pre-order index of each node's first and last descendant tip; a
+    // node's tips are contiguous in pre-order.
+    let mut span = vec![(0usize, 0usize); n];
+    for (i, &tip) in tips.iter().enumerate() {
+        span[tip] = (i, i);
+    }
     for id in tree.postorder() {
         if tree.is_tip[id] {
             continue;
         }
         let cs = &tree.children[id];
-        if cs.is_empty() {
+        let (Some(&first), Some(&last)) = (cs.first(), cs.last()) else {
             continue;
-        }
+        };
+        span[id] = (span[first].0, span[last].1);
         let mut sx = 0.0_f64;
         let mut sy = 0.0_f64;
         for &c in cs {
             sx += layout.theta[c].cos();
             sy += layout.theta[c].sin();
         }
-        layout.theta[id] = sy.atan2(sx);
+        layout.theta[id] = if sx.hypot(sy) < DEGENERATE_MEAN_NORM {
+            // Children spread evenly around the node's arc (possible
+            // whenever the arc exceeds π): the vector sum is the origin
+            // and its angle is rounding noise. Use the midpoint of the
+            // node's own tip arc instead.
+            let (lo, hi) = span[id];
+            start_angle - ((lo + hi) as f64 / 2.0 / n_tips as f64) * sweep_total
+        } else {
+            sy.atan2(sx)
+        };
     }
 
     layout
@@ -655,6 +676,32 @@ mod tests {
         for (name, expected_deg) in [("a", 90.0), ("b", -30.0), ("c", -150.0)] {
             assert!(approx(m[name].1, (expected_deg as f64).to_radians(), 1e-12));
         }
+    }
+
+    #[test]
+    fn evenly_spread_children_take_the_arc_midpoint() {
+        // Star roots: the unit-vector sum of the children is the origin,
+        // so the angle is the midpoint of the tip arc, not rounding noise.
+        for (src, n) in [("(a:1.0,b:1.0,c:1.0);", 3.0), ("(a:1,b:1,c:1,d:1,e:1,f:1,g:1);", 7.0), ("(a:1.0,b:1.0);", 2.0)] {
+            let t = parse(src).unwrap();
+            let root = t.root.unwrap();
+            let mid = (n - 1.0) / 2.0;
+            assert_eq!(circular_layout(&t).theta[root], PI / 2.0 - (mid / n) * 2.0 * PI, "{src}");
+        }
+        // A drawn inner node, 120° children (tips b..f, arc > π): it takes
+        // its own arc's midpoint (tip index 3 of 6, i.e. -90°), the
+        // direction of its middle child, not tip a's direction.
+        let t = parse("(a:1,(b:1,(c:1,d:1,e:1):1,f:1):1);").unwrap();
+        let l = circular_layout(&t);
+        let inner = t.children[t.root.unwrap()][1];
+        assert!((l.theta[inner] - (PI / 2.0 - 0.5 * 2.0 * PI)).abs() < 1e-12);
+        assert!((l.theta[inner] - (-PI / 2.0)).abs() < 1e-12);
+        // A well-defined mean is untouched.
+        let t = parse("((a:1,b:1):1,c:1,d:1);").unwrap();
+        let root = t.root.unwrap();
+        let c = circular_layout(&t);
+        let (sx, sy) = t.children[root].iter().fold((0.0, 0.0), |(x, y), &k| (x + c.theta[k].cos(), y + c.theta[k].sin()));
+        assert_eq!(c.theta[root], f64::atan2(sy, sx));
     }
 
     #[test]
