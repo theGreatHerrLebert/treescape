@@ -66,6 +66,8 @@ def _python_svg(case: dict) -> str:
             REPO / source["sequences"], model=source["model"], alphabet=source.get("alphabet", "auto")
         )
         plot = TreePlot.from_distances(matrix, labels, method=source["method"])
+    elif "linkage" in source:
+        plot = TreePlot.from_linkage(source["linkage"], source["labels"])
     elif "distances" in source:
         lines = (REPO / source["distances"]).read_text().splitlines()
         matrix = [[float(v) for v in line.split("\t")] for line in lines[1:]]

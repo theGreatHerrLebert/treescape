@@ -42,6 +42,7 @@ hooks:
 nav:
   - Home: index.md
   - Examples: examples.md
+  - Coming from MATLAB: matlab.md
   - Julia package: julia.md
   - Performance: performance.md
   - Trust:

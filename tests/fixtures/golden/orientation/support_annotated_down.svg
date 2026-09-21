@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg height="185.6172" version="1.1" viewBox="0 0 128.4 185.6172" width="128.4" xmlns="http://www.w3.org/2000/svg">
+  <rect fill="rgba(255,184,77,0.349)" height="71.6172" width="36" x="57" y="102"/>
+  <line stroke="#000000" stroke-width="1" x1="21" x2="61.5" y1="12" y2="12"/>
+  <line stroke="#000000" stroke-width="1" x1="21" x2="21" y1="12" y2="102"/>
+  <line stroke="#000000" stroke-width="1" x1="61.5" x2="61.5" y1="12" y2="72"/>
+  <line stroke="#000000" stroke-width="1" x1="12" x2="30" y1="102" y2="102"/>
+  <line stroke="#000000" stroke-width="1" x1="12" x2="12" y1="102" y2="132"/>
+  <line stroke="#000000" stroke-width="1" x1="30" x2="30" y1="102" y2="162"/>
+  <line stroke="#000000" stroke-width="1" x1="48" x2="75" y1="72" y2="72"/>
+  <line stroke="#000000" stroke-width="1" x1="48" x2="48" y1="72" y2="117"/>
+  <line stroke="#000000" stroke-width="1" x1="75" x2="75" y1="72" y2="102"/>
+  <line stroke="#000000" stroke-width="1" x1="66" x2="84" y1="102" y2="102"/>
+  <line stroke="#000000" stroke-width="1" x1="66" x2="66" y1="102" y2="117"/>
+  <line stroke="#000000" stroke-width="1" x1="84" x2="84" y1="102" y2="123"/>
+  <text fill="#1f77b4" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(-90 16.2 136)" x="16.2" y="136">a</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(-90 34.2 166)" x="34.2" y="166">b</text>
+  <text fill="#d62728" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(-90 52.2 121)" x="52.2" y="121">c</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(-90 70.2 121)" x="70.2" y="121">d</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(-90 88.2 127)" x="88.2" y="127">e</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(-90 18 106)" x="18" y="106">95</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(-90 58.5 76)" x="58.5" y="76">88</text>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="end" transform="rotate(-90 72 106)" x="72" y="106">70</text>
+  <line stroke="#000000" stroke-width="1" x1="93.6" x2="93.6" y1="12" y2="27"/>
+  <line stroke="#000000" stroke-width="1" x1="91.5" x2="95.7" y1="12" y2="12"/>
+  <line stroke="#000000" stroke-width="1" x1="91.5" x2="95.7" y1="27" y2="27"/>
+  <text fill="#000000" font-family="DejaVu Sans, sans-serif" font-size="12" text-anchor="middle" transform="rotate(-90 108 78.7822)" x="108" y="78.7822">0.05 substitutions/site</text>
+</svg>

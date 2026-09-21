@@ -383,8 +383,17 @@ pub fn build_circular_scene_with_style(
     let radius_px = max_r * opts.px_per_r;
     let half = opts.padding + radius_px + opts.label_offset + max_label_px;
     let canvas_size = 2.0 * half;
+    // A scale bar or label wider than the canvas widens it to the right;
+    // the tree stays centred at `half` (docs/conventions.md).
+    let width = match &style.scale_bar {
+        Some(s) if s.length > 0.0 => {
+            let bar_w = (s.length * opts.px_per_r).max(measure_width(&s.label, opts.font_size));
+            canvas_size.max(2.0 * opts.padding + bar_w)
+        }
+        _ => canvas_size,
+    };
     let canvas = Canvas {
-        width: canvas_size,
+        width,
         height: canvas_size,
     };
     let cx = half;
@@ -611,8 +620,11 @@ pub fn build_circular_scene_with_style(
                     stroke_width: opts.stroke_width,
                 });
             }
+            // Centred on the bar, shifted left just enough to stay inside
+            // the padding when the label is wider than the bar.
+            let label_w = measure_width(&scale_bar.label, opts.font_size);
             items.push(SceneItem::Text {
-                x: (bar_x1 + bar_x2) * 0.5,
+                x: ((bar_x1 + bar_x2) * 0.5).min(canvas.width - opts.padding - label_w * 0.5),
                 y: bar_y + opts.font_size * 1.2,
                 text: scale_bar.label.clone(),
                 font_size: opts.font_size,

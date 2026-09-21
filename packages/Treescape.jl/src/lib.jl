@@ -1,6 +1,6 @@
 # C-ABI loading and error plumbing (docs/conventions.md, "Julia binding").
 
-const ABI_VERSION = UInt32(4)
+const ABI_VERSION = UInt32(5)
 
 const TS_OK = Int32(0)
 const TS_INVALID_ARGUMENT = Int32(1)
@@ -160,7 +160,11 @@ struct SceneOptions
     font_size::Float64
     label_offset::Float64
     stroke_width::Float64
+    orientation::UInt32   # index into ORIENTATIONS, from 0
 end
+
+# docs/conventions.md, "Orientation"; the C ABI's codes 0-3 in this order.
+const ORIENTATIONS = (:right, :down, :left, :up)
 
 struct CircularSceneOptions
     px_per_r::Float64

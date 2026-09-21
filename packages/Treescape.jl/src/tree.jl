@@ -66,6 +66,39 @@ function Tree(D::AbstractMatrix{<:Real}, labels::AbstractVector; method::Symbol 
     return _owned_tree(out[])
 end
 
+"""
+    Tree(Z, labels, Val(:linkage))
+
+The tree from a SciPy-style linkage matrix: `n − 1` rows of
+`(cluster_a, cluster_b, distance, count)` with 0-based cluster indices
+(tips `0 … n−1`, then one new cluster per row). Node heights are half the
+merge distances. `count` is not used.
+"""
+function Tree(Z::AbstractMatrix{<:Real}, labels::AbstractVector, ::Val{:linkage})
+    n = length(labels)
+    size(Z, 1) == 0 || size(Z, 2) == 4 ||
+        throw(ArgumentError("linkage row 0 has $(size(Z, 2)) columns; expected 4"))
+    # The C ABI reads (n - 1) * 4 values: the shape must be right before the call.
+    size(Z, 1) == max(n - 1, 0) ||
+        throw(ArgumentError("a linkage matrix for $n labels has $(max(n - 1, 0)) rows, got $(size(Z, 1))"))
+    flat = Vector{Float64}(vec(permutedims(Float64.(Z))))
+    names = String[string(l) for l in labels]
+    out = Ref{Ptr{Cvoid}}(C_NULL)
+    err = Ref{Ptr{UInt8}}(C_NULL)
+    status = GC.@preserve names ccall(
+        sym(:ts_tree_from_linkage),
+        Int32,
+        (Ptr{Float64}, Csize_t, Ptr{Cstring}, Ptr{Ptr{Cvoid}}, Ptr{Ptr{UInt8}}),
+        flat,
+        n,
+        [Base.unsafe_convert(Cstring, Base.cconvert(Cstring, s)) for s in names],
+        out,
+        err,
+    )
+    check(status, err)
+    return _owned_tree(out[])
+end
+
 """The tree as a Newick string."""
 function newick(tree::Tree)
     out = Ref{Ptr{UInt8}}(C_NULL)

@@ -31,6 +31,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   - The Rust↔reference claim now also runs every alignment under explicit `alphabet="nucleotide"` and `"protein"`, and checks the warning flag.
 - Found while building: identical sequences gave `-0.0` (from `−c·ln(1)`); both implementations now return `+0.0`. "poisson" in the plan named the 20-state Jukes–Cantor formula; the conventions pin the correct Poisson `−ln(1−p)` and offer both.
 
+### Added — v0.7 Phase 3: vertical dendrograms and the practical-facing docs
+
+- **Orientation**: `TreePlot(...).orientation("down")` (Python) / `orientation!(p, :down)` (Julia), with `"right"` (default), `"down"`, `"left"` and `"up"`, naming the direction the tree grows. The layout is unchanged: the `"right"` scene is transformed exactly (a reflection, a transpose or a rotation; `docs/conventions.md`, "Orientation"), with tip labels rotated to hang below a dendrogram's tips. Highlights, the scale bar and support labels turn with it. Rectangular only: a circular plot with another orientation is an error. Reference first (`treescape_reference.orientation`), then `treescape-core::layout::orientation`. The C ABI's rectangular options gain an orientation code (ABI 5).
+- **Claim `treescape-orientation-transform`** (ci): on all 66 trees of `layout-v2` in all four orientations, every branch segment and tip label is drawn exactly where the documented transform puts the validated layout coordinate (computed independently in the runner), and the reference renders the same bytes. Annotated goldens for each orientation.
+- **Fan layouts**: `options(start_angle=…, sweep_total=…)` / `options!(p; start_angle, sweep_total)` expose the circular layout's existing fan parameters, validated at the call (`start_angle` in `[−2π, 2π]`, `sweep_total` in `(0, 2π]`). Tips keep the full-circle spacing and the canvas is sized for the full circle, so a half fan leaves half the canvas empty; both are documented.
+- **Julia `from_linkage(Z, labels)`**, mirroring Python's `TreePlot.from_linkage`.
+- `TreePlot._repr_svg_`: Python plots display inline in Jupyter.
+- **Docs**: a SciPy linkage example, an aligned-sequences-to-dendrogram example on the cytochrome b genes of the 11 primates (fetched from their RefSeq mitochondrial genomes by `scripts/fetch_primates_cytb.py`; accessions in the FASTA headers), and a "Coming from MATLAB" page mapping `fastaread`, `seqpdist`, `seqlinkage`, `seqneighjoin`, `linkage` and `'Orientation'` onto both APIs. Its Python and Julia code runs in CI like the examples; the MATLAB column is not run. The Julia page gains its sequences section.
+
+### Fixed — v0.7 Phase 3
+
+- **Scale-bar labels wider than their bar were clipped** at the canvas edge (the v0.6 gallery showed "5 substitutions/site"). The label stays centred on the bar but moves inward just enough to stay inside the padding, and the canvas grows to fit; a circular canvas widens to the right when the bar or label is wider than it. Labels that fit (on a bar that fits) are unchanged byte for byte; gallery files 09, 10 and 12 and one circular golden were regenerated. Clade highlights keep the tree's width when the canvas widens for the scale bar. The Python reference has no rectangular scale bar (a gap since v0.4), so the rectangular half of this fix is checked by Rust goldens, not against the reference.
+
 ## [0.6.0] — 2026-09-21
 
 Trees from distance matrices, on hardened evidence. The trust manifest moves to the upstream EVIDENT schema with pinned oracles and a published claim viewer (Phase 1). The layout oracles now check the Rust core node by node on 66 trees (Phase 2). Neighbor joining and UPGMA build trees straight from a distance matrix in Python and Julia, checked against scikit-bio, Biopython, SciPy, ape and phangorn, with an honest performance claim (Phase 3). 28 EVIDENT claims.

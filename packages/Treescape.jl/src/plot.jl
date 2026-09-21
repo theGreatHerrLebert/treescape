@@ -42,6 +42,18 @@ TreePlot(D::AbstractMatrix{<:Real}, labels::AbstractVector; method::Symbol = :nj
     TreePlot(Tree(D, labels; method = method))
 
 """
+    from_linkage(Z, labels) -> TreePlot
+
+Plot the tree in a SciPy-style linkage matrix (`n − 1` rows of
+`cluster_a, cluster_b, distance, count`, 0-based cluster indices), as
+Python's `TreePlot.from_linkage`. Node heights are half the merge
+distances, so the path between two tips equals their merge distance.
+MATLAB's `linkage` gives 1-based indices and three columns: use
+`[Z[:, 1:2] .- 1 Z[:, 3] zeros(size(Z, 1))]`.
+"""
+from_linkage(Z::AbstractMatrix{<:Real}, labels::AbstractVector) = TreePlot(Tree(Z, labels, Val(:linkage)))
+
+"""
     to_newick(p) -> String
 
 The plot's tree as a Newick string (also for trees built from distances).
@@ -96,11 +108,34 @@ function layout!(p::TreePlot, kind::Union{Symbol,AbstractString})
 end
 
 """
-    options!(p; px_per_x, px_per_y, padding, font_size, label_offset, stroke_width)
+    orientation!(p, direction)
+
+The direction the tree grows, from the root towards the tips: `:right`
+(default; root on the left), `:down` (root at the top, a dendrogram),
+`:left` or `:up`. Rectangular layout only; rendering a circular plot with
+any other value than `:right` is an error. See `docs/conventions.md`,
+"Orientation".
+"""
+function orientation!(p::TreePlot, direction::Union{Symbol,AbstractString})
+    code = findfirst(==(Symbol(direction)), ORIENTATIONS)
+    code === nothing && throw(ArgumentError(
+        "orientation must be one of ('right', 'down', 'left', 'up'), got $(pyrepr(String(direction)))"))
+    r = p.scene_opts
+    p.scene_opts = SceneOptions(r.px_per_x, r.px_per_y, r.padding, r.font_size, r.label_offset, r.stroke_width,
+                                UInt32(code - 1))
+    return p
+end
+
+"""
+    options!(p; px_per_x, px_per_y, padding, font_size, label_offset, stroke_width,
+             start_angle, sweep_total)
 
 Override scene options; unspecified values keep their current setting.
 `px_per_x` also sets the circular layout's `px_per_r`; `px_per_y` is
-rectangular-only.
+rectangular-only. `start_angle` and `sweep_total` (radians; circular only)
+make a fan: the first tip points at `start_angle` (default `π/2`) and the
+tips sweep clockwise over `sweep_total` (default `2π`, must be in
+`(0, 2π]`), keeping their full-circle spacing `sweep_total / N`.
 """
 function options!(
     p::TreePlot;
@@ -110,7 +145,16 @@ function options!(
     font_size=nothing,
     label_offset=nothing,
     stroke_width=nothing,
+    start_angle=nothing,
+    sweep_total=nothing,
 )
+    # Validate the values as stored (a BigFloat can round to 0 or Inf).
+    start_angle = start_angle === nothing ? nothing : Float64(start_angle)
+    sweep_total = sweep_total === nothing ? nothing : Float64(sweep_total)
+    start_angle === nothing || (isfinite(start_angle) && abs(start_angle) <= 2π) ||
+        throw(ArgumentError("start_angle must be in [-2π, 2π], got $(pyfloat(start_angle))"))
+    sweep_total === nothing || (isfinite(sweep_total) && 0 < sweep_total <= 2π) ||
+        throw(ArgumentError("sweep_total must be finite and in (0, 2π], got $(pyfloat(Float64(sweep_total)))"))
     pick(new, old) = new === nothing ? old : Float64(new)
     r = p.scene_opts
     p.scene_opts = SceneOptions(
@@ -120,6 +164,7 @@ function options!(
         pick(font_size, r.font_size),
         pick(label_offset, r.label_offset),
         pick(stroke_width, r.stroke_width),
+        r.orientation,
     )
     c = p.circular_opts
     p.circular_opts = CircularSceneOptions(
@@ -128,8 +173,8 @@ function options!(
         pick(font_size, c.font_size),
         pick(label_offset, c.label_offset),
         pick(stroke_width, c.stroke_width),
-        c.start_angle,
-        c.sweep_total,
+        pick(start_angle, c.start_angle),
+        pick(sweep_total, c.sweep_total),
     )
     return p
 end
@@ -528,6 +573,11 @@ function to_svg(p::TreePlot)
                 p.tree, opts, style, out, err,
             )
         else
+            if p.scene_opts.orientation != 0
+                o = ORIENTATIONS[p.scene_opts.orientation + 1]
+                throw(ArgumentError("orientation $(pyrepr(String(o))) applies to the rectangular layout only; " *
+                                    "the circular layout's direction is set by start_angle and sweep_total"))
+            end
             opts = Ref(p.circular_opts)
             ccall(
                 sym(:ts_render_circular_svg),

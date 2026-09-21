@@ -26,6 +26,7 @@ using Tables
 export TreePlot,
     layout!,
     options!,
+    orientation!,
     highlight_clade!,
     color_tips!,
     join_metadata!,
@@ -36,6 +37,7 @@ export TreePlot,
     support_labels!,
     to_svg,
     to_newick,
+    from_linkage,
     distances,
     save
 

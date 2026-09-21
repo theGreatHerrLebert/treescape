@@ -59,6 +59,7 @@ The circular layout is a polar transform of the rectangular layout. Each node ha
 - Tips at angles `θ_i = start_angle − (i / N) · sweep_total` for `i = 0, 1, …, N-1` in **pre-order traversal of leaves** (same order rectangular uses for y). The minus sign encodes the clockwise sweep direction (see *Sweep direction* below).
 - **`start_angle` default:** `π/2` (90°, 12 o'clock). The first tip in pre-order points straight up. Most published phylogenies orient this way.
 - **`sweep_total` default:** `2π` (full circle). Configurable for fan layouts (e.g. `π` produces a half-fan from 12 o'clock, sweeping clockwise back through east).
+- **Fan layouts (exposed in v0.7):** `options(start_angle=…, sweep_total=…)` in Python and `options!(p; start_angle, sweep_total)` in Julia, in radians. `start_angle` must be in `[−2π, 2π]` and `sweep_total` in `(0, 2π]`; other values raise at the call. Tips keep the full-circle spacing `sweep_total / N` above, so the last tip sits one gap short of `start_angle − sweep_total` (a half fan, `sweep_total = π`, ends at `π/2 − π·(N−1)/N`). The external circular oracles (ete3, ggtree) are compared at the defaults only; fans are covered by Rust↔reference layout parity, the Python↔Julia byte parity cases and the determinism goldens, not by an external oracle.
 - **Sweep direction:** **clockwise** as `i` increases. So with default `start_angle = π/2` and `sweep_total = 2π`, tip 0 is at 12 o'clock and tip `N-1` is just before 12 o'clock again, having swept right (east), down (south), left (west), and back around.
 
   Note: this is *clockwise* on a clock face but *negative-θ* in math convention. We track it by writing `θ_i = start_angle − (i / N) · sweep_total` internally — the minus sign encodes the direction. Choosing clockwise matches the natural "reading direction" for left-to-right languages: tip 0 at top, tip 1 to its right, and so on around the circle.
@@ -167,6 +168,7 @@ Lifts the v0.3+v0.4-Phase-1 `NotImplementedError` for `TreePlot.scale_bar` and `
   - Left endpoint: `bar_x1 = bar_x2 − length · px_per_r`. The bar extends *leftward* from the right edge — opposite of the rectangular convention's "extends right from the left edge" — so the user can ask for any reasonable length without it running off-canvas.
 - **Length scaling.** `length` (in branch-length units) maps to pixels via `px_per_r`, the same scale the radial axis uses. Tip and bar share the same scale by construction.
 - **Ticks + label.** Same as rectangular: end ticks (vertical tick marks at `bar_x1` and `bar_x2`, height `max(font_size · 0.35, 3.0)` px) plus a centered label below the bar at `(bar_x1 + bar_x2) / 2, bar_y + font_size · 1.2`.
+- **Label inside the canvas (v0.7; both layouts, the rectangular bar included).** A label wider than the bar used to be clipped: centred on a bar that touches the padding, half of it fell outside the canvas (the v0.6 gallery showed "5 substitutions/site"). The label stays centred on the bar but moves inward just enough to stay inside the padding. With label width `w` (measured like tip labels): rectangular, `x = max((bar_x1 + bar_x2) / 2, padding + w / 2)`, and the canvas is at least `x + w / 2 + padding` wide; circular, `x = min((bar_x1 + bar_x2) / 2, canvas_width − padding − w / 2)`, and when the bar or the label is wider than `canvas_width − 2 · padding` the canvas widens to the right (to `2 · padding + max(length · px_per_r, w)`; the tree stays centred at `half`, so the canvas is no longer square). A label no wider than its bar (and, for circular plots, a bar that fits the canvas) is not moved, so those outputs are byte-identical to v0.6. Clade highlights keep the tree's own width when the canvas widens for a scale bar. On a small circular tree a long label can overlap the tree and its tip labels.
 - **No calibration-ring alternative.** A circle's circumference is angular, not branch-length — using a unit-radius ring as the "scale" would visually suggest the wrong metric. Rejected up-front; not a deferred decision.
 
 **`.support_labels` on circular: upright text at the projected internal-node position.** Same `min_value` filter API as rectangular.
@@ -461,7 +463,29 @@ A symmetric matrix with a zero diagonal, labels in input order. Each pair is com
 
 The Julia boundary rejects FASTA text (or, for records, the sum of the sequence lengths) over 64 MiB and more than 10,000 sequences with status `1`, before building anything; the FASTA headers are counted first. 10,000 is also the tree builders' limit. The matrix is `n²` doubles, so 10,000 sequences need 800 MB for the matrix alone (twice that while Python converts it to rows), and the `n²/2` pairs each scan the whole alignment. The Python host applies no limit of its own.
 
-## Convention gaps vs external oracles
+## Orientation (v0.7 Phase 3)
+
+`orientation` names the direction the tree grows, from the root towards the tips: `"right"` (the default; root on the left), `"down"` (root at the top, a dendrogram), `"left"` and `"up"`. It applies to the rectangular layout only. Asking for any orientation except `"right"` with the circular layout is an error when the plot is rendered, not ignored; the circular layout's direction is set by `start_angle` and `sweep_total`.
+
+### An exact transform of the `"right"` scene
+
+The layout is unchanged. The `"right"` scene is built exactly as before (so every existing output is unchanged), then every item is transformed. With the `"right"` canvas `W × H`:
+
+| Orientation | Point `(x, y)` → | Canvas | Rectangle `(x, y, w, h)` → | Text anchor | Text rotation |
+|---|---|---|---|---|---|
+| `right` | `(x, y)` | `W × H` | unchanged | unchanged | unchanged |
+| `left` | `(W − x, y)` | `W × H` | `(W − x − w, y, w, h)` | start ↔ end | unchanged |
+| `down` | `(y, x)` | `H × W` | `(y, x, h, w)` | start ↔ end | `θ − 90°` |
+| `up` | `(y, W − x)` | `H × W` | `(y, W − x − w, h, w)` | unchanged | `θ − 90°` |
+
+`left` is a reflection across the vertical axis, `down` a reflection across the diagonal (a transpose), and `up` a rotation by 90° counter-clockwise. The differences are computed as written (`W − x`, in double precision) in both implementations.
+
+- **Tip order:** the first tip stays first: at the top for `right` and `left`, on the left for `down` and `up`.
+- **Tip labels** are placed away from the root. For `down` and `up` they are rotated −90° (they read bottom to top, as in R's `plot(hclust)` and SciPy's `dendrogram`), hanging below the tips for `down` and standing above them for `up`. The anchor swap keeps each label on the far side of its tip, and the text stays centred on its tip's row.
+- **Everything else follows the same transform:** clade highlights, the scale bar and its label, and support labels. The scale bar runs along the depth axis: horizontal for `right` and `left`, vertical for `down` and `up`.
+- A transpose of text would mirror glyphs, so text is never transposed: only its anchor point moves, and the rotation and anchor columns above keep it readable.
+
+
 
 | Convention | treescape | ete3 | Biopython.Phylo | ggtree |
 |---|---|---|---|---|

@@ -83,6 +83,10 @@ GREAT_APES = ["Homo_sapiens", "Pan_troglodytes", "Gorilla_gorilla", "Pongo_abeli
 
 
 TEXTBOOK = [[0, 5, 9, 9, 8], [5, 0, 10, 10, 9], [9, 10, 0, 8, 7], [9, 10, 8, 0, 3], [8, 9, 7, 3, 0]]
+# scipy.cluster.hierarchy.linkage(squareform(TEXTBOOK), "complete"), written out so
+# regenerating the gallery does not need SciPy (the docs example computes it).
+TEXTBOOK_COMPLETE = [[3, 4, 3, 2], [0, 1, 5, 2], [2, 5, 8, 3], [6, 7, 10, 5]]
+PRIMATES_CYTB = REPO / "tests" / "fixtures" / "sequences" / "primates_cytb.fasta"
 
 
 def _base_rectangular() -> TreePlot:
@@ -192,6 +196,19 @@ GALLERY: list[tuple[str, Callable[[], TreePlot]]] = [
         lambda: TreePlot.from_distances(TEXTBOOK, list("abcde"), method="upgma")
         .options(padding=16, px_per_x=40, font_size=12)
         .scale_bar(1.0),
+    ),
+    # v0.7: a SciPy linkage matrix, and a dendrogram from aligned sequences
+    # (primate cytochrome b; scripts/fetch_primates_cytb.py).
+    (
+        "16_from_linkage.svg",
+        lambda: TreePlot.from_linkage(TEXTBOOK_COMPLETE, list("abcde")).options(padding=16, px_per_x=40, font_size=12).scale_bar(1.0),
+    ),
+    (
+        "17_dendrogram_from_sequences.svg",
+        lambda: TreePlot.from_sequences(str(PRIMATES_CYTB), model="jc69", method="upgma")
+        .orientation("down")
+        .options(padding=16, px_per_x=1500, px_per_y=24, font_size=12)
+        .scale_bar(0.02),
     ),
 ]
 

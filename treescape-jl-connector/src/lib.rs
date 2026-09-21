@@ -283,6 +283,7 @@ mod tests {
             font_size: 0.0,
             label_offset: 0.0,
             stroke_width: 0.0,
+            orientation: 0,
         };
         assert_eq!(ts_scene_options_default(&mut opts, null_mut()), TS_OK);
         let mut svg = null_mut();
@@ -291,6 +292,17 @@ mod tests {
             TS_OK
         );
         assert!(take(svg).contains("<svg"));
+        // An orientation code outside 0..=3 is an argument error.
+        let bad = TsSceneOptions {
+            orientation: 4,
+            ..opts
+        };
+        let (mut svg, mut err) = (null_mut(), null_mut());
+        assert_eq!(
+            ts_render_rectangular_svg(tree, &bad, style, &mut svg, &mut err),
+            TS_INVALID_ARGUMENT
+        );
+        assert!(svg.is_null() && take(err).contains("orientation code 4"));
         let mut svg = null_mut();
         assert_eq!(
             ts_render_circular_svg(tree, null(), style, &mut svg, null_mut()),
@@ -521,6 +533,7 @@ mod tests {
             font_size: 12.0,
             label_offset: 4.0,
             stroke_width: 1.0,
+            orientation: 0,
         };
         let (mut svg, mut err) = (null_mut(), null_mut());
         assert_eq!(

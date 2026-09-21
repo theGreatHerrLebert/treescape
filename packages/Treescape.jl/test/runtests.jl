@@ -214,6 +214,19 @@ const META = (tip=["a", "b", "c", "d", "e"], grp=["x", "x", "y", "y", "z"], w=[0
         @test_throws "alphabet must be" distances(text; alphabet = :dna)
     end
 
+    @testset "orientation" begin
+        right = to_svg(TreePlot(NEWICK))
+        @test to_svg(orientation!(TreePlot(NEWICK), :right)) == right
+        down = orientation!(TreePlot(NEWICK), "down")
+        @test occursin("rotate(-90", to_svg(down)) && to_svg(down) != right
+        @test orientation!(down, :right) === down && to_svg(down) == right
+        # options! keeps the orientation.
+        @test options!(orientation!(TreePlot(NEWICK), :up); font_size=14).scene_opts.orientation == 3
+        @test_throws "orientation must be one of ('right', 'down', 'left', 'up'), got 'top'" orientation!(TreePlot(NEWICK), :top)
+        c = layout!(orientation!(TreePlot(NEWICK), :down), :circular)
+        @test_throws "applies to the rectangular layout only" to_svg(c)
+    end
+
     @testset "annotations" begin
         p = scale_bar!(TreePlot(NEWICK), 1e-5)
         @test p.scale_bar == (1e-5, "1e-05")

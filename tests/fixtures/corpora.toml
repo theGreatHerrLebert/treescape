@@ -50,12 +50,14 @@ description = "Data-only Python/Julia parity cases, the docs examples page, and 
 files = [
   "tests/fixtures/parity/cases.toml",
   "docs/examples.md",
+  "docs/matlab.md",
   "tests/fixtures/trees/medium/primates.nwk",
   "tests/fixtures/distances/ties_textbook_5.tsv",
   "tests/fixtures/distances/ties_zero_pairs_6.tsv",
   "tests/fixtures/alignments/doubtful_protein.fasta",
   "tests/fixtures/alignments/gaps_and_ambiguity.fasta",
   "tests/fixtures/alignments/protein.fasta",
+  "tests/fixtures/sequences/primates_cytb.fasta",
 ]
 
 [corpora.gallery]
@@ -76,9 +78,12 @@ files = [
   "assets/gallery/13_branch_width_by_support.svg",
   "assets/gallery/14_nj_from_distances.svg",
   "assets/gallery/15_upgma_from_distances.svg",
+  "assets/gallery/16_from_linkage.svg",
+  "assets/gallery/17_dendrogram_from_sequences.svg",
   "assets/primates.svg",
   "scripts/regen_assets.py",
   "tests/fixtures/trees/medium/primates.nwk",
+  "tests/fixtures/sequences/primates_cytb.fasta",
 ]
 
 [corpora.layout-v2]

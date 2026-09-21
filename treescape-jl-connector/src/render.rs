@@ -5,6 +5,7 @@
 use std::ffi::c_char;
 
 use treescape_core::layout::circular::CircularSceneOptions;
+use treescape_core::layout::orientation::Orientation;
 use treescape_core::layout::rectangular::{
     build_rectangular_scene_with_style, rectangular_layout, SceneOptions,
 };
@@ -27,6 +28,8 @@ pub struct TsSceneOptions {
     pub font_size: f64,
     pub label_offset: f64,
     pub stroke_width: f64,
+    /// 0 right, 1 down, 2 left, 3 up (docs/conventions.md, "Orientation").
+    pub orientation: u32,
 }
 
 /// Circular scene options (the knobs `CircularSceneOptions` exposes to Python).
@@ -42,17 +45,31 @@ pub struct TsCircularSceneOptions {
     pub sweep_total: f64,
 }
 
-impl From<&TsSceneOptions> for SceneOptions {
-    fn from(o: &TsSceneOptions) -> Self {
-        SceneOptions {
+impl TryFrom<&TsSceneOptions> for SceneOptions {
+    type Error = Failure;
+
+    fn try_from(o: &TsSceneOptions) -> FfiResult<Self> {
+        let orientation = match o.orientation {
+            0 => Orientation::Right,
+            1 => Orientation::Down,
+            2 => Orientation::Left,
+            3 => Orientation::Up,
+            code => {
+                return Err(Failure::invalid(format!(
+                    "orientation code {code} is not one of 0 (right), 1 (down), 2 (left), 3 (up)"
+                )))
+            }
+        };
+        Ok(SceneOptions {
             px_per_x: o.px_per_x,
             px_per_y: o.px_per_y,
             padding: o.padding,
             font_size: o.font_size,
             label_offset: o.label_offset,
             stroke_width: o.stroke_width,
+            orientation,
             ..SceneOptions::default()
-        }
+        })
     }
 }
 
@@ -81,6 +98,7 @@ pub extern "C" fn ts_scene_options_default(out: *mut TsSceneOptions, err: *mut *
         font_size: d.font_size,
         label_offset: d.label_offset,
         stroke_width: d.stroke_width,
+        orientation: 0,
     };
     finish(write_out(out, opts, "out"), err)
 }
@@ -134,7 +152,8 @@ pub extern "C" fn ts_render_rectangular_svg(
         let t = handle(tree, "tree")?;
         write_out(out_svg, std::ptr::null_mut(), "out_svg")?;
         let opts: SceneOptions = optional_handle(opts, "opts")?
-            .map(SceneOptions::from)
+            .map(SceneOptions::try_from)
+            .transpose()?
             .unwrap_or_default();
         let svg = if style.is_null() {
             render_rectangular(&t.tree, &opts).map_err(render_err)?

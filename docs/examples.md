@@ -338,8 +338,70 @@ The same matrix with average linkage gives a rooted, ultrametric tree.
 
 ![UPGMA tree from the same matrix](assets/gallery/15_upgma_from_distances.svg)
 
-Matrices from SciPy's `linkage` work too: `TreePlot.from_linkage(Z, labels)`. Input checks, the tie rule and how negative neighbor-joining lengths are handled are pinned in [Conventions](conventions.md#trees-from-distance-matrices-v06-phase-3).
+Input checks, the tie rule and how negative neighbor-joining lengths are handled are pinned in [Conventions](conventions.md#trees-from-distance-matrices-v06-phase-3).
+
+## A SciPy linkage matrix
+
+Any other clustering works through a linkage matrix in SciPy's layout: `n − 1` rows of `(cluster_a, cluster_b, distance, count)`, 0-based. Here, complete linkage on the same matrix. Node heights are half the merge distances, so the path between two tips equals their merge distance (SciPy's `dendrogram` draws at the full distance). MATLAB's `linkage` is 1-based with three columns: `[Z(:, 1:2) - 1, Z(:, 3), zeros(size(Z, 1), 1)]` converts it.
+
+<!-- example: 16_from_linkage.svg -->
+=== "Python"
+
+    ```python
+    from scipy.cluster.hierarchy import linkage
+    from scipy.spatial.distance import squareform
+
+    D = [[0, 5, 9, 9, 8], [5, 0, 10, 10, 9], [9, 10, 0, 8, 7], [9, 10, 8, 0, 3], [8, 9, 7, 3, 0]]
+    Z = linkage(squareform(D), method="complete")
+    p = (
+        TreePlot.from_linkage(Z, ["a", "b", "c", "d", "e"])
+        .options(padding=16, px_per_x=40, font_size=12)
+        .scale_bar(1.0)
+    )
+    ```
+
+=== "Julia"
+
+    ```julia
+    # SciPy's linkage(squareform(D), "complete"), or MATLAB's linkage converted as above.
+    Z = [3 4 3 2; 0 1 5 2; 2 5 8 3; 6 7 10 5]
+    p = from_linkage(Z, ["a", "b", "c", "d", "e"])
+    options!(p; padding=16, px_per_x=40, font_size=12)
+    scale_bar!(p, 1.0)
+    ```
+
+![Complete-linkage tree from a SciPy linkage matrix](assets/gallery/16_from_linkage.svg)
+
+## From aligned sequences to a dendrogram
+
+Aligned FASTA in, tree out: distances (here Jukes–Cantor), UPGMA, drawn top-down with the tips along the bottom. This is `seqpdist(seqs, 'Alphabet', 'NT')` followed by `seqlinkage` in MATLAB (both default methods; see [Coming from MATLAB](matlab.md)). The data are the cytochrome b genes of the 11 primates, from their RefSeq mitochondrial genomes (accessions in the FASTA headers; `scripts/fetch_primates_cytb.py`). UPGMA recovers the accepted primate tree here. `method="nj"` gives neighbor joining, which does not assume a molecular clock but is unrooted: it is drawn from its last join. Models, gaps and ambiguity codes: [Conventions](conventions.md#distances-from-aligned-sequences-v07-phase-2).
+
+<!-- example: 17_dendrogram_from_sequences.svg -->
+=== "Python"
+
+    ```python
+    p = (
+        TreePlot.from_sequences("tests/fixtures/sequences/primates_cytb.fasta", model="jc69", method="upgma")
+        .orientation("down")
+        .options(padding=16, px_per_x=1500, px_per_y=24, font_size=12)
+        .scale_bar(0.02)
+    )
+    ```
+
+=== "Julia"
+
+    ```julia
+    D, labels = distances("tests/fixtures/sequences/primates_cytb.fasta"; model = :jc69)
+    p = TreePlot(D, labels; method = :upgma)
+    orientation!(p, :down)
+    options!(p; padding=16, px_per_x=1500, px_per_y=24, font_size=12)
+    scale_bar!(p, 0.02)
+    ```
+
+![UPGMA dendrogram of primate cytochrome b](assets/gallery/17_dendrogram_from_sequences.svg)
+
+`orientation` is `"right"` (the default), `"down"`, `"left"` or `"up"`: the direction the tree grows. Every annotation turns with it ([Conventions](conventions.md#orientation-v07-phase-3)).
 
 ## In a notebook
 
-In Julia a `TreePlot` displays inline as SVG in Pluto, IJulia and VS Code — no `save` needed. In Jupyter (Python), display the string `to_svg()` returns: `IPython.display.SVG(p.to_svg())`.
+A `TreePlot` displays inline as SVG, no `save` needed: in Jupyter and VS Code notebooks (Python), and in Pluto, IJulia and VS Code (Julia).

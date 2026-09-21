@@ -60,7 +60,8 @@ SVG.
 |---|---|
 | `TreePlot(source)` | `TreePlot(source)` |
 | `layout!(p, :circular)` | `.layout("circular")` |
-| `options!(p; px_per_x, px_per_y, padding, font_size, label_offset, stroke_width)` | `.options(...)` |
+| `orientation!(p, :down)` (`:right`, `:down`, `:left`, `:up`) | `.orientation("down")` |
+| `options!(p; px_per_x, px_per_y, padding, font_size, label_offset, stroke_width, start_angle, sweep_total)` | `.options(...)` |
 | `highlight_clade!(p, tips; color, alpha)` | `.highlight_clade(...)` |
 | `color_tips!(p, mapping)` | `.color_tips(...)` |
 | `join_metadata!(p, table; on)` | `.join_metadata(df, on=...)` |
@@ -86,6 +87,19 @@ D = [0 5 9 9 8; 5 0 10 10 9; 9 10 0 8 7; 9 10 8 0 3; 8 9 7 3 0]
 p = TreePlot(D, ["a", "b", "c", "d", "e"])                   # neighbor joining
 q = TreePlot(D, ["a", "b", "c", "d", "e"]; method = :upgma)  # UPGMA
 to_newick(p)
+
+Z = [3 4 3 2; 0 1 5 2; 2 5 8 3; 6 7 10 5]    # a SciPy linkage matrix (0-based)
+r = from_linkage(Z, ["a", "b", "c", "d", "e"])
 ```
 
 Same trees, same bytes as Python's `TreePlot.from_distances`. Error messages carry the same text as Python's, including **0-based** matrix indices: `D[0][1]` is Julia's `D[1, 2]`. Only the upper triangle is read, so an asymmetric matrix is reported at its upper-triangle cell.
+
+## Trees from aligned sequences
+
+```julia
+D, labels = distances("aligned.fasta"; model = :jc69)      # :p, :jc69, :k2p; proteins :p, :jc69, :poisson
+p = orientation!(TreePlot(D, labels; method = :upgma), :down)
+distances(["a" => "ACGT", "b" => "ACGA"]; model = :p)       # pairs or a Dict work too
+```
+
+`distances` takes FASTA text, a file path, or `label => sequence` pairs. The sequences must already be aligned; gaps and ambiguity codes are removed pair by pair. Short proteins can look like nucleotides: pass `alphabet = :protein` (a `@warn` suggests it when auto-detection looks doubtful). Same numbers and errors as Python's `treescape.distances`; the rules are in `docs/conventions.md`, "Distances from aligned sequences".

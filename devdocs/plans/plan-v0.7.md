@@ -66,7 +66,7 @@ p = TreePlot(D, labels; method = :nj)
 ### Phase 3: vertical dendrograms and the practical-facing docs
 
 - **Orientation:** `TreePlot(...).orientation("down")` (Python) / `orientation!(p, :down)` (Julia): root at the top, tips at the bottom, labels below the tips. Values are `"right"` (the current default, root on the left), `"down"`, `"left"` and `"up"`; the name gives the direction the tree grows. Only the rectangular layout is affected. The default output does not change: **zero golden regeneration**.
-  - **Claim:** `treescape-orientation-is-a-rotation` (ci). For every tree in `layout-v2` and every orientation, each node's drawn position equals the validated rectangular coordinate under the documented rotation or reflection, exactly. Goldens for each orientation join `treescape-svg-determinism`.
+  - **Claim:** `treescape-orientation-transform` (ci). For every tree in `layout-v2` and every orientation, each node's drawn position equals the validated rectangular coordinate under the documented rotation or reflection, exactly. Goldens for each orientation join `treescape-svg-determinism`.
 - **Docs:**
   - A tested `from_linkage` example with a gallery image (from the v0.6 backlog).
   - An "From sequences" example: aligned FASTA → distances → NJ → vertical dendrogram, in Python and Julia, executed in CI like the other examples.

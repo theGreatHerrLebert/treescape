@@ -187,6 +187,25 @@ class TreePlot:
         self._layout = kind
         return self
 
+    def orientation(self, direction: str) -> "TreePlot":
+        """The direction the tree grows, from the root towards the tips:
+        ``"right"`` (default; root on the left), ``"down"`` (root at the
+        top, a dendrogram), ``"left"`` or ``"up"``. Rectangular layout
+        only; rendering a circular plot with any other value than
+        ``"right"`` is an error. See ``docs/conventions.md``,
+        "Orientation"."""
+        o = self._scene_opts
+        self._scene_opts = SceneOptions(
+            px_per_x=o.px_per_x,
+            px_per_y=o.px_per_y,
+            padding=o.padding,
+            font_size=o.font_size,
+            label_offset=o.label_offset,
+            stroke_width=o.stroke_width,
+            orientation=direction,
+        )
+        return self
+
     def tips(self, label: str = "name") -> "TreePlot":
         """Configure tip labels.
 
@@ -209,9 +228,18 @@ class TreePlot:
         font_size: Optional[float] = None,
         label_offset: Optional[float] = None,
         stroke_width: Optional[float] = None,
+        start_angle: Optional[float] = None,
+        sweep_total: Optional[float] = None,
     ) -> "TreePlot":
         """Override scene-build options. Any value left as ``None`` keeps
         the current default.
+
+        ``start_angle`` and ``sweep_total`` (radians; circular only) make a
+        fan: the first tip points at ``start_angle`` (default ``π/2``, 12
+        o'clock) and the tips sweep clockwise over ``sweep_total``
+        (default ``2π``; must be in ``(0, 2π]``). Tips keep their
+        full-circle spacing ``sweep_total / N``, so a fan ends one gap
+        short of ``start_angle − sweep_total`` (``docs/conventions.md``).
 
         Shared knobs (``padding``, ``font_size``, ``label_offset``,
         ``stroke_width``) and ``px_per_x`` (which maps to ``px_per_r``
@@ -223,6 +251,13 @@ class TreePlot:
         are measured via fontdue against the bundled DejaVu Sans. See
         ``docs/conventions.md`` for the full convention.
         """
+        # Validate the values as stored (a Decimal or huge int can round to 0 or inf).
+        start_angle = None if start_angle is None else float(start_angle)
+        sweep_total = None if sweep_total is None else float(sweep_total)
+        if start_angle is not None and not (math.isfinite(start_angle) and abs(start_angle) <= math.tau):
+            raise ValueError(f"start_angle must be in [-2π, 2π], got {start_angle!r}")
+        if sweep_total is not None and not (math.isfinite(sweep_total) and 0 < sweep_total <= math.tau):
+            raise ValueError(f"sweep_total must be finite and in (0, 2π], got {sweep_total!r}")
         rect_kwargs = {
             "px_per_x": self._scene_opts.px_per_x,
             "px_per_y": self._scene_opts.px_per_y,
@@ -241,7 +276,7 @@ class TreePlot:
         ):
             if value is not None:
                 rect_kwargs[key] = value
-        self._scene_opts = SceneOptions(**rect_kwargs)
+        self._scene_opts = SceneOptions(**rect_kwargs, orientation=self._scene_opts.orientation)
 
         circ_kwargs = {
             "px_per_r": self._circular_opts.px_per_r,
@@ -258,6 +293,8 @@ class TreePlot:
             ("font_size", font_size),
             ("label_offset", label_offset),
             ("stroke_width", stroke_width),
+            ("start_angle", start_angle),
+            ("sweep_total", sweep_total),
         ):
             if value is not None:
                 circ_kwargs[key] = value
@@ -706,6 +743,11 @@ class TreePlot:
                 )
             return render_rectangular_svg(self._tree, self._scene_opts)
         if self._layout == "circular":
+            if self._scene_opts.orientation != "right":
+                raise ValueError(
+                    f"orientation {self._scene_opts.orientation!r} applies to the rectangular layout only; "
+                    "the circular layout's direction is set by start_angle and sweep_total"
+                )
             # v0.4 Phase 2 closes the circular feature gap: .scale_bar
             # and .support_labels now route through the styled circular
             # path. Every styling primitive v0.3+v0.4 covers works on
@@ -737,6 +779,10 @@ class TreePlot:
         """Render and write SVG to ``path``."""
         Path(path).write_text(self.to_svg())
         return self
+
+    def _repr_svg_(self) -> str:
+        """Inline display in Jupyter and other rich front ends."""
+        return self.to_svg()
 
     def __repr__(self) -> str:
         return (

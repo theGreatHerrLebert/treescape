@@ -986,7 +986,11 @@ claims:
       - The square canvas inscribes a circle of radius
         radius_px + label_offset + max_label_px. The bottom-right
         corner is reliably empty space outside that inscribed circle,
-        so a scale bar placed there does not overlap the tree.
+        so a scale bar placed there does not overlap the tree. Since
+        v0.7 a scale bar or label wider than the canvas widens it to the
+        right (the tree stays centred), and a label wider than its bar
+        moves left to stay inside the canvas; a very long label can
+        then overlap the tree and its tip labels.
       - Support labels are short numerics in practice (bootstrap
         values, posterior probabilities); crowding at the tree's
         inner regions where internal nodes cluster is acknowledged
@@ -1081,7 +1085,7 @@ claims:
       corpus: "gallery"
       n: 20
       classes: [fixture, random-sample, synthetic]
-      corpus_sha: "sha256:8076cb5a3214ea9f3178f2555cfdaf77bc2bf5859a880cae4007d2903a2964ab"
+      corpus_sha: "sha256:b0fc007b303f5933ad8432bd40061605d6dd3ba46796428d05aa706b5eae0c81"
     pinned_versions:
       treescape: "0.6.0"
       treescape-reference: "0.6.0"
@@ -1142,8 +1146,9 @@ claims:
       interpreted independently by a Python and a Julia driver — the
       SVG from `Treescape.jl` is byte-identical to the SVG from the
       Python `treescape` package. The cases cover both layouts, every
-      knob `TreePlot.options` exposes (fan sweeps are not reachable from
-      either TreePlot API and are not covered), clade highlights (hex and
+      knob `TreePlot.options` exposes (including a half fan since v0.7),
+      every orientation, trees from distance matrices, linkage matrices
+      and aligned sequences, clade highlights (hex and
       tuple colors, alpha handling including a round-half-to-even tie),
       explicit tip colors, metadata joins with missing tips, discrete and
       continuous tip and branch coloring (default and explicit palettes,
@@ -1153,7 +1158,8 @@ claims:
       same Julia driver also reproduces every committed
       `assets/gallery/` SVG and `assets/primates.svg` byte for byte.
       v0.5 Phase 3 extends coverage to the documentation: every example
-      on the docs site (`docs/examples.md`) is executed in both
+      on the docs site (`docs/examples.md`, and since v0.7
+      `docs/matlab.md`; the MATLAB column is shown, not run) is executed in both
       languages, and each Python and each Julia block must produce the
       exact bytes of the gallery SVG the page displays next to it.
       This is a binding-fidelity claim: both hosts drive the same Rust
@@ -1163,14 +1169,15 @@ claims:
     subsystem: julia-binding
     inputs:
       corpus: "parity-cases"
-      n: 58
+      n: 64
       class: fixture
-      corpus_sha: "sha256:6a8169c22afa22aee01df44970fd846f47387354001244c734f370f385186aaf"
+      corpus_sha: "sha256:81403f2f2c8c074797e05a3ac6f217766dd095d598eae196153c5c956be432ef"
     pinned_versions:
       treescape: "0.6.0"
       julia: "1.10 and 1.12"
       treescape-python: "0.6.0"
       golden-snapshots: "0.6.0"
+      SciPy: "1.18.1"
     tolerances:
       - metric: mismatch_count
         op: "=="
@@ -1227,7 +1234,7 @@ claims:
     subsystem: ffi
     inputs:
       corpus: "packages/Treescape.jl/test/ffi_no_abort.jl"
-      n: 1636
+      n: 1653
       class: synthetic
     pinned_versions:
       treescape: "0.6.0"
@@ -1640,9 +1647,9 @@ claims:
     subsystem: render
     inputs:
       corpus: "gallery"
-      n: 16
+      n: 18
       class: fixture
-      corpus_sha: "sha256:8076cb5a3214ea9f3178f2555cfdaf77bc2bf5859a880cae4007d2903a2964ab"
+      corpus_sha: "sha256:b0fc007b303f5933ad8432bd40061605d6dd3ba46796428d05aa706b5eae0c81"
     pinned_versions:
       treescape: "0.6.0"
       golden-snapshots: "0.6.0"
@@ -1818,3 +1825,65 @@ claims:
     failure_modes:
       - Both implementations compute a protein model wrong in the same way;
         the hand-computed cases are the guard.
+
+  - id: treescape-orientation-transform
+    title: Every orientation draws each node exactly where the documented transform of the validated layout puts it
+    case: cases/treescape.md
+    source: treescape-core
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/docs/reference/patterns.md#reference-shadowing
+    claim: >
+      For every tree in the layout-v2 corpus and every orientation
+      ("right", "down", "left", "up"), the rectangular SVG rendered by
+      the Rust core draws every branch segment and every tip label
+      exactly where the orientation's transform (docs/conventions.md,
+      "Orientation": the identity, a reflection across the vertical
+      axis, a transpose, or a rotation by 90 degrees) puts the node's
+      validated rectangular coordinate: equal at the SVG's four-decimal
+      precision, with the documented label anchor and rotation. The
+      Python reference renders the same bytes for every tree and
+      orientation. Orientation adds no change to "right" output (the
+      same scene is built, then left as is); annotated goldens for every
+      orientation (highlight, tip colours, support labels, scale bar)
+      guard the items the position check does not cover.
+    subsystem: render
+    inputs:
+      corpus: "layout-v2"
+      n: 66
+      class: fixture
+      corpus_sha: "sha256:9d790ad3e3daa307bc745e7223873881632c566499b4e09d038ef3e5418b1b68"
+    pinned_versions:
+      treescape: "0.6.0"
+      treescape-reference: "0.6.0"
+      self-consistency: "0.6.0"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Every segment and tip label at its expected position (four decimals); identical bytes to the reference."
+    evidence:
+      oracle:
+        - self-consistency
+        - treescape-reference
+      command: pytest tests/oracle/test_orientation.py -v
+      artifact: tests/oracle/reports/orientation.json
+    assumptions:
+      - The rectangular coordinates themselves are validated by the
+        layout claims (ete3, Biopython, ggtree, reference); this claim
+        checks only how they are drawn.
+      - The expected positions are computed in the runner from the
+        layout coordinates and the formulas in docs/conventions.md, not
+        by calling the transform under test.
+      - The reference's rectangular builder has no scale bar or support
+        labels (a gap since v0.4), so the byte comparison with the
+        reference covers plain trees; oriented annotations rest on the
+        transform being item-generic plus Rust-generated goldens.
+    failure_modes:
+      - The transform is applied to some item kinds and not others
+        (for example highlights or the scale bar); goldens for each
+        orientation with every annotation catch that, the position
+        check covers branches and tip labels.
+      - A label is readable but on the wrong side of its tip; the
+        anchor and rotation are checked per label.

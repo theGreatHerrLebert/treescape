@@ -19,6 +19,8 @@ multi = { newick = "((a:1,b:1,c:1):1,(d:1,:1):2,e:0.5);" }
 textbook_nj = { distances = "tests/fixtures/distances/ties_textbook_5.tsv", method = "nj" }
 gaps_k2p_nj = { sequences = "tests/fixtures/alignments/gaps_and_ambiguity.fasta", model = "k2p", method = "nj" }
 protein_poisson_upgma = { sequences = "tests/fixtures/alignments/protein.fasta", model = "poisson", method = "upgma" }
+textbook_complete_linkage = { linkage = [[3, 4, 3, 2], [0, 1, 5, 2], [2, 5, 8, 3], [6, 7, 10, 5]], labels = ["a", "b", "c", "d", "e"] }
+primates_cytb_upgma = { sequences = "tests/fixtures/sequences/primates_cytb.fasta", model = "jc69", method = "upgma" }
 doubtful_protein_nj = { sequences = "tests/fixtures/alignments/doubtful_protein.fasta", model = "jc69", alphabet = "protein", method = "nj" }
 textbook_upgma = { distances = "tests/fixtures/distances/ties_textbook_5.tsv", method = "upgma" }
 zeros_upgma = { distances = "tests/fixtures/distances/ties_zero_pairs_6.tsv", method = "upgma" }
@@ -422,3 +424,68 @@ ops = [{ op = "layout", args = ["circular"] }]
 name = "sequences_explicit_protein_alphabet"
 tree = "doubtful_protein_nj"
 ops = []
+
+# --- orientation (v0.7 Phase 3) -----------------------------------------------
+
+[[cases]]
+name = "orientation_down_annotated"
+tree = "primates"
+ops = [
+  { op = "orientation", args = ["down"] },
+  { op = "options", kwargs = { px_per_x = 1200 } },
+  { op = "highlight_clade", args = [["Homo_sapiens", "Pan_troglodytes", "Gorilla_gorilla"]], kwargs = { color = "#ffb84d", alpha = 0.35 } },
+  { op = "color_tips", args = [{ Macaca_mulatta = "#1f77b4" }] },
+  { op = "scale_bar", args = [0.05, "0.05 substitutions/site"] },
+]
+
+[[cases]]
+name = "orientation_left_support"
+tree = "support"
+ops = [
+  { op = "orientation", args = ["left"] },
+  { op = "support_labels", kwargs = { min_value = 80 } },
+  { op = "scale_bar", args = [0.1] },
+]
+
+[[cases]]
+name = "orientation_up_after_options"
+tree = "support"
+ops = [
+  { op = "options", kwargs = { px_per_y = 30, font_size = 14 } },
+  { op = "orientation", args = ["up"] },
+  { op = "options", kwargs = { padding = 20 } },
+  { op = "support_labels" },
+]
+
+# --- fan layouts (v0.7 Phase 3) -----------------------------------------------
+
+[[cases]]
+name = "fan_half_highlight_scale_bar"
+tree = "primates"
+ops = [
+  { op = "layout", args = ["circular"] },
+  { op = "options", kwargs = { px_per_x = 1200, start_angle = 3.141592653589793, sweep_total = 3.141592653589793 } },
+  { op = "highlight_clade", args = [["Homo_sapiens", "Pan_troglodytes", "Gorilla_gorilla"]], kwargs = { color = "#ffb84d", alpha = 0.35 } },
+  { op = "scale_bar", args = [0.05] },
+]
+
+# --- v0.7 gallery ---------------------------------------------------------------
+
+[[cases]]
+name = "gallery_16_from_linkage"
+tree = "textbook_complete_linkage"
+expect_file = "assets/gallery/16_from_linkage.svg"
+ops = [
+  { op = "options", kwargs = { padding = 16, px_per_x = 40, font_size = 12 } },
+  { op = "scale_bar", args = [1.0] },
+]
+
+[[cases]]
+name = "gallery_17_dendrogram_from_sequences"
+tree = "primates_cytb_upgma"
+expect_file = "assets/gallery/17_dendrogram_from_sequences.svg"
+ops = [
+  { op = "orientation", args = ["down"] },
+  { op = "options", kwargs = { padding = 16, px_per_x = 1500, px_per_y = 24, font_size = 12 } },
+  { op = "scale_bar", args = [0.02] },
+]

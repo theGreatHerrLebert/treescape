@@ -404,12 +404,24 @@ for fn in (:ts_render_rectangular_svg, :ts_render_circular_svg)
             render(tree, fn, C_NULL, s, err)
         end
     end
+    fn === :ts_render_rectangular_svg && for code in (UInt32(4), typemax(UInt32))
+        case("$fn orientation code $code", [1]) do err
+            opts = Ref(Treescape.SceneOptions(60.0, 18.0, 12.0, 12.0, 4.0, 1.0, code))
+            render(tree, fn, Base.unsafe_convert(Ptr{Cvoid}, opts), C_NULL, err)
+        end
+    end
     for special in (NaN, Inf, -Inf, -5.0, 0.0)
         case("$fn options $special", ANY_STATUS) do err
             opts = fn === :ts_render_rectangular_svg ?
-                Ref(Treescape.SceneOptions(special, special, special, special, special, special)) :
+                Ref(Treescape.SceneOptions(special, special, special, special, special, special, UInt32(1))) :
                 Ref(Treescape.CircularSceneOptions(special, special, special, special, special, special, special))
             render(tree, fn, Base.unsafe_convert(Ptr{Cvoid}, opts), C_NULL, err)
+        end
+        fn === :ts_render_rectangular_svg && for code in UInt32[0, 2, 3]
+            case("$fn orientation $code options $special", ANY_STATUS) do err
+                opts = Ref(Treescape.SceneOptions(special, special, special, special, special, special, code))
+                render(tree, fn, Base.unsafe_convert(Ptr{Cvoid}, opts), C_NULL, err)
+            end
         end
         case("$fn styled specials $special", ANY_STATUS) do err
             with_style() do s

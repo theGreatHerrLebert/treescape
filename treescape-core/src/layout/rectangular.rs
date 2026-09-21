@@ -7,6 +7,7 @@
 use std::collections::HashMap;
 
 use crate::clades::{clade_tips, find_mrca};
+use crate::layout::orientation::{orient_scene, Orientation};
 use crate::layout::scene::{Canvas, Color, Scene, SceneItem, TextAnchor};
 use crate::tree::Tree;
 
@@ -146,6 +147,8 @@ pub struct SceneOptions {
     pub stroke_width: f64,
     /// Tip label color.
     pub label_color: Color,
+    /// The direction the tree grows (docs/conventions.md, "Orientation").
+    pub orientation: Orientation,
 }
 
 impl Default for SceneOptions {
@@ -160,6 +163,7 @@ impl Default for SceneOptions {
             stroke: Color::black(),
             stroke_width: 1.0,
             label_color: Color::black(),
+            orientation: Orientation::Right,
         }
     }
 }
@@ -238,11 +242,23 @@ pub fn build_rectangular_scene_with_style(
     } else {
         0.0
     };
+    // The scale-bar label is centred on the bar, shifted right just
+    // enough to stay inside the padding when it is wider than the bar;
+    // the canvas grows to fit it (docs/conventions.md).
+    let scale_bar_label_x = |s: &ScaleBar| {
+        let label_w = measure_width(&s.label, opts.font_size);
+        let mid = (opts.padding + (opts.padding + s.length * opts.px_per_x)) * 0.5;
+        (mid.max(opts.padding + label_w * 0.5), label_w)
+    };
     let scale_bar_width = style
         .scale_bar
         .as_ref()
         .filter(|s| s.length > 0.0)
-        .map(|s| opts.padding * 2.0 + s.length * opts.px_per_x)
+        .map(|s| {
+            let (label_x, label_w) = scale_bar_label_x(s);
+            (opts.padding * 2.0 + s.length * opts.px_per_x)
+                .max(label_x + label_w * 0.5 + opts.padding)
+        })
         .unwrap_or(0.0);
     let content_width =
         opts.padding * 2.0 + x_span * opts.px_per_x + opts.label_offset + max_label_px;
@@ -274,7 +290,9 @@ pub fn build_rectangular_scene_with_style(
         let half_row = opts.px_per_y * 0.5;
         let rx = to_px_x(layout.x[mrca]);
         let ry = opts.padding + min_ty * opts.px_per_y - half_row;
-        let rw = canvas.width - rx - opts.padding;
+        // The tree's own width: a canvas widened for the scale bar must not
+        // stretch highlights (docs/conventions.md).
+        let rw = content_width - rx - opts.padding;
         let rh = (max_ty - min_ty) * opts.px_per_y + 2.0 * half_row;
         items.push(SceneItem::Rect {
             x: rx,
@@ -401,7 +419,7 @@ pub fn build_rectangular_scene_with_style(
                 });
             }
             items.push(SceneItem::Text {
-                x: (bar_x1 + bar_x2) * 0.5,
+                x: scale_bar_label_x(scale_bar).0,
                 y: bar_y + opts.font_size * 1.2,
                 text: scale_bar.label.clone(),
                 font_size: opts.font_size,
@@ -413,7 +431,7 @@ pub fn build_rectangular_scene_with_style(
         }
     }
 
-    Scene { canvas, items }
+    orient_scene(Scene { canvas, items }, opts.orientation)
 }
 
 #[cfg(test)]

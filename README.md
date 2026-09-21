@@ -83,6 +83,7 @@ Every correctness claim is pinned in [`evident.yaml`](evident.yaml) — the [EVI
 | Trees from distance matrices: neighbor joining | scikit-bio, Biopython, R/ape; and recovery of the true tree from exact tree distances | exact splits; edge lengths 1e-9 |
 | Trees from distance matrices: UPGMA | SciPy, R/phangorn | exact clades; heights 1e-9 |
 | Distances from aligned sequences (p, JC69, K2P; protein p, JC69, Poisson) | scikit-bio, R/ape; hand-computed protein values | 1e-12 per pair |
+| Orientation (dendrograms: root at the top, bottom, left or right) | the validated rectangular layout under the documented transform; the Python reference | exact, every branch and tip label |
 | Installed packages, all five platforms | the committed gallery | byte-identical |
 | Label widths | fontTools reading the same font | 0.5 px |
 | Python ↔ Julia output | each other, and every gallery file | byte-identical |

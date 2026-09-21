@@ -5,7 +5,7 @@ use std::ffi::{c_char, CStr, CString};
 use crate::TS_INVALID_ARGUMENT;
 
 /// ABI version checked by Treescape.jl at load time.
-pub const ABI_VERSION: u32 = 4;
+pub const ABI_VERSION: u32 = 5;
 
 #[no_mangle]
 pub extern "C" fn ts_abi_version() -> u32 {

@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List as ListT
 
 from .layout import circular_layout, clade_tips, find_mrca, rectangular_layout
+from .orientation import check_orientation, orient_scene
 from .newick import Tree
 from .scene import (
     BLACK,
@@ -103,6 +104,8 @@ class SceneOptions:
     stroke: Color = BLACK
     stroke_width: float = 1.0
     label_color: Color = BLACK
+    # "right" | "down" | "left" | "up" (docs/conventions.md, "Orientation").
+    orientation: str = "right"
 
 
 def monospace_measurer(text: str, font_size: float, *, avg_glyph_width: float = 0.6) -> float:
@@ -124,6 +127,7 @@ def build_rectangular_scene(
     if style is None:
         style = StyleSpec()
 
+    check_orientation(opts.orientation)
     if tree.root is None:
         return Scene(canvas=Canvas(0.0, 0.0), items=[])
 
@@ -235,7 +239,7 @@ def build_rectangular_scene(
             )
         )
 
-    return Scene(canvas=canvas, items=items)
+    return orient_scene(Scene(canvas=canvas, items=items), opts.orientation)
 
 
 def build_circular_scene(
@@ -284,7 +288,13 @@ def build_circular_scene(
     radius_px = max_r * opts.px_per_x
     half = opts.padding + radius_px + opts.label_offset + max_label_px
     canvas_size = 2.0 * half
-    canvas = Canvas(width=canvas_size, height=canvas_size)
+    width = canvas_size
+    if style.scale_bar is not None and style.scale_bar.length > 0:
+        # A scale bar or label wider than the canvas widens it to the
+        # right; the tree stays centred at `half` (docs/conventions.md).
+        bar_w = max(style.scale_bar.length * opts.px_per_x, measure(style.scale_bar.label, opts.font_size))
+        width = max(width, 2.0 * opts.padding + bar_w)
+    canvas = Canvas(width=width, height=canvas_size)
     cx = cy = half
 
     def project(r: float, theta: float) -> tuple[float, float]:
@@ -478,9 +488,12 @@ def build_circular_scene(
                     stroke_width=opts.stroke_width,
                 )
             )
+        # Centred on the bar, shifted left just enough to stay inside the
+        # padding when the label is wider than the bar.
+        label_w = measure(style.scale_bar.label, opts.font_size)
         items.append(
             Text(
-                x=(bar_x1 + bar_x2) * 0.5,
+                x=min((bar_x1 + bar_x2) * 0.5, canvas.width - opts.padding - label_w * 0.5),
                 y=bar_y + opts.font_size * 1.2,
                 text=style.scale_bar.label,
                 font_size=opts.font_size,

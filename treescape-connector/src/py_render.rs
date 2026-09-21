@@ -7,6 +7,7 @@ use pyo3::prelude::*;
 use std::collections::HashMap;
 
 use treescape_core::layout::circular::CircularSceneOptions as CoreCircularSceneOptions;
+use treescape_core::layout::orientation::Orientation;
 use treescape_core::layout::rectangular::rectangular_layout;
 use treescape_core::layout::rectangular::{
     build_rectangular_scene_with_style, CladeHighlight, ScaleBar, SceneOptions as CoreSceneOptions,
@@ -36,6 +37,7 @@ impl PySceneOptions {
         font_size = 12.0,
         label_offset = 4.0,
         stroke_width = 1.0,
+        orientation = "right",
     ))]
     fn new(
         px_per_x: f64,
@@ -44,13 +46,15 @@ impl PySceneOptions {
         font_size: f64,
         label_offset: f64,
         stroke_width: f64,
-    ) -> Self {
+        orientation: &str,
+    ) -> PyResult<Self> {
         // v0.2 dropped the `avg_glyph_width` knob: tip-label widths
         // are measured via fontdue against the bundled DejaVu Sans.
         // The legacy 0.6-em fallback is still reachable via the bare
         // `treescape_core::layout::rectangular::build_rectangular_scene`
         // function but is not surfaced through the Python API.
-        Self {
+        let orientation = Orientation::parse(orientation).map_err(PyValueError::new_err)?;
+        Ok(Self {
             inner: CoreSceneOptions {
                 px_per_x,
                 px_per_y,
@@ -58,9 +62,10 @@ impl PySceneOptions {
                 font_size,
                 label_offset,
                 stroke_width,
+                orientation,
                 ..CoreSceneOptions::default()
             },
-        }
+        })
     }
 
     #[getter]
@@ -86,6 +91,10 @@ impl PySceneOptions {
     #[getter]
     fn stroke_width(&self) -> f64 {
         self.inner.stroke_width
+    }
+    #[getter]
+    fn orientation(&self) -> &'static str {
+        self.inner.orientation.name()
     }
 }
 

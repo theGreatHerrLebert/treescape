@@ -305,3 +305,20 @@ def test_fasta_file_bare_cr_is_not_a_line_break(tmp_path) -> None:
     assert distances.read_fasta(path) == [("a", "")]
     path.write_bytes(b">a\r\nACGT\r\n>b\r\nACGA\r\n")
     assert distances.read_fasta(path) == [("a", "ACGT"), ("b", "ACGA")]
+
+
+@pytest.mark.parametrize("layout", ["rectangular", "circular"])
+@pytest.mark.parametrize("label", ["0.05", "0.05 substitutions/site", "a much longer scale bar label than the bar"])
+def test_scale_bar_label_stays_inside_the_canvas(layout, label) -> None:
+    """v0.6 clipped a label wider than its bar (docs/conventions.md)."""
+    import xml.etree.ElementTree as ET
+
+    from treescape_connector.py_render import text_width
+
+    svg = TreePlot("((a:1,b:1):1,(c:1,d:2):1);").layout(layout).options(px_per_x=20).scale_bar(0.5, label).to_svg()
+    root = ET.fromstring(svg.encode())
+    ns = "{http://www.w3.org/2000/svg}"
+    (text,) = [t for t in root.iter(f"{ns}text") if t.text == label]
+    x, w = float(text.get("x")), text_width(label, 12.0)
+    assert text.get("text-anchor") == "middle"
+    assert x - w / 2 >= 12.0 - 1e-3 and x + w / 2 <= float(root.get("width")) - 12.0 + 1e-3
