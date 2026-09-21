@@ -1,0 +1,47 @@
+[[libtreescape_jl_connector]]
+arch = "aarch64"
+git-tree-sha1 = "f9d8b05b8377af0791e7f708b1ed1c74270f96dd"
+lazy = true
+os = "macos"
+
+    [[libtreescape_jl_connector.download]]
+    sha256 = "b6b854d31d3f1f586629e22893b3766cf5bffdeb3efa384be61564fc75dd2137"
+    url = "https://github.com/theGreatHerrLebert/treescape/releases/download/jl-connector-v0.7.0/libtreescape_jl_connector-v0.7.0-aarch64-apple-darwin.tar.gz"
+[[libtreescape_jl_connector]]
+arch = "aarch64"
+git-tree-sha1 = "e61eda0d262b9a1040971f99eae67cab3504129d"
+lazy = true
+libc = "glibc"
+os = "linux"
+
+    [[libtreescape_jl_connector.download]]
+    sha256 = "2d505c14edb24f196d6fe0e5ac11b20409c43a3b89f391172c44045d1b045f6e"
+    url = "https://github.com/theGreatHerrLebert/treescape/releases/download/jl-connector-v0.7.0/libtreescape_jl_connector-v0.7.0-aarch64-linux-gnu.tar.gz"
+[[libtreescape_jl_connector]]
+arch = "x86_64"
+git-tree-sha1 = "881675659f15ba484b5eae9d8c230be3fed49feb"
+lazy = true
+os = "macos"
+
+    [[libtreescape_jl_connector.download]]
+    sha256 = "814f393b24097d4fdaad9eac47e6c7addce32bf34e79bb4aa71669391d9db393"
+    url = "https://github.com/theGreatHerrLebert/treescape/releases/download/jl-connector-v0.7.0/libtreescape_jl_connector-v0.7.0-x86_64-apple-darwin.tar.gz"
+[[libtreescape_jl_connector]]
+arch = "x86_64"
+git-tree-sha1 = "4d826c8544d69987394d3e66b5995757042e65de"
+lazy = true
+libc = "glibc"
+os = "linux"
+
+    [[libtreescape_jl_connector.download]]
+    sha256 = "c4ead5d6a24ea33e999dc9b2dfacdef50bccaa2ddeba31a23d6c8e3c82370af0"
+    url = "https://github.com/theGreatHerrLebert/treescape/releases/download/jl-connector-v0.7.0/libtreescape_jl_connector-v0.7.0-x86_64-linux-gnu.tar.gz"
+[[libtreescape_jl_connector]]
+arch = "x86_64"
+git-tree-sha1 = "28c265d82124ab923d20c42ce74dfe7899ab25dd"
+lazy = true
+os = "windows"
+
+    [[libtreescape_jl_connector.download]]
+    sha256 = "5bc38574959e823926775c938adaa23a964045b2aa917c37078f635fd6bc53a7"
+    url = "https://github.com/theGreatHerrLebert/treescape/releases/download/jl-connector-v0.7.0/libtreescape_jl_connector-v0.7.0-x86_64-w64-mingw32.tar.gz"
