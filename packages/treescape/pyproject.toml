@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "treescape"
-version = "0.5.0"
+version = "0.6.0"
 description = "Python-native phylogenetic tree visualization with a Rust core."
 readme = "README.md"
 license = { text = "MIT" }
@@ -14,7 +14,7 @@ authors = [
 ]
 dependencies = [
     "polars>=1.0",
-    "treescape_connector>=0.5.0",
+    "treescape_connector>=0.6.0",
 ]
 
 [project.optional-dependencies]

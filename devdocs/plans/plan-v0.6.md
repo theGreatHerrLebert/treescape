@@ -1,6 +1,6 @@
 # v0.6 plan
 
-**Status: approved 2026-09-21** (user greenlight after v0.5.0; decisions 1 and 3 at their recommended defaults; decision 2 answered: no MATLAB; decision 4 open — it only gates the course fixtures). Same cadence as v0.1–v0.5: tight scope, EVIDENT claims pinned **before** the code, Python reference first then Rust port, external review at the end of each phase.
+**Status: approved 2026-09-21** (user greenlight after v0.5.0; decisions 1 and 3 at their recommended defaults; decision 2: no MATLAB available; decision 4: course data moved to v0.7). Same cadence as v0.1–v0.5: tight scope, EVIDENT claims pinned **before** the code, Python reference first then Rust port, external review at the end of each phase.
 
 ## Theme
 
@@ -167,7 +167,7 @@ Claim count after v0.6: 21 + 5 = **26**.
 1. **Scope order:** Phases 1–2 (evidence plumbing) before Phase 3 (NJ/UPGMA). Recommended, since Phase 3's oracles and random matrices reuse Phase 2's corpus and runners.
 2. **MATLAB as a frozen oracle:** ~~can MATLAB be run once to export frozen reference trees?~~ **Decided 2026-09-21: no MATLAB is available.** There is no MATLAB oracle and no MATLAB-equivalence claim. The NJ variant rests on the published algorithm and on scikit-bio, Biopython and ape. If the course fixtures are published (decision 4), their distance matrices are computed with the pinned Biopython pairwise-alignment + Jukes–Cantor script (the fallback in Phase 3).
 3. **Vertical orientation:** stays out of v0.6 (recommended), or replaces the macOS leg in Phase 2 as the one extra item.
-4. **Publishing course data:** the fixtures derive from course material (demos from the *Introduction to Computational Genomics* website, sequences from GenBank). Confirm the derived distance matrices, labels and GenBank accessions can be published in the public repo and on the docs site.
+4. **Publishing course data:** **Decided 2026-09-21: moved to v0.7.** v0.6 ships without course-derived data. The course fixtures (including the 208-taxon human mtDNA matrix as a real-world tie case) and the "Coming from MATLAB" page are v0.7 work; the tested examples use the standard NJ teaching matrix.
 
 ## Success criteria
 

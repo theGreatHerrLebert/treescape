@@ -4,7 +4,9 @@ All notable changes to treescape are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — v0.6.0
+## [0.6.0] — 2026-09-21
+
+Trees from distance matrices, on hardened evidence. The trust manifest moves to the upstream EVIDENT schema with pinned oracles and a published claim viewer (Phase 1). The layout oracles now check the Rust core node by node on 66 trees (Phase 2). Neighbor joining and UPGMA build trees straight from a distance matrix in Python and Julia, checked against scikit-bio, Biopython, SciPy, ape and phangorn, with an honest performance claim (Phase 3). 28 EVIDENT claims.
 
 ### Changed — v0.6 Phase 1: EVIDENT schema migration
 
@@ -64,7 +66,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Noted, not changed (needs a decision)
 
-- `treescape-circular-layout-vs-ete3` claims 1e-4, but its runner asserts `< 1e-6`. The claim understates its own evidence.
+- *Resolved:* `treescape-circular-layout-vs-ete3` claimed 1e-4 while its runner asserted `< 1e-6`; the claim is tightened to 1e-6 (user decision, 2026-09-21).
 - *Resolved by Phase 2:* the layout claims' "small and medium fixtures" wording (they now name `layout-v2`, which includes the medium fixture); the external-oracle claims testing only the Python reference (they now check both implementations); the two inaccurate ete3 sentences (rewritten). Still open from the same Phase 1 finding: `treescape-tip-count-invariant` (`source: treescape-render`) runs the Python reference renderer only. It moves to the v0.7 render-fidelity work.
 
 ## [0.5.0] — 2026-09-21

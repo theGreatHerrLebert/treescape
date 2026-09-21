@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "treescape_connector"
-version = "0.5.0"
+version = "0.6.0"
 description = "PyO3 bindings for treescape Rust core."
 requires-python = ">=3.11"
 license = "MIT AND Bitstream-Vera"

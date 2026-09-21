@@ -11,8 +11,7 @@ its Qt renderer), so this checks what ete3's tree primitives can:
   parity.
 
 Both treescape implementations are compared on the ``layout-v2`` corpus,
-nodes matched by clade (``_layouts.py``). The runner asserts 1e-6; the
-claim states 1e-4 (a documented, pending decision).
+nodes matched by clade (``_layouts.py``). Tolerance: 1e-6 absolute.
 """
 
 from __future__ import annotations

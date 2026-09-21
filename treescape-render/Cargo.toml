@@ -10,5 +10,5 @@ description = "Deterministic SVG emitter and themes for treescape scene graphs."
 name = "treescape_render"
 
 [dependencies]
-treescape-core = { path = "../treescape-core", version = "0.5.0" }
+treescape-core = { path = "../treescape-core", version = "0.6.0" }
 fontdue = "0.9"
