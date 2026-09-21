@@ -4,7 +4,9 @@ All notable changes to treescape are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — v0.7.0
+## [0.7.0] — 2026-09-21
+
+Usable in the practical: sequences in, plotted tree out, installed without a Rust toolchain. `pip install treescape` and `Pkg.add(url = …)` ship prebuilt for Linux, macOS and Windows and reproduce the gallery byte for byte on each (Phase 1). Distances from aligned sequences (p, JC69, K2P, Poisson), checked against scikit-bio and R's ape (Phase 2). Vertical dendrograms as exact transforms of the validated layout, fan layouts, and a "Coming from MATLAB" page (Phase 3). 33 EVIDENT claims.
 
 ### Added — v0.7 Phase 1: installable packages
 

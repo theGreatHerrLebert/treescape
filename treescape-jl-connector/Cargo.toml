@@ -11,5 +11,5 @@ name = "treescape_jl_connector"
 crate-type = ["cdylib"]
 
 [dependencies]
-treescape-core = { path = "../treescape-core", version = "0.6.0" }
-treescape-render = { path = "../treescape-render", version = "0.6.0" }
+treescape-core = { path = "../treescape-core", version = "0.7.0" }
+treescape-render = { path = "../treescape-render", version = "0.7.0" }

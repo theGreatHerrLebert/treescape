@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "treescape_connector"
-version = "0.6.0"
+version = "0.7.0"
 description = "The compiled Rust core of treescape (PyO3 bindings); installed as a dependency of treescape."
 readme = "README.md"
 requires-python = ">=3.11"

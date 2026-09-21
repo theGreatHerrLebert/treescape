@@ -231,7 +231,7 @@ checksum = "61c41af27dd6d1e27b1b16b489db798443478cef1f06a660c96db617ba5de3b1"
 
 [[package]]
 name = "treescape-connector"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "pyo3",
  "treescape-core",
@@ -240,14 +240,14 @@ dependencies = [
 
 [[package]]
 name = "treescape-core"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "fxhash",
 ]
 
 [[package]]
 name = "treescape-jl-connector"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "treescape-core",
  "treescape-render",
@@ -255,7 +255,7 @@ dependencies = [
 
 [[package]]
 name = "treescape-render"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "fontdue",
  "treescape-core",

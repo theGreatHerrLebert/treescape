@@ -9,4 +9,4 @@ from .distances import TreescapeSequenceWarning
 from .plot import TreePlot, TreescapeStyleWarning
 
 __all__ = ["TreePlot", "TreescapeSequenceWarning", "TreescapeStyleWarning", "distances"]
-__version__ = "0.6.0"
+__version__ = "0.7.0"

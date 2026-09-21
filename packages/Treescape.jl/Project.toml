@@ -1,7 +1,7 @@
 name = "Treescape"
 uuid = "0afd17d9-86fb-405a-920e-b0f06dffe787"
 authors = ["theGreatHerrLebert <davidteschner@googlemail.com>"]
-version = "0.6.0"
+version = "0.7.0"
 
 [deps]
 Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
