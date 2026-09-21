@@ -8,7 +8,10 @@ Before each build it:
 - copies ``cases/treescape.md`` to ``docs/trust-case.md`` and
   ``packages/Treescape.jl/README.md`` to ``docs/julia.md``, rewriting
   repository-relative links to GitHub URLs;
-- generates ``docs/claims.md`` from ``evident.yaml``.
+- generates ``docs/claims.md`` from ``evident.yaml``;
+- renders the EVIDENT claim viewer (``typed-trust --format site``) into
+  ``docs/trust/index.html``. Build typed-trust first:
+  ``cargo build --release --manifest-path evident/typed-trust/Cargo.toml``.
 
 All generated files are gitignored, so the site cannot drift from the
 sources it is built from.
@@ -19,12 +22,14 @@ from __future__ import annotations
 import html
 import re
 import shutil
+import subprocess
 from pathlib import Path
 
 import yaml
 
 REPO = Path(__file__).resolve().parent.parent
 DOCS = REPO / "docs"
+TYPED_TRUST = REPO / "evident" / "typed-trust" / "target" / "release" / "typed-trust"
 BLOB = "https://github.com/theGreatHerrLebert/treescape/blob/main/"
 RAW = "https://raw.githubusercontent.com/theGreatHerrLebert/treescape/main/"
 
@@ -71,6 +76,16 @@ def _field(claim: dict, key: str) -> str:
         raise ValueError(f"evident.yaml claim {claim.get('id', '?')!r} has no {key!r}") from None
 
 
+def _bound(t: dict) -> str:
+    """``metric op value`` of a structured tolerance entry."""
+    return f"{t['metric']} {t['op']} {t['value']:g}" if "metric" in t else "prose only"
+
+
+def _oracles(c: dict) -> str:
+    pins = c.get("pinned_versions", {})
+    return "; ".join(f"{o} {pins[o]}" if o in pins else str(o) for o in c.get("evidence", {}).get("oracle", []))
+
+
 def _claims_page() -> str:
     manifest = yaml.safe_load((REPO / "evident.yaml").read_text())
     claims = manifest["claims"]
@@ -78,31 +93,46 @@ def _claims_page() -> str:
         "# Claims",
         "",
         "Generated from [`evident.yaml`](" + BLOB + "evident.yaml) at build time. Every "
-        "claim names its oracle, tolerance, and the command that checks it. `ci` claims run "
-        "on every push to `main` and every pull request; `release` claims (R/ggtree) run in "
-        "the validation image on a manual run before tagging and again when the `v*` tag is pushed.",
+        "claim names its oracles (with pinned versions), its structured tolerances, the input "
+        "corpus, and the command that checks it. `ci` claims run on every push to `main` and "
+        "every pull request; `release` claims (R/ggtree) run in the validation image on a "
+        "manual run before tagging and again when the `v*` tag is pushed. The "
+        "[claim viewer](trust/index.html) renders the same manifest with coverage by "
+        "subsystem and tier and the claim–oracle graph.",
         "",
         f"**{len(claims)} claims.**",
         "",
-        "| Claim | Tier | Oracle | Tolerance |",
-        "|---|---|---|---|",
+        "| Claim | Tier | Subsystem | Oracles | Tolerance |",
+        "|---|---|---|---|---|",
     ]
     for c in claims:
-        ev = c.get("evidence", {})
-        oracle = _text("; ".join(str(o) for o in ev.get("oracle", [])))
-        tol = _text(ev.get("tolerance", ""))
+        bounds = "; ".join(_bound(t) for t in c.get("tolerances", []))
         lines.append(
-            f"| [{_text(_field(c, 'title'))}](#{_field(c, 'id')}) | `{_field(c, 'tier')}` | {oracle} | {tol} |"
+            f"| [{_text(_field(c, 'title'))}](#{_field(c, 'id')}) | `{_field(c, 'tier')}` | "
+            f"{_text(c.get('subsystem', '—'))} | {_text(_oracles(c))} | `{bounds}` |"
         )
     for c in claims:
         ev = c.get("evidence", {})
+        inputs = c.get("inputs", {})
         lines += [
             "",
             f"## {_text(_field(c, 'title')).replace('{', '&#123;')} {{ #{_field(c, 'id')} }}",
             "",
-            f"`{_field(c, 'id')}` · tier `{_field(c, 'tier')}` · source `{_field(c, 'source')}`",
+            f"`{_field(c, 'id')}` · tier `{_field(c, 'tier')}` · subsystem `{c.get('subsystem', '—')}` "
+            f"· source `{_field(c, 'source')}`",
             "",
             _text(_field(c, "claim")),
+            "",
+            f"**Oracles:** {_text(_oracles(c))}",
+            "",
+            "**Tolerances**",
+            "",
+        ] + [f"- `{_bound(t)}` — {_text(t.get('prose', ''))}" for t in c.get("tolerances", [])] + [
+            "",
+            f"**Inputs:** `{inputs.get('corpus', '—')}` ({inputs.get('n', '?')} items, "
+            + ", ".join(inputs.get("classes", [inputs.get("class", "?")]))
+            + (f", `{inputs['corpus_sha'][:19]}…`" if "corpus_sha" in inputs else "")
+            + ")",
             "",
             f"**Check:** `{ev.get('command', '')}`",
         ]
@@ -125,3 +155,18 @@ def on_pre_build(config, **kwargs) -> None:
         _github_links((REPO / "packages" / "Treescape.jl" / "README.md").read_text(), "packages/Treescape.jl")
     )
     (DOCS / "claims.md").write_text(_claims_page())
+    (DOCS / "trust").mkdir(exist_ok=True)
+    (DOCS / "trust" / "index.html").write_text(_claim_viewer())
+
+
+def _claim_viewer() -> str:
+    if not TYPED_TRUST.is_file():
+        raise RuntimeError(
+            "typed-trust is not built; run "
+            "`cargo build --release --manifest-path evident/typed-trust/Cargo.toml` "
+            "(and `git submodule update --init evident` if evident/ is empty)"
+        )
+    return subprocess.run(
+        [str(TYPED_TRUST), "--format", "site", "evident.yaml"],
+        cwd=REPO, capture_output=True, text=True, check=True,
+    ).stdout

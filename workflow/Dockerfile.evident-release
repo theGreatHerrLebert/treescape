@@ -53,8 +53,11 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Bioconductor + ggtree + ape
+# Bioconductor is pinned so the ggtree oracle version (evident.yaml
+# pinned_versions) cannot drift between image builds.
 RUN R -e 'install.packages("BiocManager", repos="https://cloud.r-project.org")' \
- && R -e 'BiocManager::install(c("ggtree","ape"), update=FALSE, ask=FALSE)'
+ && R -e 'BiocManager::install(version="3.22", update=FALSE, ask=FALSE)' \
+ && R -e 'BiocManager::install(c("ggtree","ape"), version="3.22", update=FALSE, ask=FALSE)'
 
 # Python venv with the same deps as ci.
 # VIRTUAL_ENV is set explicitly (not just PATH) because maturin checks
@@ -63,8 +66,9 @@ RUN R -e 'install.packages("BiocManager", repos="https://cloud.r-project.org")' 
 RUN python3.12 -m venv /opt/venv
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="/opt/venv/bin:${PATH}"
+COPY tests/requirements-oracles.txt /tmp/requirements-oracles.txt
 RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir maturin pytest biopython ete3 hypothesis six PyYAML
+ && pip install --no-cache-dir maturin -r /tmp/requirements-oracles.txt
 
 WORKDIR /workspace
 

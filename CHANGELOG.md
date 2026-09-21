@@ -4,7 +4,32 @@ All notable changes to treescape are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.0] — unreleased
+## [Unreleased] — v0.6.0
+
+### Changed — v0.6 Phase 1: EVIDENT schema migration
+
+- `evident.yaml` follows the upstream EVIDENT schema (submodule `bf990d2` → `bd79f68`): `project`, `vocabularies` (subsystems, oracles, a `mismatch_count` metric), and per claim `subsystem`, `inputs` (named corpus, count, class, `corpus_sha`), `pinned_versions` and structured `tolerances` (`metric`/`op`/`value` = the comparison the runner asserts; `prose` = the old tolerance text). Structural only: every claim's text, command and artifact is unchanged, and all 21 claims keep their ids. Both upstream gates pass: `validate_manifest.py --strict-release-pins` and `typed-trust`.
+- **Oracle versions are pinned** (`tests/requirements-oracles.txt`, used by CI and the release image; Bioconductor pinned to 3.22 in the image). Before, every environment installed the latest: the release image had Biopython 1.88 while local runs used 1.87.
+- New `tests/oracle/test_manifest.py`: the `treescape` pin equals the workspace version, each Python oracle pin equals the installed version, each `corpus_sha` equals the hash of the files in `tests/fixtures/corpora.toml` (`scripts/corpus_sha.py`), and (release tier) the ggtree pin equals the image's.
+- CI validates the manifest with the upstream tools; treescape's copy of the old-schema validator (`workflow/validate_manifest.py`, `workflow/Dockerfile.evident-base`) is removed. `evident/` is excluded from the Cargo workspace so `typed-trust` builds in place.
+- Docs: the claims page shows subsystem, pinned oracles, structured tolerances and input corpora; the EVIDENT **claim viewer** (`typed-trust --format site`: filterable claims table, subsystem × tier coverage, claim–oracle graph) is published at `/trust/`.
+
+- Phase 1 review fixes:
+  - The Rust Newick round-trip now compares branch lengths and names. The topology hash covers neither, so the claim's "branch lengths" was only tested for the Python reference.
+  - Structured fields now also encode the runners' non-exact assertions (sector angles `< 1e-12`, annotation geometry `< 1e-9`).
+  - `hypothesis` and the Python version are pinned for the style-resolution claim.
+  - The parity and style-resolution inputs are hashed corpora. `primates.nwk` and the gallery were previously outside any hash.
+  - Miri is no longer listed as an oracle of a command that does not run it.
+  - The manifest test requires every oracle to have a pin check, and every fixture claim to name a hashed corpus.
+
+### Noted, not changed (claim text contradicted by the new structured fields; needs a decision)
+
+- `treescape-circular-layout-vs-ete3` claims 1e-4, but its runner asserts `< 1e-6`. The claim understates its own evidence.
+- Five layout and determinism claims say "small and medium fixtures", but their corpus (`layout-core-4`) has no medium fixture. Phase 2 adds `primates.nwk` and a random corpus.
+- The ete3, Biopython and ggtree claims (`source: treescape-core`), and the tip-count claim (`source: treescape-render`), are checked against the Python reference, not the Rust code (a known v0.5 audit finding; Phase 2 moves them to Rust). Two ete3 claim sentences are also inaccurate: its coordinates are derived with `get_distance`/`iter_leaves` and treescape's own angle formula, not "read directly from its layout module", and the 1e-6 is not needed to "absorb ete3 pixel rounding".
+- Changing claim text changes the trust contract, so these wait for approval.
+
+## [0.5.0] — 2026-09-21
 
 A second host language. Styling resolution moved from Python into the Rust core (Phase 1), a C-ABI connector and `Treescape.jl` drive that core from Julia with byte-identical output (Phase 2), and a docs site shows every example in both languages (Phase 3). Three EVIDENT claims added (21 in total).
 

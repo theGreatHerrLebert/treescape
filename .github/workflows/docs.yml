@@ -1,7 +1,8 @@
 name: docs
 
 # Builds the MkDocs site (docs/ + mkdocs.yml; scripts/mkdocs_hooks.py
-# copies the gallery and generates the claims page) and publishes it to
+# copies the gallery, generates the claims page and renders the typed-trust
+# claim viewer into /trust/) and publishes it to
 # GitHub Pages. Requires Settings → Pages → Source: "GitHub Actions".
 
 on:
@@ -19,6 +20,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true   # evident/ (typed-trust); not recursive, see ci.yml
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: evident/typed-trust
+      - name: Build typed-trust (EVIDENT claim viewer)
+        run: cargo build --release --manifest-path evident/typed-trust/Cargo.toml
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

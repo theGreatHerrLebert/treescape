@@ -1,0 +1,75 @@
+# Named input corpora for evident.yaml claims (`inputs.corpus`).
+#
+# `inputs.corpus_sha` in the manifest is scripts/corpus_sha.py over the
+# files listed here; tests/oracle/test_manifest.py recomputes it. Paths are
+# relative to the repository root. Adding a file to a corpus changes its
+# hash, which is intended: the manifest then records the new corpus.
+
+[corpora.layout-core-4]
+description = "Small layout fixtures shared by the layout, ladderize and determinism claims"
+files = [
+  "tests/fixtures/trees/small/two_tip.nwk",
+  "tests/fixtures/trees/small/balanced_4.nwk",
+  "tests/fixtures/trees/small/unbalanced_5.nwk",
+  "tests/fixtures/trees/edge/trifurcation_root.nwk",
+]
+
+[corpora.newick-canonical-8]
+description = "Canonical Newick fixtures for the parser claim (edge fixtures included)"
+files = [
+  "tests/fixtures/trees/small/two_tip.nwk",
+  "tests/fixtures/trees/small/balanced_4.nwk",
+  "tests/fixtures/trees/small/unbalanced_5.nwk",
+  "tests/fixtures/trees/medium/primates.nwk",
+  "tests/fixtures/trees/edge/quoted_names.nwk",
+  "tests/fixtures/trees/edge/trifurcation_root.nwk",
+  "tests/fixtures/trees/edge/neg_branches.nwk",
+  "tests/fixtures/trees/edge/nhx_comments.nwk",
+]
+
+[corpora.metadata-small-3]
+description = "Small trees with their tip-metadata tables"
+files = [
+  "tests/fixtures/trees/small/two_tip.nwk",
+  "tests/fixtures/trees/small/balanced_4.nwk",
+  "tests/fixtures/trees/small/unbalanced_5.nwk",
+  "tests/fixtures/metadata/small/two_tip.csv",
+  "tests/fixtures/metadata/small/balanced_4.csv",
+  "tests/fixtures/metadata/small/unbalanced_5.csv",
+]
+
+[corpora.annotation-2]
+description = "Fixtures for the circular annotation claim"
+files = [
+  "tests/fixtures/trees/small/balanced_4.nwk",
+  "tests/fixtures/trees/small/unbalanced_5.nwk",
+]
+
+[corpora.parity-cases]
+description = "Data-only Python/Julia parity cases, the docs examples page, and the tree file both load"
+files = [
+  "tests/fixtures/parity/cases.toml",
+  "docs/examples.md",
+  "tests/fixtures/trees/medium/primates.nwk",
+]
+
+[corpora.gallery-14]
+description = "Committed gallery and README SVGs, the script that defines them, and their input tree"
+files = [
+  "assets/gallery/01_rectangular.svg",
+  "assets/gallery/02_circular.svg",
+  "assets/gallery/03_rectangular_highlight.svg",
+  "assets/gallery/04_circular_highlight.svg",
+  "assets/gallery/05_color_tips_by_clade.svg",
+  "assets/gallery/06_color_branches_by_clade.svg",
+  "assets/gallery/07_color_tips_by_support.svg",
+  "assets/gallery/08_color_branches_by_support.svg",
+  "assets/gallery/09_scale_bar.svg",
+  "assets/gallery/10_combined.svg",
+  "assets/gallery/11_circular_color_tips_by_clade.svg",
+  "assets/gallery/12_circular_scale_bar.svg",
+  "assets/gallery/13_branch_width_by_support.svg",
+  "assets/primates.svg",
+  "scripts/regen_assets.py",
+  "tests/fixtures/trees/medium/primates.nwk",
+]

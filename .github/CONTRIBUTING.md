@@ -8,7 +8,7 @@ Every numerical or structural claim in `evident.yaml` must point to an oracle, a
 
 If you're adding a feature with a new claim:
 1. Add the claim to `evident.yaml` with an oracle, tolerance, command, and assumptions.
-2. Run `python workflow/validate_manifest.py evident.yaml`.
+2. Run `python evident/workflow/validate_manifest.py --strict-release-pins evident.yaml` and `pytest tests/oracle/test_manifest.py` (pins, corpus hashes).
 3. Then implement.
 
 If you're fixing a bug, the existing claim runner should fail, then pass after your fix. If it doesn't fail before your fix, the claim is either wrong or the test fixture set is too narrow — that's a separate PR.
@@ -37,7 +37,7 @@ source .venv/bin/activate
 pip install maturin
 (cd treescape-connector && maturin develop --release)
 pip install -e packages/treescape-reference -e packages/treescape
-pip install -e "packages/treescape[test]" six PyYAML   # six: ete3 on 3.12; PyYAML: manifest check
+pip install -e "packages/treescape[test]" -r tests/requirements-oracles.txt   # oracle versions pinned to evident.yaml
 pip install -r docs/requirements.txt                  # only for the docs site
 ```
 
@@ -47,7 +47,7 @@ Julia claims need Julia ≥ 1.10 and the C-ABI library: `cargo build -p treescap
 
 ```bash
 cargo test --workspace                       # Rust unit tests
-python workflow/validate_manifest.py evident.yaml  # Manifest structural check
+python evident/workflow/validate_manifest.py --strict-release-pins evident.yaml  # Manifest schema (upstream EVIDENT)
 pytest tests/oracle -v -m "not release_only"  # All ci-tier oracle claims
 mkdocs build --strict                         # Docs site, incl. generated claims page
 ```

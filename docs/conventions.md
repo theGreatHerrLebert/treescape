@@ -274,6 +274,36 @@ v0.3–v0.4 resolved metadata-driven styling in `plot.py`. v0.5 Phase 1 moves th
 
 `ENV["TREESCAPE_JL_LIB"]` → Preferences.jl `libpath` (`Treescape.set_library!(path)`) → the development build `<repo>/target/release/libtreescape_jl_connector.{so,dylib}` next to a source checkout → an error that says how to build it (`cargo build -p treescape-jl-connector --release`). No JLL in v0.5.
 
+## EVIDENT manifest (v0.6 Phase 1)
+
+`evident.yaml` follows the upstream EVIDENT schema (`evident/workflow/SCHEMA.md`) and must pass both upstream gates: `evident/workflow/validate_manifest.py` and `typed-trust`. The prose fields (`claim`, `assumptions`, `failure_modes`) are for readers. The structured fields below are the data, and `tests/oracle/test_manifest.py` keeps them honest.
+
+**Subsystems:** `parser` (Newick), `layout` (rectangular and circular coordinates, ladderize), `text-metrics` (label widths), `render` (SVG emission), `style` (styling resolution and metadata-driven styling), `metadata` (tip joins), `julia-binding` (Python↔Julia parity), `ffi` (C-ABI robustness).
+
+**Oracles.** Each is a vocabulary term with a pinned version in every claim that names it:
+
+| Oracle | What it is | Version pinned as |
+|---|---|---|
+| `Biopython` | Bio.Phylo, external | installed version (CI and the release image pin the same one) |
+| `ete3` | ete3, external | installed version |
+| `ggtree` | R/ggtree (Bioconductor), external, release image only | `ggtree <v> (Bioconductor <v>, R <v>)` |
+| `treescape-reference` | the readable Python reference in this repository | the treescape version |
+| `golden-snapshots` | committed SVGs (`tests/fixtures/golden/`, `assets/`) | the treescape version |
+| `self-consistency` | round-trip, repeated-render and explicit-equivalence checks within treescape | the treescape version |
+| `treescape-python` | the Python package as Julia's parity partner | the treescape version |
+| `hypothesis` | property-based random-tree generator | installed version |
+| `julia-subprocess` | the Julia process-survival harness | the Julia versions CI runs |
+
+The in-repository oracles are not independent of treescape. They are listed so that a reader can see which claims rest *only* on self-consistency. An oracle names only what the claim's own `evidence.command` runs: Miri, for instance, runs the FFI unit tests in a separate CI job and is described in the FFI claim's prose, not listed as its oracle. Besides oracles, a claim pins the runtime when its result depends on it (`python` for the Neumaier-sum claim, `julia` for the Julia parity claim). `tests/oracle/test_manifest.py` requires every vocabulary oracle to be classified as a Python package (pin = installed version), in-repository (pin = workspace version), or checked elsewhere (ggtree in the release image).
+
+**Tolerance metrics:** `absolute_error` (base vocabulary; the unit is stated in `prose`), `mismatch_count` (project vocabulary: the number of compared items that differ, such as bytes, tokens, colors or statuses; always `== 0`), and `pass_rate` (base vocabulary: the fraction of cases or generated examples that satisfy a property; always `== 1.0`). Each entry's `op` and `value` are the comparison the runner actually asserts. `prose` keeps the original wording.
+
+**Inputs.** `inputs.n` counts the items the claim is asserted over: fixture files or cases for fixture corpora, generated examples for `random-sample`, and test cases for runner-built `synthetic` inputs. Every claim whose class includes `fixture` must name a corpus from `tests/fixtures/corpora.toml` and carry its `corpus_sha`.
+
+**Corpora.** A claim's `inputs.corpus` names an entry in `tests/fixtures/corpora.toml`, which lists the fixture files. `inputs.corpus_sha` is `sha256:` of the text `path\nsha256(file)\n` for each listed file in sorted path order (`scripts/corpus_sha.py`). A claim whose inputs are built inside its runner uses `class: synthetic` with the runner as `corpus`. `release`-tier claims over more than one input must carry `corpus_sha` (schema rule). Every `corpus_sha` is recomputed by the manifest test, so a changed fixture cannot silently keep an old hash.
+
+**Pinned versions:** every measurement claim pins `treescape` (the workspace version in `Cargo.toml`) and every oracle it names. The manifest test checks the `treescape` pin against `Cargo.toml`, and the Python oracle pins against the installed packages. The ggtree pin is checked inside the release image.
+
 ## Convention gaps vs external oracles
 
 | Convention | treescape | ete3 | Biopython.Phylo | ggtree |

@@ -1,6 +1,6 @@
 # v0.6 plan
 
-**Status: draft (2026-09-21), awaiting approval.** Same cadence as v0.1–v0.5: tight scope, EVIDENT claims pinned **before** the code, Python reference first then Rust port, external review at the end of each phase.
+**Status: approved 2026-09-21** (user greenlight after v0.5.0; decisions 1 and 3 taken at their recommended defaults, decisions 2 and 4 open — they only gate Phase 3). Same cadence as v0.1–v0.5: tight scope, EVIDENT claims pinned **before** the code, Python reference first then Rust port, external review at the end of each phase.
 
 ## Theme
 
@@ -34,6 +34,13 @@ A structural change only: **no claim changes meaning, gains or loses coverage, o
 - CI: validation moves from `evident/workflow/validate_manifest.py` to upstream `typed-trust`. Any rejected claim fails the build.
 - Docs: `docs.yml` builds `typed-trust` and writes `typed-trust --format site evident.yaml > site/trust/index.html` after `mkdocs build`. The nav links it, and so does the generated `docs/claims.md`.
 - **Acceptance:** `typed-trust` accepts all 21 claims. The `claim`, `command` and `artifact` text is unchanged, so the diff shows only structural moves. The claim viewer is live on Pages.
+- **As implemented (2026-09-21), differences from the bullets above:**
+  - The subsystem vocabulary is `parser, layout, text-metrics, render, style, metadata, julia-binding, ffi`. `tree-building` is added in Phase 3, when the first such claim exists.
+  - Inputs name a corpus in `tests/fixtures/corpora.toml` and pin its `corpus_sha`, instead of a per-claim `fixture_path`.
+  - CI runs **both** upstream gates, `validate_manifest.py --strict-release-pins` and `typed-trust`.
+  - The viewer is rendered by the MkDocs hook into `docs/trust/`, so the strict build checks its link.
+  - Oracle versions are pinned in `tests/requirements-oracles.txt` (CI and the release image), with Bioconductor at 3.22, and `tests/oracle/test_manifest.py` checks pins and hashes.
+  - The review found four existing claim texts that the new structured fields contradict. They are listed in the CHANGELOG under "Noted, not changed" and wait for approval. Phase 2 resolves most of them.
 
 ### Phase 2: external layout agreement on real and random trees, against the Rust code
 

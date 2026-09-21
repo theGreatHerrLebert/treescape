@@ -46,6 +46,7 @@ nav:
   - Trust:
       - The trust case: trust-case.md
       - Claims: claims.md
+      - Claim viewer: trust/index.html
       - Conventions: conventions.md
 
 # Build inputs that live in docs/ but are not pages.

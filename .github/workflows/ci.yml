@@ -46,15 +46,20 @@ jobs:
           submodules: true   # see rust-test job for why not recursive
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+            evident/typed-trust -> target
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
-          # PyYAML is consumed by workflow/validate_manifest.py; it is
-          # already baked into workflow/Dockerfile.evident-release.
-          pip install maturin pytest biopython ete3 hypothesis six PyYAML
+          # Oracle versions are pinned to evident.yaml's pinned_versions
+          # (tests/oracle/test_manifest.py checks); same file as the
+          # release image.
+          pip install maturin -r tests/requirements-oracles.txt
       - name: Build & install connector
         # `pip install -e` invokes maturin via PEP 517, which doesn't
         # require an active venv (unlike `maturin develop`). The
@@ -64,8 +69,12 @@ jobs:
         run: |
           pip install -e packages/treescape-reference
           pip install -e packages/treescape
-      - name: Validate manifest structure
-        run: python workflow/validate_manifest.py evident.yaml
+      - name: Validate manifest (upstream EVIDENT schema)
+        run: python evident/workflow/validate_manifest.py --strict-release-pins evident.yaml
+      - name: Translate manifest (typed-trust)
+        run: |
+          cargo build --release --manifest-path evident/typed-trust/Cargo.toml
+          evident/typed-trust/target/release/typed-trust evident.yaml > /dev/null
       - name: Run ci-tier oracle claims
         run: pytest tests/oracle -v -m "not release_only"
       - name: Upload oracle artifacts
@@ -107,7 +116,7 @@ jobs:
       - name: Install Python side (parity reference)
         run: |
           python -m pip install --upgrade pip
-          pip install pytest hypothesis
+          pip install -r tests/requirements-oracles.txt
           pip install -e ./treescape-connector
           pip install -e packages/treescape-reference -e packages/treescape
       - name: Julia claims (parity + docs examples + FFI no-abort)

@@ -227,6 +227,14 @@ def test_rust_roundtrip(fixture: pathlib.Path) -> None:
     assert t1.topology_hash() == t2.topology_hash(), (
         f"Rust topology hash mismatch on {fixture.name}"
     )
+    # The topology hash excludes branch lengths and names; the claim covers
+    # both, so compare them in postorder as the reference test does.
+    assert [t1.branch_len(i) for i in t1.postorder()] == [t2.branch_len(i) for i in t2.postorder()], (
+        f"Rust branch lengths drifted on {fixture.name}"
+    )
+    assert [t1.name(i) for i in t1.postorder()] == [t2.name(i) for i in t2.postorder()], (
+        f"Rust names drifted on {fixture.name}"
+    )
 
 
 @pytest.mark.skipif(

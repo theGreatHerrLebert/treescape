@@ -5,6 +5,9 @@ members = [
     "treescape-connector",
     "treescape-jl-connector",
 ]
+# The EVIDENT submodule carries its own crate (typed-trust, the manifest
+# validator and claim-viewer generator); keep it out of this workspace.
+exclude = ["evident"]
 
 resolver = "2"
 

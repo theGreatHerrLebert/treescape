@@ -1,0 +1,10 @@
+# Oracle and test-harness versions for the claim runners. The oracle pins
+# must equal evident.yaml's pinned_versions (tests/oracle/test_manifest.py
+# fails otherwise). Used by .github/workflows/ci.yml and
+# workflow/Dockerfile.evident-release.
+biopython==1.88
+ete3==3.1.3
+six==1.17.0          # ete3 needs it on Python 3.12
+hypothesis==6.168.0
+pytest>=8
+PyYAML>=6

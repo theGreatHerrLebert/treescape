@@ -1,4 +1,20 @@
 version: 0.1
+project: treescape
+# Structured fields follow docs/conventions.md, "EVIDENT manifest";
+# tests/oracle/test_manifest.py checks pins and corpus hashes.
+vocabularies:
+  subsystem: [parser, layout, text-metrics, render, style, metadata, julia-binding, ffi]
+  oracle:
+    - Biopython
+    - ete3
+    - ggtree
+    - hypothesis
+    - treescape-reference
+    - golden-snapshots
+    - self-consistency
+    - treescape-python
+    - julia-subprocess
+  tolerance_metric: [mismatch_count]
 claims:
   - id: treescape-newick-roundtrip
     title: Newick parser round-trips and matches Biopython on canonical fixtures
@@ -7,22 +23,36 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#oracle-comparison
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
     claim: >
       The treescape Newick parser and writer round-trip every canonical
       fixture (parse -> write -> reparse) with exact equality on topology
       hash and branch lengths. On the small and medium fixture sets, the
       parsed tree agrees with Biopython.Phylo within 1e-9 on branch
       lengths and exactly on topology.
+    subsystem: parser
+    inputs:
+      corpus: "newick-canonical-8"
+      n: 8
+      class: fixture
+      corpus_sha: "sha256:75a1797f9ac8c3c50d4892b1d87fd45abab595488c5d98c0c2cf9748d51a9722"
+    pinned_versions:
+      treescape: "0.5.0"
+      Biopython: "1.88"
+      self-consistency: "0.5.0"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Round-trip: exact equality on topology hash and branch lengths."
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-09
+        prose: "Biopython parity: 1e-9 absolute on branch lengths, exact on topology, on small/* and medium/* fixtures. Edge fixtures are excluded with a documented reason."
     evidence:
       oracle:
-        - Biopython.Phylo (pinned >=1.84,<2)
-        - self (round-trip)
-      tolerance: >
-        Round-trip: exact equality on topology hash and branch lengths.
-        Biopython parity: 1e-9 absolute on branch lengths, exact on
-        topology, on small/* and medium/* fixtures. Edge fixtures are
-        excluded with a documented reason.
+        - Biopython
+        - self-consistency
       command: pytest tests/oracle/test_newick_roundtrip.py -v
       artifact: tests/oracle/reports/newick_roundtrip.json
     assumptions:
@@ -42,7 +72,7 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#reference-shadowing
+    pattern: evident/docs/reference/patterns.md#reference-shadowing
     claim: >
       Rectangular layout coordinates produced by treescape-core agree
       with the readable Python reference in treescape-reference within
@@ -50,10 +80,23 @@ claims:
       Rust<->Python parity, NOT correctness in absolute terms; it must
       hold alongside layout-vs-ete3, layout-vs-biopython, and
       layout-vs-ggtree.
+    subsystem: layout
+    inputs:
+      corpus: "layout-core-4"
+      n: 4
+      class: fixture
+      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+    pinned_versions:
+      treescape: "0.5.0"
+      treescape-reference: "0.5.0"
+    tolerances:
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-09
+        prose: "1e-9 absolute on (x, y) per node."
     evidence:
       oracle:
-        - treescape-reference (pure-Python, this workspace)
-      tolerance: 1e-9 absolute on (x, y) per node.
+        - treescape-reference
       command: pytest tests/oracle/test_layout_vs_reference.py -v
       artifact: tests/oracle/reports/layout_rust_vs_reference.json
     assumptions:
@@ -73,17 +116,30 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#oracle-comparison
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
     claim: >
       treescape rectangular layout coordinates agree with ete3's
       coordinate output within 1e-6 absolute on a curated subset of
       small and medium fixtures. Convention notes in
       docs/conventions.md document tip-spacing, internal-x, and root-x
       conventions matched or deliberately diverged.
+    subsystem: layout
+    inputs:
+      corpus: "layout-core-4"
+      n: 4
+      class: fixture
+      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+    pinned_versions:
+      treescape: "0.5.0"
+      ete3: "3.1.3"
+    tolerances:
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-06
+        prose: "1e-6 absolute, looser to absorb ete3 internal pixel rounding."
     evidence:
       oracle:
-        - ete3 (pinned)
-      tolerance: 1e-6 absolute, looser to absorb ete3 internal pixel rounding.
+        - ete3
       command: pytest tests/oracle/test_layout_vs_ete3.py -v
       artifact: tests/oracle/reports/layout_vs_ete3.json
     assumptions:
@@ -103,17 +159,30 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#oracle-comparison
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
     claim: >
       treescape rectangular layout coordinates agree with the x/y
       positions returned by Biopython.Phylo._get_x_positions and
       _get_y_positions within 1e-6 absolute on small and medium
       fixtures. This oracle is independent of ete3 — different parser,
       different traversal, different coordinate construction.
+    subsystem: layout
+    inputs:
+      corpus: "layout-core-4"
+      n: 4
+      class: fixture
+      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+    pinned_versions:
+      treescape: "0.5.0"
+      Biopython: "1.88"
+    tolerances:
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-06
+        prose: "1e-6 absolute on (x, y) per node."
     evidence:
       oracle:
-        - Biopython.Phylo (pinned >=1.84,<2)
-      tolerance: 1e-6 absolute on (x, y) per node.
+        - Biopython
       command: pytest tests/oracle/test_layout_vs_biopython.py -v
       artifact: tests/oracle/reports/layout_vs_biopython.json
     assumptions:
@@ -133,7 +202,7 @@ claims:
     tier: release
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#oracle-comparison
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
     claim: >
       treescape rectangular layout coordinates agree with R ggtree's
       x/y output within 1e-4 absolute on small and edge fixtures, after
@@ -143,13 +212,23 @@ claims:
       to match ggtree's 1-based tip indexing. Tier release because it
       requires R + Bioconductor; runs inside
       workflow/Dockerfile.evident-release before any release tag.
+    subsystem: layout
+    inputs:
+      corpus: "layout-core-4"
+      n: 4
+      class: fixture
+      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+    pinned_versions:
+      treescape: "0.5.0"
+      ggtree: "4.0.5 (Bioconductor 3.22, R 4.5.3)"
+    tolerances:
+      - metric: absolute_error
+        op: "<"
+        value: 0.0001
+        prose: "1e-4 absolute on (x, y) per node. Looser than ete3/Biopython because ggplot's internal scaling introduces float drift not present in the other oracles."
     evidence:
       oracle:
-        - R 4.x + Bioconductor + ggtree (pinned)
-      tolerance: >
-        1e-4 absolute on (x, y) per node. Looser than ete3/Biopython
-        because ggplot's internal scaling introduces float drift not
-        present in the other oracles.
+        - ggtree
       command: pytest tests/oracle/test_layout_vs_ggtree.py -v -m release_only
       artifact: tests/oracle/reports/layout_vs_ggtree.json
     assumptions:
@@ -169,17 +248,30 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#oracle-comparison
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
     claim: >
       Tip order after ladderize() matches ete3's order exactly on
       fixtures where the documented tie-break rule is unambiguous.
       On topologies where multiple valid orderings exist, the claim
       degrades to topology-equivalent ordering and the exact tie-break
       treescape implements is recorded.
+    subsystem: layout
+    inputs:
+      corpus: "layout-core-4"
+      n: 4
+      class: fixture
+      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+    pinned_versions:
+      treescape: "0.5.0"
+      ete3: "3.1.3"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Exact tip-order equality where tie-break is unambiguous."
     evidence:
       oracle:
-        - ete3 (pinned)
-      tolerance: Exact tip-order equality where tie-break is unambiguous.
+        - ete3
       command: pytest tests/oracle/test_ladderize_order.py -v
       artifact: tests/oracle/reports/ladderize_order.json
     assumptions:
@@ -196,16 +288,33 @@ claims:
     trust_strategy:
       - proof
       - validation
-    pattern: evident/patterns/README.md#property-based-testing
+    pattern: evident/docs/reference/patterns.md#property-based-testing
     claim: >
       For a fixed tree and a fixed options struct, render_svg() produces
       byte-identical output across runs and platforms. Sorted attribute
       emission, fixed float formatting (e.g. "{:.6}"), no timestamps,
       no HashMap iteration order leakage.
+    subsystem: render
+    inputs:
+      corpus: "layout-core-4"
+      n: 4
+      class: fixture
+      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+    pinned_versions:
+      treescape: "0.5.0"
+      golden-snapshots: "0.5.0"
+      self-consistency: "0.5.0"
+      treescape-reference: "0.5.0"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Byte-exact equality."
     evidence:
       oracle:
-        - self (snapshot golden SVGs checked into tests/fixtures/golden/)
-      tolerance: Byte-exact equality.
+        - golden-snapshots
+        - self-consistency
+        - treescape-reference
       command: pytest tests/oracle/test_svg_determinism.py -v
       artifact: tests/oracle/reports/svg_determinism.json
     assumptions:
@@ -224,7 +333,7 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#reference-shadowing
+    pattern: evident/docs/reference/patterns.md#reference-shadowing
     claim: >
       treescape-render's tip-label widths (computed by summing
       fontdue advance widths of the bundled DejaVu Sans at the
@@ -236,10 +345,22 @@ claims:
       strings up to 64 chars. v0.2 supersedes the 0.6-em monospace
       approximation that v0.1 shipped; this claim pins the new
       behavior so the next external review can verify it.
+    subsystem: text-metrics
+    inputs:
+      corpus: "tests/oracle/test_text_width.py"
+      n: 70
+      class: synthetic
+    pinned_versions:
+      treescape: "0.5.0"
+      treescape-reference: "0.5.0"
+    tolerances:
+      - metric: absolute_error
+        op: "<"
+        value: 0.5
+        prose: "0.5 px absolute on (sum of advance widths) per string."
     evidence:
       oracle:
-        - treescape-reference (pure-Python, this workspace)
-      tolerance: 0.5 px absolute on (sum of advance widths) per string.
+        - treescape-reference
       command: pytest tests/oracle/test_text_width.py -v
       artifact: tests/oracle/reports/text_width.json
     assumptions:
@@ -264,7 +385,7 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#oracle-comparison
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
     claim: >
       treescape's circular layout — radius and angle per node — agrees
       with ete3's circular-mode coordinates (`TreeStyle(mode="c")`)
@@ -274,14 +395,23 @@ claims:
       (typically west / 9 o'clock) and/or sweep direction; the test
       applies the documented transforms before comparing — same pattern
       the rectangular Biopython oracle uses for its 1-based offset.
+    subsystem: layout
+    inputs:
+      corpus: "layout-core-4"
+      n: 4
+      class: fixture
+      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+    pinned_versions:
+      treescape: "0.5.0"
+      ete3: "3.1.3"
+    tolerances:
+      - metric: absolute_error
+        op: "<"
+        value: 0.0001
+        prose: "1e-4 absolute on (r, θ) per tip after documented convention transforms. Looser than rectangular's 1e-6 because ete3's circular renderer rounds intermediate angles to floats during layout."
     evidence:
       oracle:
-        - ete3 (pinned)
-      tolerance: >
-        1e-4 absolute on (r, θ) per tip after documented convention
-        transforms. Looser than rectangular's 1e-6 because ete3's
-        circular renderer rounds intermediate angles to floats during
-        layout.
+        - ete3
       command: pytest tests/oracle/test_circular_layout_vs_ete3.py -v
       artifact: tests/oracle/reports/circular_layout_vs_ete3.json
     assumptions:
@@ -305,7 +435,7 @@ claims:
     tier: release
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#oracle-comparison
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
     claim: >
       treescape's circular layout — radius and angle per node — agrees
       with `ggtree(tree, layout="circular")` coordinates within 1e-3
@@ -313,15 +443,23 @@ claims:
       the convention adjustments documented in `docs/conventions.md`.
       Tier release because it requires R + Bioconductor; runs inside
       `workflow/Dockerfile.evident-release` before any release tag.
+    subsystem: layout
+    inputs:
+      corpus: "layout-core-4"
+      n: 4
+      class: fixture
+      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+    pinned_versions:
+      treescape: "0.5.0"
+      ggtree: "4.0.5 (Bioconductor 3.22, R 4.5.3)"
+    tolerances:
+      - metric: absolute_error
+        op: "<"
+        value: 0.001
+        prose: "1e-3 absolute on (r, θ) per tip after documented convention transforms. Looser than rectangular ggtree's 1e-4 because ggtree's circular layout adds an extra normalization step (angle scaling to fit ggplot2's polar coord) that introduces additional float drift."
     evidence:
       oracle:
-        - R 4.x + Bioconductor + ggtree (pinned)
-      tolerance: >
-        1e-3 absolute on (r, θ) per tip after documented convention
-        transforms. Looser than rectangular ggtree's 1e-4 because
-        ggtree's circular layout adds an extra normalization step
-        (angle scaling to fit ggplot2's polar coord) that introduces
-        additional float drift.
+        - ggtree
       command: pytest tests/oracle/test_circular_layout_vs_ggtree.py -v -m release_only
       artifact: tests/oracle/reports/circular_layout_vs_ggtree.json
     assumptions:
@@ -343,7 +481,7 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#property-based-testing
+    pattern: evident/docs/reference/patterns.md#property-based-testing
     claim: >
       For any tree + scene options + style configuration, repeated
       renders produce byte-identical SVG. Style metadata is encoded
@@ -361,14 +499,31 @@ claims:
       equivalent under the polar transform — each layout is
       byte-deterministic in its own conventions, no cross-shape
       parity.
+    subsystem: render
+    inputs:
+      corpus: "layout-core-4"
+      n: 4
+      class: fixture
+      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+    pinned_versions:
+      treescape: "0.5.0"
+      self-consistency: "0.5.0"
+      golden-snapshots: "0.5.0"
+      treescape-reference: "0.5.0"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Exact byte equality across five repeated renders. Golden snapshots checked into tests/fixtures/golden/<fixture>_styled.svg (rectangular) and tests/fixtures/golden/<fixture>_styled_circular.svg (circular). Rust↔reference byte parity on the same fixtures."
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-12
+        prose: "Circular highlight sectors: angular bounds equal the clade's extreme tip angles within 1e-12 rad."
     evidence:
       oracle:
-        - self (repeated render + golden snapshot + Rust↔Python ref byte parity)
-      tolerance: >
-        Exact byte equality across five repeated renders. Golden
-        snapshots checked into tests/fixtures/golden/<fixture>_styled.svg
-        (rectangular) and tests/fixtures/golden/<fixture>_styled_circular.svg
-        (circular). Rust↔reference byte parity on the same fixtures.
+        - self-consistency
+        - golden-snapshots
+        - treescape-reference
       command: pytest tests/oracle/test_styling_determinism.py -v
       artifact: tests/oracle/reports/styling_determinism.json
     assumptions:
@@ -400,7 +555,7 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#oracle-comparison
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
     claim: >
       `TreePlot.join_metadata(df, on=...)` round-trips a polars DataFrame
       against the tree's tip universe under the conventions documented in
@@ -419,10 +574,25 @@ claims:
       TreePlot implementation against the readable Python reference
       (`treescape_reference.metadata.join_metadata`) plus explicit
       failure-mode tests.
+    subsystem: metadata
+    inputs:
+      corpus: "metadata-small-3"
+      n: 3
+      classes: [fixture, synthetic]
+      corpus_sha: "sha256:3cfbb0864b92c8bbd29061a0b317e8935474d635c822b3494810e1d8372ff004"
+    pinned_versions:
+      treescape: "0.5.0"
+      self-consistency: "0.5.0"
+      treescape-reference: "0.5.0"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Exact equality on row data per tip."
     evidence:
       oracle:
-        - self (round-trip + explicit raise/no-raise on each rule)
-      tolerance: Exact equality on row data per tip.
+        - self-consistency
+        - treescape-reference
       command: pytest tests/oracle/test_metadata_join.py -v
       artifact: tests/oracle/reports/metadata_join.json
     assumptions:
@@ -458,7 +628,7 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#oracle-comparison
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
     claim: >
       For a joined categorical metadata column, `TreePlot.color_tips_by`
       resolves to the same per-tip color mapping as an explicit
@@ -469,10 +639,23 @@ claims:
       coverage to circular layouts: the resolver runs once per plot and
       maps to per-Text fill on both rectangular and circular paths;
       explicit-mapping equivalence holds across both layouts.
+    subsystem: style
+    inputs:
+      corpus: "metadata-small-3"
+      n: 3
+      classes: [fixture, synthetic]
+      corpus_sha: "sha256:3cfbb0864b92c8bbd29061a0b317e8935474d635c822b3494810e1d8372ff004"
+    pinned_versions:
+      treescape: "0.5.0"
+      self-consistency: "0.5.0"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Exact SVG byte equality against the explicit mapping."
     evidence:
       oracle:
-        - self (explicit color_tips equivalence on rectangular AND circular)
-      tolerance: Exact SVG byte equality against the explicit mapping.
+        - self-consistency
       command: pytest tests/oracle/test_color_tips_by_metadata.py -v
       artifact: tests/oracle/reports/color_tips_by_metadata.json
     assumptions:
@@ -496,7 +679,7 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#property-based-testing
+    pattern: evident/docs/reference/patterns.md#property-based-testing
     claim: >
       For each branch (internal AND terminal as of v0.4 Phase 3) and
       discrete metadata column, `TreePlot.color_branches_by(column)`
@@ -520,10 +703,22 @@ claims:
       `.color_branches_by` are both applied to the same column, the
       terminal branch and its tip carry the same color — what users
       expect from ggtree-style figures.
+    subsystem: style
+    inputs:
+      corpus: "tests/oracle/test_color_branches_by_metadata.py"
+      n: 9
+      class: synthetic
+    pinned_versions:
+      treescape: "0.5.0"
+      self-consistency: "0.5.0"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Exact warning/no-warning behavior and exact SVG color fragments."
     evidence:
       oracle:
-        - self (monophyly resolver + SVG serialization checks on rectangular AND circular)
-      tolerance: Exact warning/no-warning behavior and exact SVG color fragments.
+        - self-consistency
       command: pytest tests/oracle/test_color_branches_by_metadata.py -v
       artifact: tests/oracle/reports/color_branches_by_metadata.json
     assumptions:
@@ -546,7 +741,7 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#property-based-testing
+    pattern: evident/docs/reference/patterns.md#property-based-testing
     claim: >
       `TreePlot.color_tips_by(column, cmap=...)` and
       `TreePlot.color_branches_by(column, cmap=...)` produce byte-identical
@@ -565,10 +760,22 @@ claims:
       apply to per-Text fill and the radial parent→child Line stroke
       respectively (per docs/conventions.md, v0.4 Phase 1), with the
       same byte-determinism property.
+    subsystem: style
+    inputs:
+      corpus: "tests/oracle/test_color_by_continuous.py"
+      n: 12
+      class: synthetic
+    pinned_versions:
+      treescape: "0.5.0"
+      self-consistency: "0.5.0"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Exact byte equality across repeated renders for fixed inputs."
     evidence:
       oracle:
-        - self (repeated render + LUT-endpoint assertions + auto/explicit equivalence on rectangular AND circular)
-      tolerance: Exact byte equality across repeated renders for fixed inputs.
+        - self-consistency
       command: pytest tests/oracle/test_color_by_continuous.py -v
       artifact: tests/oracle/reports/color_by_continuous.json
     assumptions:
@@ -600,7 +807,7 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#property-based-testing
+    pattern: evident/docs/reference/patterns.md#property-based-testing
     claim: >
       `TreePlot.width_branches_by(column, wmin=, wmax=, vmin=, vmax=)`
       maps a numeric metadata column through a linear interpolation onto
@@ -618,10 +825,22 @@ claims:
       extrapolated. The method raises ValueError if any observed value
       fails to coerce to numeric — width-by-discrete is out of v0.4
       scope.
+    subsystem: style
+    inputs:
+      corpus: "tests/oracle/test_branch_width_by_metadata.py"
+      n: 16
+      class: synthetic
+    pinned_versions:
+      treescape: "0.5.0"
+      self-consistency: "0.5.0"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Exact byte equality across repeated renders for fixed inputs."
     evidence:
       oracle:
-        - self (repeated render + subtree-mean assertion + tip-value-on-terminal assertion + clamp-on-outliers + raise-on-non-numeric)
-      tolerance: Exact byte equality across repeated renders for fixed inputs.
+        - self-consistency
       command: pytest tests/oracle/test_branch_width_by_metadata.py -v
       artifact: tests/oracle/reports/branch_width_by_metadata.json
     assumptions:
@@ -660,7 +879,7 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#property-based-testing
+    pattern: evident/docs/reference/patterns.md#property-based-testing
     claim: >
       For a fixed tree + fixed circular scene options + fixed
       (scale_bar, support_labels) configuration, repeated renders of
@@ -678,10 +897,31 @@ claims:
       canvas's right edge); support-label rotation_deg equals 0
       (upright, not tangential) and anchor equals Middle (centered on
       the projected node position).
+    subsystem: render
+    inputs:
+      corpus: "annotation-2"
+      n: 2
+      classes: [fixture, synthetic]
+      corpus_sha: "sha256:72722c2caab0082bd94ba0469af463d694b87f6898b55553316ed01120bd108b"
+    pinned_versions:
+      treescape: "0.5.0"
+      self-consistency: "0.5.0"
+      golden-snapshots: "0.5.0"
+      treescape-reference: "0.5.0"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Exact byte equality across repeated renders."
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-9
+        prose: "Convention assertions: scale-bar end x at the documented canvas position and support-label rotation 0, each within 1e-9."
     evidence:
       oracle:
-        - self (repeated render + Rust↔Python ref byte parity + convention assertions + golden snapshot)
-      tolerance: Exact byte equality across repeated renders.
+        - self-consistency
+        - golden-snapshots
+        - treescape-reference
       command: pytest tests/oracle/test_circular_annotations.py -v
       artifact: tests/oracle/reports/circular_annotations.json
     assumptions:
@@ -716,16 +956,28 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#property-based-testing
+    pattern: evident/docs/reference/patterns.md#property-based-testing
     claim: >
       For any tree with N tips, the rendered scene graph contains
       exactly N tip glyphs and all rendered (x, y) coordinates lie
       within the declared canvas bounds. Property-style invariant
       checked across hypothesis-generated trees.
+    subsystem: render
+    inputs:
+      corpus: "hypothesis random trees (tests/oracle/test_invariants.py, ci profile)"
+      n: 200
+      class: random-sample
+    pinned_versions:
+      treescape: "0.5.0"
+      hypothesis: "6.168.0"
+    tolerances:
+      - metric: pass_rate
+        op: "=="
+        value: 1.0
+        prose: "Exact equality on tip glyph count; <= and >= on bounds."
     evidence:
       oracle:
-        - hypothesis-generated random trees
-      tolerance: Exact equality on tip glyph count; <= and >= on bounds.
+        - hypothesis
       command: pytest tests/oracle/test_invariants.py -v --hypothesis-profile=ci
       artifact: tests/oracle/reports/tip_count_invariant.json
     assumptions:
@@ -742,7 +994,7 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#reference-shadowing
+    pattern: evident/docs/reference/patterns.md#reference-shadowing
     claim: >
       `treescape-core::style` (v0.5 Phase 1) returns the same resolution
       results as `treescape_reference.style`, the readable Python oracle
@@ -766,14 +1018,28 @@ claims:
       refactor is behavior-preserving; on Python 3.11 subtree-mean
       colors and widths deliberately change to the 3.12 result (see
       assumptions).
+    subsystem: style
+    inputs:
+      corpus: "gallery-14"
+      n: 20
+      classes: [fixture, random-sample, synthetic]
+      corpus_sha: "sha256:788a77c23f5c75fde399daf8b4780984615413a6efbc5deb2c6b138491363022"
+    pinned_versions:
+      treescape: "0.5.0"
+      treescape-reference: "0.5.0"
+      golden-snapshots: "0.5.0"
+      hypothesis: "6.168.0"
+      python: "3.12"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Exact: equal integers, bit-identical non-NaN f64, NaN by classification, identical exception type + message; byte equality for gallery SVGs."
     evidence:
       oracle:
-        - treescape_reference.style (Python, adapted from v0.4 plot.py)
-        - committed assets/ SVGs (rendered by v0.4 on Python 3.12)
-      tolerance: >
-        Exact: equal integers, bit-identical non-NaN f64, NaN by
-        classification, identical exception type + message; byte
-        equality for gallery SVGs.
+        - treescape-reference
+        - golden-snapshots
+        - hypothesis
       command: pytest tests/oracle/test_style_resolution.py tests/oracle/test_gallery_bytes.py -v
       artifact: tests/oracle/reports/style_resolution.json
     assumptions:
@@ -811,7 +1077,7 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#reference-shadowing
+    pattern: evident/docs/reference/patterns.md#reference-shadowing
     claim: >
       For every case in `tests/fixtures/parity/cases.toml` — a data-only
       description of a tree source plus a chain of TreePlot operations,
@@ -836,11 +1102,26 @@ claims:
       core, so it shows the Julia host layer adds nothing and loses
       nothing. It is not independent evidence that layouts are correct
       — that evidence is the ete3, Biopython and ggtree oracle claims.
+    subsystem: julia-binding
+    inputs:
+      corpus: "parity-cases"
+      n: 48
+      class: fixture
+      corpus_sha: "sha256:b100557676a686aefc95fb23fa4279e52670a32eb47ff35b7837e785dfcfe82b"
+    pinned_versions:
+      treescape: "0.5.0"
+      julia: "1.10 and 1.12"
+      treescape-python: "0.5.0"
+      golden-snapshots: "0.5.0"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Byte equality."
     evidence:
       oracle:
-        - treescape (Python) rendering the same cases.toml in the same run
-        - committed assets/ SVGs
-      tolerance: Byte equality.
+        - treescape-python
+        - golden-snapshots
       command: pytest tests/oracle/test_julia_parity.py tests/oracle/test_docs_examples.py -v
       artifact: tests/oracle/reports/julia_parity.json
     assumptions:
@@ -868,7 +1149,7 @@ claims:
     tier: ci
     trust_strategy:
       - validation
-    pattern: evident/patterns/README.md#property-based-testing
+    pattern: evident/docs/reference/patterns.md#property-based-testing
     claim: >
       Driven through Treescape.jl's raw ccall layer in a single Julia
       subprocess, no `ts_*` entry point panics or aborts: the process
@@ -885,13 +1166,22 @@ claims:
       message. Because the release profile uses `panic = "abort"`, any
       panic kills the process, which the runner reports as a failure
       naming the last case started.
+    subsystem: ffi
+    inputs:
+      corpus: "packages/Treescape.jl/test/ffi_no_abort.jl"
+      n: 1601
+      class: synthetic
+    pinned_versions:
+      treescape: "0.5.0"
+      julia-subprocess: "Julia 1.10 and 1.12"
+    tolerances:
+      - metric: pass_rate
+        op: "=="
+        value: 1.0
+        prose: "Exact: the process exits cleanly; every required-error case returns its expected status; every non-zero status has a message."
     evidence:
       oracle:
-        - Julia subprocess survival + per-case status expectations
-        - Rust unit tests calling the extern "C" functions in-process, also run under Miri in CI
-      tolerance: >
-        Exact: the process exits cleanly; every required-error case
-        returns its expected status; every non-zero status has a message.
+        - julia-subprocess
       command: pytest tests/oracle/test_jl_ffi_no_abort.py -v
       artifact: tests/oracle/reports/jl_ffi_no_abort.json
     assumptions:
