@@ -107,8 +107,8 @@ jobs:
           pip install pytest hypothesis
           pip install -e ./treescape-connector
           pip install -e packages/treescape-reference -e packages/treescape
-      - name: Julia claims (parity + FFI no-abort)
-        run: pytest tests/oracle/test_julia_parity.py tests/oracle/test_jl_ffi_no_abort.py -v
+      - name: Julia claims (parity + docs examples + FFI no-abort)
+        run: pytest tests/oracle/test_julia_parity.py tests/oracle/test_docs_examples.py tests/oracle/test_jl_ffi_no_abort.py -v
       - name: Upload oracle artifacts
         if: always()
         uses: actions/upload-artifact@v4

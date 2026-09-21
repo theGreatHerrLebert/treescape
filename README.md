@@ -1,6 +1,6 @@
 # treescape
 
-Python-native phylogenetic tree visualization with a Rust core and EVIDENT-style trust scaffolding.
+Phylogenetic tree visualization for Python and Julia with a Rust core and EVIDENT-style trust scaffolding.
 
 <p align="center">
   <img src="assets/primates.svg" alt="treescape rendering of a 12-tip primate phylogeny" width="640"/>
@@ -9,7 +9,7 @@ Python-native phylogenetic tree visualization with a Rust core and EVIDENT-style
 
 ## Status
 
-v0.3.0 shipped (2026-04-28). Sixteen EVIDENT claims pinned and green; rectangular and circular layouts; metadata join (polars) with discrete (Tableau-10) and continuous (viridis) tip and branch coloring; clade highlights on both layouts; scale-bar and support-label annotations on rectangular. See `plan.md` and `plan-v0.3.md` for the vision, `CHANGELOG.md` for what landed, and `evident.yaml` for the trust manifest.
+v0.5.0: rectangular and circular layouts; metadata-driven discrete (Tableau-10) and continuous (viridis) tip and branch coloring, branch widths, clade highlights, scale bars and support labels on both layouts — now from **Python and Julia**, with byte-identical SVG output. Documentation, tested examples in both languages, and the full claim list: **<https://thegreatherrlebert.github.io/treescape/>**. See `CHANGELOG.md` for what landed and `evident.yaml` for the trust manifest.
 
 ## Gallery
 

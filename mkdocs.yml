@@ -1,0 +1,49 @@
+site_name: treescape
+site_description: Phylogenetic tree plots with a Rust core, Python and Julia bindings, and EVIDENT trust scaffolding.
+site_url: https://thegreatherrlebert.github.io/treescape/
+repo_url: https://github.com/theGreatHerrLebert/treescape
+repo_name: theGreatHerrLebert/treescape
+edit_uri: edit/main/docs/
+copyright: MIT licensed
+
+docs_dir: docs
+strict: true
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - content.tabs.link        # choosing Python/Julia on one example switches them all
+    - navigation.sections
+    - navigation.top
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: { icon: material/brightness-7, name: Dark mode }
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: { icon: material/brightness-4, name: Light mode }
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc: { permalink: true }
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed: { alternate_style: true }
+
+# Copies assets/ and the Julia README into docs/ and generates
+# docs/claims.md from evident.yaml before every build (see the hook).
+hooks:
+  - scripts/mkdocs_hooks.py
+
+nav:
+  - Home: index.md
+  - Examples: examples.md
+  - Julia package: julia.md
+  - Trust:
+      - The trust case: trust-case.md
+      - Claims: claims.md
+      - Conventions: conventions.md

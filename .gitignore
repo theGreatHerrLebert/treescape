@@ -21,3 +21,8 @@ tests/oracle/reports/
 .claude/settings.local.json
 .codex
 packages/Treescape.jl/Manifest.toml
+docs/assets/
+docs/claims.md
+docs/julia.md
+docs/trust-case.md
+site/

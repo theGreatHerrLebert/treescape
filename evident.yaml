@@ -828,6 +828,10 @@ claims:
       support labels. The
       same Julia driver also reproduces every committed
       `assets/gallery/` SVG and `assets/primates.svg` byte for byte.
+      v0.5 Phase 3 extends coverage to the documentation: every example
+      on the docs site (`docs/examples.md`) is executed in both
+      languages, and each Python and each Julia block must produce the
+      exact bytes of the gallery SVG the page displays next to it.
       This is a binding-fidelity claim: both hosts drive the same Rust
       core, so it shows the Julia host layer adds nothing and loses
       nothing. It is not independent evidence that layouts are correct
@@ -837,7 +841,7 @@ claims:
         - treescape (Python) rendering the same cases.toml in the same run
         - committed assets/ SVGs
       tolerance: Byte equality.
-      command: pytest tests/oracle/test_julia_parity.py -v
+      command: pytest tests/oracle/test_julia_parity.py tests/oracle/test_docs_examples.py -v
       artifact: tests/oracle/reports/julia_parity.json
     assumptions:
       - Julia is found via `TREESCAPE_JULIA` or `julia` on PATH, and the

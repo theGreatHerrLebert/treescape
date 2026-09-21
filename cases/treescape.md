@@ -2,7 +2,7 @@
 
 ## Component
 
-`treescape` is a Python-native phylogenetic tree visualization library with a Rust core (`treescape-core`, `treescape-render`) and PyO3 bindings (`treescape-connector`). v0.1 focuses on Newick parsing, rectangular layouts, deterministic SVG output, and metadata-driven tip styling.
+`treescape` is a phylogenetic tree visualization library with a Rust core (`treescape-core`, `treescape-render`), PyO3 bindings for Python (`treescape-connector` → `packages/treescape`) and C-ABI bindings for Julia (`treescape-jl-connector` → `packages/Treescape.jl`). As of v0.5 it covers Newick parsing, rectangular and circular layouts, deterministic SVG output, and metadata-driven styling (tip and branch color, branch width, clade highlights, scale bars, support labels).
 
 ## What is being claimed
 
@@ -16,7 +16,9 @@ This case applies the EVIDENT pattern of layered, independent-lineage oracle com
 
 - **Reference shadowing** — a slow, readable Python implementation (`treescape-reference`, separately PyPI-publishable) is the canonical convention owner. The Rust core must agree within `1e-9`.
 - **Three external oracles from independent code lineages** — ete3 (CSIC), Biopython.Phylo (Biopython), and R/ggtree (Bioconductor + ggplot2). Their agreement is strong evidence; their disagreement is documented as a convention gap and never silently absorbed by tolerance bumps.
-- **Determinism** — same input + same options → byte-identical SVG output across runs and platforms. Pinned as a proof-by-construction claim.
+- **Determinism** — same input + same options → byte-identical SVG output across runs. Pinned as a proof-by-construction claim.
+- **Binding fidelity** — the Julia package and the Python package drive the same Rust core and must emit byte-identical SVG for the same inputs, including every example on the docs site. This shows the host layers add nothing and lose nothing; it is deliberately not counted as independent evidence of correctness.
+- **Robustness at the language boundary** — malformed input through the Julia C ABI must return an error, never abort the host process (fuzzed, and run under Miri).
 
 ## Trust strategy
 
