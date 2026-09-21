@@ -10,15 +10,18 @@ Plan: `devdocs/plans/plan-v0.6.md` (approved; decisions 1 and 3 at their default
 | `a7db379` | v0.6 plan |
 | `f059765` | Fix: circular θ of a node with evenly spread children (Rust/reference drift, found by Phase 2) — arc-midpoint rule |
 | `55d77f6` | **Phase 2**: pinned random corpus (`layout-v2`, 66 trees), external oracles check Rust + reference node by node, macOS determinism job. Reviewed; findings closed. Release tier 265/265 locally. |
+| `81763ca` | **Phase 3**: NJ/UPGMA from distance matrices in Python and Julia, seven claims (oracles scikit-bio, Biopython, SciPy, ape, phangorn; additive recovery; bounded performance), C ABI 2, release runners fail instead of skipping. Code-reviewed; findings fixed. Release tier 555/555. |
 | `872a325` | **Phase 1**: manifest on the upstream EVIDENT schema, pinned oracles (`tests/requirements-oracles.txt`), `tests/oracle/test_manifest.py`, named hashed corpora (`tests/fixtures/corpora.toml`), typed-trust claim viewer at `/trust/`. Reviewed by an independent agent; findings closed. |
 
 ## Open, in order
 
-1. **Check CI once** for `55d77f6`: the first run of the `determinism-macos` job. If it passes, change "verified on Linux" to "Linux and macOS" in `README.md` ("Known limits"), `docs/index.md` and `cases/treescape.md`. If it fails, that is a real cross-platform byte finding: investigate, don't paper over it. (Phase 1 CI, the v0.5.0 tag run and `/trust/` were all verified green.)
+1. **Check CI once** for `81763ca` (Phase 3) and the commit after it. The first run of the rewritten ci-tier includes the tree-building oracles (~1 min more) and the Julia parity for trees from distances. `determinism-macos` passed on `55d77f6`, and the docs now say "Linux x86-64 and macOS arm64".
 2. **Decisions for the user** (don't edit claim text without them):
-   - CHANGELOG "Noted, not changed": circular-ete3 claims 1e-4 while its runner asserts 1e-6 (tighten the claim?). The other Phase 1 items were resolved in Phase 2.
-   - Plan decision 2: can MATLAB (with the Bioinformatics Toolbox) be run once to export the course fixtures' distance matrices and trees as Newick? Decision 4: may course-derived data (distance matrices, labels, GenBank accessions) be published? Both gate only Phase 3.
-3. **Phase 3**: NJ/UPGMA from distance matrices, speed benchmark. Course use cases are at the Seafile share in memory (`project_course_use_cases.md`).
+   - `treescape-circular-layout-vs-ete3` claims 1e-4 while its runner asserts 1e-6. Tighten the claim?
+   - Plan decision 2, MATLAB: can MATLAB (with the Bioinformatics Toolbox) run once to export the course fixtures' distance matrices and `seqneighjoin`/`seqlinkage` trees as Newick? That would make "same tree as the MATLAB demo" a tested claim, and confirm that `'equivar'` is the canonical NJ.
+   - Plan decision 4, course data: may the course-derived matrices, labels and GenBank accessions be published? The course fixtures, the "Coming from MATLAB" page, and the use of `D.mat` (208 taxa with 6 zero pairs) as a real-world tie fixture all wait on it. The use-case files are in memory (`project_course_use_cases.md`).
+3. **Before tagging v0.6.0:** once decisions 2 and 4 are settled (or explicitly deferred to v0.7), bump the versions to 0.6.0 (Cargo, pyprojects, `Project.toml`, `__version__`; the `treescape` pins in `evident.yaml` then fail `test_manifest.py` until they are updated too). Run the release tier and the `bench` job before the tag (`gh workflow run ci --ref main` runs both), update the CHANGELOG date, and ask the user before pushing the tag.
+4. **v0.7 backlog** in `devdocs/plans/v0.6-candidates.md`: faster NJ (user decision), render fidelity and claim consolidation (v0.5 audit), distances from sequences, vertical orientation.
 
 ## Environment notes
 

@@ -83,7 +83,7 @@ Every correctness claim is pinned in [`evident.yaml`](evident.yaml) — the [EVI
 
 Where the external tools disagree with each other or with treescape — sweep direction, default ladderization, y offsets — the difference is documented in [conventions](docs/conventions.md), not hidden in a tolerance.
 
-**Known limits of that evidence**, stated plainly: external layout agreement is established on 66 trees of 2–200 tips (hand-written fixtures plus a pinned random corpus with multifurcations, zero-length branches and ladders), not on large real-world trees; rendered SVG geometry is snapshot-tested rather than checked against the validated coordinates; byte determinism is verified on Linux only; branch styling is O(nodes × depth). Closing these is tracked for the next release.
+**Known limits of that evidence**, stated plainly: external layout agreement is established on 66 trees of 2–200 tips (hand-written fixtures plus a pinned random corpus with multifurcations, zero-length branches and ladders), not on large real-world trees; rendered SVG geometry is snapshot-tested rather than checked against the validated coordinates; byte determinism is verified on Linux x86-64 and macOS arm64, not on Windows; branch styling is O(nodes × depth); neighbor joining is exact O(n³) and slower than scikit-bio's (see the [performance page](https://thegreatherrlebert.github.io/treescape/performance/)).
 
 ## Design philosophy
 
