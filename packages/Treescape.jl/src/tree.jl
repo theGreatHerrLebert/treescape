@@ -28,7 +28,54 @@ function Tree(newick::AbstractString)
         err,
     )
     check(status, err)
-    tree = Tree(out[], 0, -1, Int[], Bool[], String[], String[])
+    return _owned_tree(out[])
+end
+
+const _METHODS = Dict(:nj => UInt32(0), :upgma => UInt32(1))
+
+"""
+    Tree(D::AbstractMatrix{<:Real}, labels; method = :nj)
+
+Build a tree from an `n × n` distance matrix with neighbor joining
+(`:nj`) or UPGMA (`:upgma`); conventions in `docs/conventions.md`,
+"Trees from distance matrices".
+"""
+function Tree(D::AbstractMatrix{<:Real}, labels::AbstractVector; method::Symbol = :nj)
+    haskey(_METHODS, method) || throw(ArgumentError("method must be :nj or :upgma, got :$method"))
+    n = size(D, 1)
+    size(D, 2) == n || throw(ArgumentError("the matrix is not square ($(size(D, 1)) x $(size(D, 2)))"))
+    length(labels) == n || throw(ArgumentError("$(length(labels)) labels for a $n x $n matrix"))
+    # Row-major, as the C ABI (and "only the upper triangle is read") expects;
+    # Julia arrays are column-major.
+    flat = Vector{Float64}(vec(permutedims(Float64.(D))))
+    names = String[string(l) for l in labels]
+    out = Ref{Ptr{Cvoid}}(C_NULL)
+    err = Ref{Ptr{UInt8}}(C_NULL)
+    status = GC.@preserve names ccall(
+        sym(:ts_tree_from_distances),
+        Int32,
+        (Ptr{Float64}, Csize_t, Ptr{Cstring}, UInt32, Ptr{Ptr{Cvoid}}, Ptr{Ptr{UInt8}}),
+        flat,
+        n,
+        [Base.unsafe_convert(Cstring, Base.cconvert(Cstring, s)) for s in names],
+        _METHODS[method],
+        out,
+        err,
+    )
+    check(status, err)
+    return _owned_tree(out[])
+end
+
+"""The tree as a Newick string."""
+function newick(tree::Tree)
+    out = Ref{Ptr{UInt8}}(C_NULL)
+    err = Ref{Ptr{UInt8}}(C_NULL)
+    check(ccall(sym(:ts_tree_write_newick), Int32, (Ptr{Cvoid}, Ptr{Ptr{UInt8}}, Ptr{Ptr{UInt8}}), tree, out, err), err)
+    return take_string!(out[])
+end
+
+function _owned_tree(ptr::Ptr{Cvoid})
+    tree = Tree(ptr, 0, -1, Int[], Bool[], String[], String[])
     # Resolve the pointer now so the finalizer does no lookup at GC time.
     # Nulling `ptr` makes an explicit `finalize(tree)` safe: later calls get
     # the connector's null-pointer error instead of a use-after-free, and a

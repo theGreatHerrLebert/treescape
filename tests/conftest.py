@@ -17,3 +17,17 @@ for p in _SRC_PATHS:
     sp = str(p)
     if sp not in sys.path:
         sys.path.insert(0, sp)
+
+
+def pytest_collection_modifyitems(config, items):
+    """Timing claims (``@pytest.mark.bench``) need a quiet machine: they run
+    only when the marker expression names them (``-m bench``), never as part
+    of an ordinary or ``-m "not release_only"`` run."""
+    if "bench" in (config.getoption("markexpr") or ""):
+        return
+    kept, dropped = [], []
+    for item in items:
+        (dropped if item.get_closest_marker("bench") else kept).append(item)
+    if dropped:
+        config.hook.pytest_deselected(items=dropped)
+        items[:] = kept

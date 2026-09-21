@@ -108,6 +108,52 @@ case("value_range oversized length", [1]) do err
     )
 end
 
+# v0.6: trees from distance matrices.
+const D3 = [0.0, 1.0, 2.0, 1.0, 0.0, 1.5, 2.0, 1.5, 0.0]
+const L3 = ["a", "b", "c"]
+function from_distances(matrix, n, labels, method, err)
+    out = Ref{Ptr{Cvoid}}(C_NULL)
+    status = GC.@preserve labels ccall(sym(:ts_tree_from_distances), Int32,
+        (Ptr{Float64}, Csize_t, Ptr{Ptr{UInt8}}, UInt32, Ptr{Ptr{Cvoid}}, Ptr{Ptr{UInt8}}), matrix, n,
+        labels === nothing ? C_NULL : [pointer(l) for l in labels], method, out, err)
+    out[] == C_NULL || free_tree(out[])
+    status
+end
+case("distances valid", [0]) do err
+    from_distances(D3, 3, L3, 0, err)
+end
+case("distances null matrix", [1]) do err
+    from_distances(C_NULL, 3, L3, 0, err)
+end
+case("distances null labels", [1]) do err
+    from_distances(D3, 3, nothing, 1, err)
+end
+case("distances over the taxa limit", [1]) do err
+    from_distances(D3, 10_001, L3, 0, err)
+end
+case("distances n*n overflows", [1]) do err
+    from_distances(D3, typemax(Csize_t), L3, 0, err)
+end
+case("distances bad method", [1]) do err
+    from_distances(D3, 3, L3, 7, err)
+end
+case("distances NaN entry", [1]) do err
+    from_distances([0.0, NaN, 2.0, NaN, 0.0, 1.5, 2.0, 1.5, 0.0], 3, L3, 0, err)
+end
+case("distances n = 1", [1]) do err
+    from_distances([0.0], 1, ["a"], 1, err)
+end
+case("linkage null", [1]) do err
+    out = Ref{Ptr{Cvoid}}(C_NULL)
+    GC.@preserve L3 ccall(sym(:ts_tree_from_linkage), Int32, (Ptr{Float64}, Csize_t, Ptr{Ptr{UInt8}}, Ptr{Ptr{Cvoid}}, ERR),
+        C_NULL, 3, [pointer(l) for l in L3], out, err)
+end
+case("linkage cluster out of range", [1]) do err
+    out = Ref{Ptr{Cvoid}}(C_NULL)
+    GC.@preserve L3 ccall(sym(:ts_tree_from_linkage), Int32, (Ptr{Float64}, Csize_t, Ptr{Ptr{UInt8}}, Ptr{Ptr{Cvoid}}, ERR),
+        [0.0, 9.0, 1.0, 2.0, 2.0, 3.0, 2.0, 3.0], 3, [pointer(l) for l in L3], out, err)
+end
+
 status, tree = parse_tree(VALID)
 @assert status == 0
 n_nodes = Ref{Csize_t}(0)

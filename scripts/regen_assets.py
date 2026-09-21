@@ -82,6 +82,9 @@ PRIMATES_METADATA = pl.DataFrame(
 GREAT_APES = ["Homo_sapiens", "Pan_troglodytes", "Gorilla_gorilla", "Pongo_abelii"]
 
 
+TEXTBOOK = [[0, 5, 9, 9, 8], [5, 0, 10, 10, 9], [9, 10, 0, 8, 7], [9, 10, 8, 0, 3], [8, 9, 7, 3, 0]]
+
+
 def _base_rectangular() -> TreePlot:
     """Rectangular primates plot with consistent gallery options."""
     return TreePlot(str(SOURCE)).options(
@@ -177,6 +180,18 @@ GALLERY: list[tuple[str, Callable[[], TreePlot]]] = [
     (
         "13_branch_width_by_support.svg",
         lambda: _meta(_base_rectangular()).width_branches_by("support"),
+    ),
+    # v0.6: trees built from a distance matrix (the standard NJ teaching
+    # example; tests/fixtures/distances/ties_textbook_5.tsv).
+    (
+        "14_nj_from_distances.svg",
+        lambda: TreePlot.from_distances(TEXTBOOK, list("abcde")).options(padding=16, px_per_x=40, font_size=12).scale_bar(1.0),
+    ),
+    (
+        "15_upgma_from_distances.svg",
+        lambda: TreePlot.from_distances(TEXTBOOK, list("abcde"), method="upgma")
+        .options(padding=16, px_per_x=40, font_size=12)
+        .scale_bar(1.0),
     ),
 ]
 

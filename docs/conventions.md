@@ -336,6 +336,58 @@ Both treescape implementations (`treescape-reference` and the Rust core via `tre
 | Biopython | every node `x`; tip `y` (after `−1`); internal `y` on nodes whose whole subtree is binary. At a multifurcation Biopython uses the midpoint of the first and last child, treescape the mean of all children (see the gap table), and because an internal y is the mean of its children's, the difference propagates to every ancestor. | — (no circular layout) |
 | ggtree | every node `x` and `y` (after `+1`; ggtree also uses the mean of the children) | every node `r`; tip `θ` (transform in the disagreement log). Internal `θ` is not compared: ggtree takes the linear mean, treescape the wrap-aware vector mean. |
 
+## Trees from distance matrices (v0.6 Phase 3)
+
+`treescape_reference.tree_build` is the convention owner; `treescape-core::tree_build` is held to it (exact topology, branch lengths within `1e-12`). Both follow the steps below in the same floating-point order, including every tie, so they build the same tree.
+
+### Input
+
+- `D`: an `n × n` matrix, `n ≥ 2`, and `n` labels. Rejected, with the offending row and column named: non-square, non-finite, a non-zero diagonal, a negative entry, or asymmetry beyond `|D[i][j] − D[j][i]| ≤ 1e-9 · max(1, |D[i][j]|)`. Only the upper triangle (`i < j`) is read.
+- Labels: unique, non-empty strings. They become the tip names.
+- `n = 2`: a root with the two tips, each at `D[0][1] / 2`, for both methods.
+
+### Common bookkeeping
+
+An **active list** holds the current clusters, starting with the taxa in input order. Each step picks a pair of positions `p < q` in the list, joins them into a new node with children `[L[p], L[q]]` in that order, removes both, and **appends** the new node at the end. All sums are left-to-right folds in list order. **Ties:** the first pair in `(p, q)` order, `p` ascending, then `q` ascending (a strict `<` scan).
+
+### Neighbor joining
+
+Saitou and Nei (1987), with the Studier and Keppler criterion (the "canonical" NJ; to be confirmed as MATLAB's `seqneighjoin(..., 'equivar')`):
+
+- With `r` active clusters: `R(k) = Σ_m d(k, m)`, and `Q(p, q) = (r − 2)·d(p, q) − R(p) − R(q)`. Join the pair that minimizes `Q`.
+- Branch lengths: `δ_p = d(p,q)/2 + (R(p) − R(q)) / (2(r − 2))` and `δ_q = d(p,q) − δ_p`.
+- New distances: `d(u, k) = (d(p,k) + d(q,k) − d(p,q)) / 2`.
+- When three clusters `a, b, c` remain (list order), they become the three children of the **root**, with `δ_a = (d_ab + d_ac − d_bc)/2`, `δ_b = (d_ab + d_bc − d_ac)/2` and `δ_c = (d_ac + d_bc − d_ab)/2`. NJ trees are unrooted. treescape draws them from this last join, a trifurcating root, and does not midpoint-root implicitly.
+- **Negative branch lengths are kept**, as ape does. scikit-bio clamps them to 0 by default, so its oracle runs with `neg_as_zero=False`.
+
+### UPGMA
+
+Average linkage (Sokal and Michener, 1958):
+
+- Join the pair minimizing `d(p, q)`. The new node's height is `d(p,q)/2`, and each child's branch length is `height(u) − height(child)`; tips have height 0.
+- `d(u, k) = (|p|·d(p,k) + |q|·d(q,k)) / (|p| + |q|)`, weighted by cluster sizes. This is what makes it UPGMA rather than WPGMA.
+- The root is the last join. The tree is ultrametric.
+
+### From a SciPy linkage matrix
+
+`TreePlot.from_linkage(Z, labels)`: row `i` of `Z` joins clusters `Z[i,0]` and `Z[i,1]` (ids `≥ n` are earlier rows) at distance `Z[i,2]`. That node's height is `Z[i,2] / 2`, so that the path between two tips equals their merge distance, which is the UPGMA convention above. SciPy's own `dendrogram` draws at `Z[i,2]` and is therefore twice as tall. Children are in the order `Z[i,0], Z[i,1]`.
+
+### Comparing trees
+
+- **NJ** trees are compared **unrooted**. Each edge is identified by its split: the side that does not contain the first label, or the tip for a pendant edge. A root with two children is merged into a single edge (the sum of the two lengths), so the rooting each tool chooses does not matter. Topology must match exactly, and each edge length within the tolerance.
+- **UPGMA** trees are compared **rooted**: each node is identified by its clade, with its height. Clades must match exactly, and each height within the tolerance.
+
+### Oracle behaviour (why each oracle is used, or not)
+
+| Tool | NJ | UPGMA |
+|---|---|---|
+| scikit-bio `nj` | independent implementation; clamps negative lengths unless `neg_as_zero=False` | `upgma` wraps SciPy's `linkage`, so it is not independent and not used |
+| Biopython `DistanceTreeConstructor` | independent, pure Python; ties: first minimum in its own index order, which differs from ours because the merged node takes the lower index | **`upgma` is WPGMA**: it updates `d(u,k) = (d(p,k) + d(q,k)) / 2` without cluster sizes. Not a UPGMA oracle; excluded, and logged below |
+| SciPy `linkage(method="average")` | — | independent (C, nearest-neighbour chain) |
+| ape `nj` / phangorn `upgma` (R, release tier) | independent | independent |
+
+**Ties** decide the tree when several pairs share the minimum. The oracles break them differently, so oracle agreement is claimed on tie-free matrices only. Tie behaviour is pinned by the Rust↔reference claim and by dedicated tie fixtures.
+
 ## Convention gaps vs external oracles
 
 | Convention | treescape | ete3 | Biopython.Phylo | ggtree |
@@ -378,3 +430,4 @@ When an oracle disagrees with treescape on a fixture and the gap is real (not a 
 | 2026-04-28 | `small/two_tip.nwk`, `small/balanced_4.nwk`, `small/unbalanced_5.nwk`, `edge/trifurcation_root.nwk` | ggtree 4.0.5 | Tip y values diverged from treescape/ete3/Biopython on first run of claim `treescape-layout-vs-ggtree`. Two causes: ggtree's default `ladderize = TRUE` reorders children by clade size; ggtree's tip y is 1-based. | Pass `ladderize = FALSE` in `workflow/scripts/oracle_ggtree.R` (matches treescape's "no implicit ladderize" convention); apply `+1` offset in the oracle test (matches the Biopython oracle's pattern). No tolerance change. |
 | 2026-04-28 | `small/two_tip.nwk`, `small/balanced_4.nwk`, `small/unbalanced_5.nwk`, `edge/trifurcation_root.nwk` | ggtree 4.0.5 (circular) | Tip θ diverged on first run of claim `treescape-circular-layout-vs-ggtree`. Cause: ggtree places tip *i* (1-based) at angle ``i·2π/N`` sweeping **CCW** with the LAST tip at 3 o'clock (0); treescape places tip *i* (0-based) at ``π/2 − i·2π/N`` sweeping **CW** with the FIRST tip at 12 o'clock (π/2). The two formulas combine into per-tip ``θ_ggtree = 2π/N + π/2 − θ_ours`` (mod 2π). Internal-node angles also diverge (ggtree linear mean, treescape wrap-aware vector mean) but the oracle test compares tips only. | Apply the per-tip θ transform in `tests/oracle/test_circular_layout_vs_ggtree.py`. Internal-node convention covered by Rust↔reference parity instead. No tolerance change. |
 | 2026-09-21 | `random/polytomy_*.nwk` (121 multifurcating nodes in the corpus; 200 nodes whose subtree is not binary) | Biopython 1.88 | Internal y at a node with more than two children: Biopython places it at the midpoint of its first and last child, treescape at the mean of all children. Because an internal y is the mean of its children's, the difference propagates to every ancestor: 136 of the 200 non-binary-subtree nodes differ, by up to 14.8 rows. Known since v0.1 (gap table); first exercised by the v0.6 node-level comparison. | Internal y compared only for nodes whose whole subtree is binary, where both rules agree. The rest is excluded by rule, not by tolerance. No tolerance change. |
+| 2026-09-21 | any matrix where cluster sizes differ | Biopython 1.88 (`DistanceTreeConstructor.upgma`) | Biopython's "upgma" updates distances as `(d(p,k) + d(q,k)) / 2`, which is WPGMA. True UPGMA weights by cluster size. The two agree only when every join is between equal-sized clusters. | Biopython is not used as a UPGMA oracle. UPGMA is checked against SciPy (ci) and phangorn (release). No tolerance change. |

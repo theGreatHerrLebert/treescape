@@ -35,12 +35,12 @@ MANIFEST = yaml.safe_load((REPO / "evident.yaml").read_text())
 CLAIMS = MANIFEST["claims"]
 CORPORA = corpora()
 # Oracle name in the manifest -> Python distribution that provides it.
-PYTHON_ORACLES = {"Biopython": "biopython", "ete3": "ete3", "hypothesis": "hypothesis"}
+PYTHON_ORACLES = {"Biopython": "biopython", "ete3": "ete3", "hypothesis": "hypothesis", "scikit-bio": "scikit-bio", "SciPy": "scipy"}
 # In-repository oracles, pinned to the workspace version.
-IN_REPO_ORACLES = {"treescape-reference", "golden-snapshots", "self-consistency", "treescape-python"}
-# Oracles whose pin is checked elsewhere: ggtree in the release image
-# (below); the Julia harness by the CI matrix that runs it.
-OTHER_ORACLES = {"ggtree", "julia-subprocess"}
+IN_REPO_ORACLES = {"treescape-reference", "golden-snapshots", "self-consistency", "treescape-python", "generating-tree"}
+# Oracles whose pin is checked elsewhere: the R packages in the release
+# image (below); the Julia harness by the CI matrix that runs it.
+OTHER_ORACLES = {"ggtree", "ape", "phangorn", "julia-subprocess"}
 
 
 def _pins(oracle: str) -> set[str]:
@@ -115,6 +115,17 @@ def test_ggtree_pin_matches_release_image() -> None:
     )
     actual = subprocess.run([rscript, "-e", expr], capture_output=True, text=True, check=True).stdout.strip()
     assert _pins("ggtree") == {actual}
+
+
+@pytest.mark.release_only
+@pytest.mark.parametrize("package", ["ape", "phangorn"])
+def test_r_package_pins_match_release_image(package: str) -> None:
+    rscript = shutil.which("Rscript")
+    if rscript is None:
+        pytest.fail("Rscript not found; the release tier runs inside workflow/Dockerfile.evident-release")
+    expr = f'cat(as.character(packageVersion("{package}")))'
+    actual = subprocess.run([rscript, "-e", expr], capture_output=True, text=True, check=True).stdout.strip()
+    assert _pins(package) == {actual}
 
 
 def test_random_corpus_matches_its_generator() -> None:

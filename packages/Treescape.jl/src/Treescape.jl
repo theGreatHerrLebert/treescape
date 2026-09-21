@@ -33,6 +33,7 @@ export TreePlot,
     scale_bar!,
     support_labels!,
     to_svg,
+    to_newick,
     save
 
 include("lib.jl")

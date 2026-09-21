@@ -30,6 +30,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - The six layout claims now name the new corpus and say which implementation each oracle checks. Tolerances are unchanged.
 - The macOS arm64 CI job runs the byte-determinism, golden and gallery runners against the same goldens.
 
+### Added — v0.6 Phase 3: trees from distance matrices
+
+- **Neighbor joining and UPGMA**: `TreePlot.from_distances(D, labels, method="nj"|"upgma")` and `TreePlot.from_linkage(Z, labels)` (SciPy linkage matrices) in Python; `TreePlot(D, labels; method = :nj)` in Julia; `to_newick` in both. Built in `treescape-core::tree_build` (reference first: `treescape_reference.tree_build`). Everything else works on the result unchanged: circular layout, metadata, styling, scale bars.
+- **Conventions** (`docs/conventions.md`, "Trees from distance matrices"): the Studier–Keppler NJ criterion, the NJ root at the last three-way join, negative lengths kept, size-weighted UPGMA, a pinned tie rule (first pair in list order) and summation order, and input checks that name the offending cell. Rust and the reference build bit-identical trees, ties included.
+- **Seven claims**:
+  - `treescape-tree-build-rust-vs-reference`: every tie included.
+  - `treescape-nj-vs-oracles`: scikit-bio `nj` with `neg_as_zero=False`, and Biopython.
+  - `treescape-nj-vs-ape` (release).
+  - `treescape-upgma-vs-scipy`.
+  - `treescape-upgma-vs-phangorn` (release).
+  - `treescape-nj-recovers-additive-trees`: ground truth rather than another implementation.
+  - `treescape-tree-build-performance`: bounded time ratios; see below.
+
+  The oracle claims run on 72 generated matrices (`distance-v1`: additive and noisy matrices from the pinned random trees), and every matrix is first proven tie-free. The oracles break ties differently, so tie behaviour is covered by the Rust↔reference claim and three hand-written tie fixtures.
+- **Oracle findings**, documented rather than absorbed:
+  - Biopython's `DistanceTreeConstructor.upgma` computes **WPGMA** (unweighted cluster average), so it is not used as a UPGMA oracle.
+  - scikit-bio's `upgma` wraps SciPy, so it would not be independent.
+  - scikit-bio's `nj` clamps negative lengths by default.
+- **Performance, measured and stated honestly** (`docs/performance.md`): exact O(n³) NJ is 2.0–3.7× slower than scikit-bio's optimized `nj` at 500–2000 taxa and about 1,000× faster than Biopython's. UPGMA, with cached row minima, is 2.4–3.7× slower than SciPy. The claim bounds these ratios. It does not say "fast". The three optimizations kept (a compacted active-order matrix, overlapped row totals, cached UPGMA row minima) change no result: the parity claims prove it. Faster NJ is v0.7 work.
+- **C ABI 2**: `ts_tree_from_distances`, `ts_tree_from_linkage`, `ts_tree_write_newick` (input capped at 10,000 taxa; the no-abort runner covers the new entry points: 1,611 cases).
+- **Release image**: phangorn (plus the `libglpk40` its igraph dependency needs, found because phangorn failed to load); every oracle package is loaded once at build time. Release-tier runners now **fail instead of skipping** when a tool is missing (`TREESCAPE_REQUIRE_RELEASE=1` in the image): the first run with phangorn had skipped 288 tests and still reported success.
+- Code review: `from_linkage` (Rust and reference) now rejects a linkage matrix that joins a cluster twice, which would have dropped or duplicated tips, and checks labels like `from_distances` does. A Rust↔reference parity test for `from_linkage` covers all 72 corpus matrices.
+- Gallery 14 and 15 and two tested examples (Python and Julia, byte-identical): the standard NJ teaching matrix built with NJ and with UPGMA.
+
 ### Fixed — found by v0.6 Phase 2 node-level comparison
 
 - **Circular layout: a node whose children are spread evenly got a rounding-noise angle.** The wrap-aware mean of the children's unit vectors is the origin when they are spread evenly. Examples: a star root such as `(a,b,c);`, the two opposite children of a two-tip tree, and a drawn inner node whose arc exceeds π, such as `(b,(c,d,e),f)` in `(a,(b,(c,d,e),f));`. `atan2` then returned noise, and that noise differed between the Rust core and the Python reference. The reference also summed with Python's compensated `sum()` (Neumaier on 3.12+, naive on 3.11) instead of Rust's left-to-right fold.

@@ -284,6 +284,62 @@ Widths scale linearly from `wmin=1` to `wmax=4` pixels over the column's range.
 
 ![Circular tree colored by clade](assets/gallery/11_circular_color_tips_by_clade.svg)
 
+## A tree from a distance matrix
+
+When all you have are pairwise distances (from an alignment, k-mers, or MATLAB's `seqpdist`), build the tree directly. `method` is neighbor joining (`"nj"`, the default; unrooted, drawn from its last join) or UPGMA (`"upgma"`; rooted, ultrametric). This is the standard neighbor-joining teaching example.
+
+<!-- example: 14_nj_from_distances.svg -->
+=== "Python"
+
+    ```python
+    D = [[0, 5, 9, 9, 8], [5, 0, 10, 10, 9], [9, 10, 0, 8, 7], [9, 10, 8, 0, 3], [8, 9, 7, 3, 0]]
+    p = (
+        TreePlot.from_distances(D, ["a", "b", "c", "d", "e"])
+        .options(padding=16, px_per_x=40, font_size=12)
+        .scale_bar(1.0)
+    )
+    ```
+
+=== "Julia"
+
+    ```julia
+    D = [0 5 9 9 8; 5 0 10 10 9; 9 10 0 8 7; 9 10 8 0 3; 8 9 7 3 0]
+    p = TreePlot(D, ["a", "b", "c", "d", "e"])
+    options!(p; padding=16, px_per_x=40, font_size=12)
+    scale_bar!(p, 1.0)
+    ```
+
+![Neighbor-joining tree from a distance matrix](assets/gallery/14_nj_from_distances.svg)
+
+## UPGMA
+
+The same matrix with average linkage gives a rooted, ultrametric tree.
+
+<!-- example: 15_upgma_from_distances.svg -->
+=== "Python"
+
+    ```python
+    D = [[0, 5, 9, 9, 8], [5, 0, 10, 10, 9], [9, 10, 0, 8, 7], [9, 10, 8, 0, 3], [8, 9, 7, 3, 0]]
+    p = (
+        TreePlot.from_distances(D, ["a", "b", "c", "d", "e"], method="upgma")
+        .options(padding=16, px_per_x=40, font_size=12)
+        .scale_bar(1.0)
+    )
+    ```
+
+=== "Julia"
+
+    ```julia
+    D = [0 5 9 9 8; 5 0 10 10 9; 9 10 0 8 7; 9 10 8 0 3; 8 9 7 3 0]
+    p = TreePlot(D, ["a", "b", "c", "d", "e"]; method = :upgma)
+    options!(p; padding=16, px_per_x=40, font_size=12)
+    scale_bar!(p, 1.0)
+    ```
+
+![UPGMA tree from the same matrix](assets/gallery/15_upgma_from_distances.svg)
+
+Matrices from SciPy's `linkage` work too: `TreePlot.from_linkage(Z, labels)`. Input checks, the tie rule and how negative neighbor-joining lengths are handled are pinned in [Conventions](conventions.md#trees-from-distance-matrices-v06-phase-3).
+
 ## In a notebook
 
 In Julia a `TreePlot` displays inline as SVG in Pluto, IJulia and VS Code — no `save` needed. In Jupyter (Python), display the string `to_svg()` returns: `IPython.display.SVG(p.to_svg())`.

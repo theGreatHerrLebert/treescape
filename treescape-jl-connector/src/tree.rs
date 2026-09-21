@@ -5,8 +5,11 @@ use std::ffi::c_char;
 use treescape_core::ladderize::tip_order;
 use treescape_core::newick;
 use treescape_core::tree::Tree;
+use treescape_core::tree_build;
 
-use crate::ffi::{copy_out, finish, handle, str_arg, write_out, write_string, Failure, FfiResult};
+use crate::ffi::{
+    copy_out, finish, handle, slice_arg, str_arg, write_out, write_string, Failure, FfiResult,
+};
 use crate::TS_PARSE_ERROR;
 
 /// Largest Newick input accepted (16 MiB; ~500k tips of typical Newick).
@@ -57,6 +60,98 @@ pub extern "C" fn ts_tree_parse_newick(
             return Err(f);
         }
         Ok(())
+    };
+    finish(run(), err)
+}
+
+/// Largest distance matrix accepted (taxa). Building copies the matrix
+/// (8·n² bytes, 800 MB at the limit) and allocation failure aborts the
+/// host, so larger inputs are rejected up front.
+pub const MAX_TAXA: usize = 10_000;
+
+fn box_tree(tree: Tree, out_tree: *mut *mut TsTree) -> FfiResult<()> {
+    let tips = tip_order(&tree);
+    let boxed = Box::into_raw(Box::new(TsTree { tree, tips }));
+    if let Err(f) = write_out(out_tree, boxed, "out_tree") {
+        // SAFETY: `boxed` was just created and never shared.
+        drop(unsafe { Box::from_raw(boxed) });
+        return Err(f);
+    }
+    Ok(())
+}
+
+fn labels_arg(labels: *const *const c_char, n: usize) -> FfiResult<Vec<String>> {
+    slice_arg(labels, n, "labels")?
+        .iter()
+        .map(|&p| str_arg(p, "label").map(str::to_owned))
+        .collect()
+}
+
+/// Build a tree from a row-major `n × n` distance matrix. `method`:
+/// 0 = neighbor joining, 1 = UPGMA. Invalid input (docs/conventions.md,
+/// "Trees from distance matrices") is status 1 with the offending cell.
+#[no_mangle]
+pub extern "C" fn ts_tree_from_distances(
+    matrix: *const f64,
+    n: usize,
+    labels: *const *const c_char,
+    method: u32,
+    out_tree: *mut *mut TsTree,
+    err: *mut *mut c_char,
+) -> i32 {
+    let run = || -> FfiResult<()> {
+        if n > MAX_TAXA {
+            return Err(Failure::invalid(format!(
+                "{n} taxa; the limit is {MAX_TAXA}"
+            )));
+        }
+        let cells = n
+            .checked_mul(n)
+            .ok_or_else(|| Failure::invalid("matrix size overflows"))?;
+        let matrix = slice_arg(matrix, cells, "matrix")?;
+        let labels = labels_arg(labels, n)?;
+        let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
+        let tree = match method {
+            0 => tree_build::neighbor_joining(matrix, &labels),
+            1 => tree_build::upgma(matrix, &labels),
+            other => {
+                return Err(Failure::invalid(format!(
+                    "method must be 0 (nj) or 1 (upgma), got {other}"
+                )))
+            }
+        }
+        .map_err(|e| Failure::invalid(e.to_string()))?;
+        box_tree(tree, out_tree)
+    };
+    finish(run(), err)
+}
+
+/// Build a tree from a row-major SciPy-style linkage matrix (`n − 1` rows
+/// of 4 values) and `n` labels.
+#[no_mangle]
+pub extern "C" fn ts_tree_from_linkage(
+    linkage: *const f64,
+    n: usize,
+    labels: *const *const c_char,
+    out_tree: *mut *mut TsTree,
+    err: *mut *mut c_char,
+) -> i32 {
+    let run = || -> FfiResult<()> {
+        if n > MAX_TAXA {
+            return Err(Failure::invalid(format!(
+                "{n} taxa; the limit is {MAX_TAXA}"
+            )));
+        }
+        let cells = n
+            .saturating_sub(1)
+            .checked_mul(4)
+            .ok_or_else(|| Failure::invalid("linkage size overflows"))?;
+        let linkage = slice_arg(linkage, cells, "linkage")?;
+        let labels = labels_arg(labels, n)?;
+        let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
+        let tree = tree_build::from_linkage(linkage, &labels)
+            .map_err(|e| Failure::invalid(e.to_string()))?;
+        box_tree(tree, out_tree)
     };
     finish(run(), err)
 }
@@ -155,6 +250,20 @@ pub extern "C" fn ts_tree_node_name(
         t.check_node(node)?;
         let name = t.tree.name.get(node).map(String::as_str).unwrap_or("");
         write_string(out, name, "out")
+    };
+    finish(run(), err)
+}
+
+/// The tree as a Newick string (owned; release with `ts_string_free`).
+#[no_mangle]
+pub extern "C" fn ts_tree_write_newick(
+    tree: *const TsTree,
+    out: *mut *mut c_char,
+    err: *mut *mut c_char,
+) -> i32 {
+    let run = || {
+        let t = handle(tree, "tree")?;
+        write_string(out, &newick::write(&t.tree), "out")
     };
     finish(run(), err)
 }

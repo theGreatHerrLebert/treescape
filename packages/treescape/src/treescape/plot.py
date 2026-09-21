@@ -96,7 +96,55 @@ class TreePlot:
     _SUPPORTED_LAYOUTS = ("rectangular", "circular")
 
     def __init__(self, source: Union[str, Path]) -> None:
-        self._tree = _load_tree(source)
+        self._init_state(_load_tree(source))
+
+    @classmethod
+    def from_distances(cls, matrix, labels, method: str = "nj") -> "TreePlot":
+        """Build the tree from a pairwise distance matrix.
+
+        ``matrix`` is any 2-D array-like of numbers (nested lists, a NumPy
+        array, …) of shape ``n × n``; ``labels`` are the ``n`` tip names.
+        ``method`` is ``"nj"`` (neighbor joining; unrooted, drawn from its
+        last join) or ``"upgma"`` (average linkage; rooted, ultrametric).
+        Conventions — tie rule, negative lengths, input checks — are in
+        ``docs/conventions.md`` ("Trees from distance matrices").
+        """
+        if method not in ("nj", "upgma"):
+            raise ValueError(f"method must be 'nj' or 'upgma', got {method!r}")
+        rows = [list(row) for row in matrix]
+        n = len(rows)
+        for i, row in enumerate(rows):
+            if len(row) != n:
+                raise ValueError(f"row {i} has {len(row)} entries; the matrix is not square ({n} rows)")
+        flat = [float(v) for row in rows for v in row]
+        plot = cls.__new__(cls)
+        plot._init_state(_RustTree.from_distances(flat, [str(label) for label in labels], method))
+        return plot
+
+    @classmethod
+    def from_linkage(cls, linkage, labels) -> "TreePlot":
+        """Build the tree from a SciPy linkage matrix (``scipy.cluster.hierarchy.linkage``).
+
+        Node heights are half the merge distances, so the path between two
+        tips equals their merge distance (the UPGMA convention);
+        ``scipy.cluster.hierarchy.dendrogram`` draws at the full distance.
+        """
+        flat = []
+        for i, row in enumerate(linkage):
+            row = list(row)
+            if len(row) != 4:
+                raise ValueError(f"linkage row {i} has {len(row)} columns; expected 4")
+            flat.extend(float(v) for v in row)
+        plot = cls.__new__(cls)
+        plot._init_state(_RustTree.from_linkage(flat, [str(label) for label in labels]))
+        return plot
+
+    def to_newick(self) -> str:
+        """The tree as a Newick string (for trees built from distances, too)."""
+        return self._tree.write_newick()
+
+    def _init_state(self, tree: _RustTree) -> None:
+        self._tree = tree
         self._layout: str = "rectangular"
         self._scene_opts = SceneOptions()
         self._circular_opts = CircularSceneOptions()

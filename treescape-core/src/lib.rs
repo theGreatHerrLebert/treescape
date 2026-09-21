@@ -11,3 +11,4 @@ pub mod newick;
 pub mod style;
 pub mod traversal;
 pub mod tree;
+pub mod tree_build;

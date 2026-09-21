@@ -25,6 +25,7 @@ import pytest
 
 import _ggtree
 from _julia import REPO
+from _release import require
 from _layouts import CASE_IDS, CASES, LAYOUT_CORPUS, angle_diff, circular, label
 
 REPORT_DIR = REPO / "tests" / "oracle" / "reports"
@@ -32,9 +33,9 @@ TOL = 1e-3
 
 
 @pytest.mark.release_only
-@pytest.mark.skipif(not _ggtree.available(), reason="R + Bioconductor + ggtree required (release tier)")
 @pytest.mark.parametrize("fixture,impl", CASES, ids=CASE_IDS)
 def test_circular_layout_vs_ggtree(fixture, impl) -> None:
+    require(_ggtree.available(), "R + Bioconductor + ggtree")
     ours = circular(fixture.read_text(), impl)
     theirs = _ggtree.nodes(str(fixture), circular=True)
     assert set(ours) == set(theirs), f"clade sets differ on {fixture.name}"

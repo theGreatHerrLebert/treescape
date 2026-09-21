@@ -34,8 +34,13 @@ end
 
 function run_case(case, trees, tables, repo)
     source = trees[case["tree"]]
-    src = haskey(source, "path") ? joinpath(repo, source["path"]) : source["newick"]
-    p = TreePlot(src)
+    p = if haskey(source, "distances")
+        lines = readlines(joinpath(repo, source["distances"]))
+        D = permutedims(reduce(hcat, [parse.(Float64, split(l, '\t')) for l in lines[2:end]]))
+        TreePlot(D, split(lines[1], '\t'); method = Symbol(source["method"]))
+    else
+        TreePlot(haskey(source, "path") ? joinpath(repo, source["path"]) : source["newick"])
+    end
     for step in case["ops"]
         op = step["op"]
         args = [convert_arg(op, i, a, tables) for (i, a) in enumerate(get(step, "args", []))]

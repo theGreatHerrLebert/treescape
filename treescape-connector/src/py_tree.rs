@@ -6,6 +6,7 @@ use pyo3::prelude::*;
 use treescape_core::ladderize as core_ladderize;
 use treescape_core::newick;
 use treescape_core::tree::Tree;
+use treescape_core::tree_build;
 
 #[pyclass(name = "Tree", module = "treescape_connector.py_tree")]
 #[derive(Clone)]
@@ -25,6 +26,34 @@ impl PyTree {
     #[staticmethod]
     fn parse_newick(s: &str) -> PyResult<Self> {
         newick::parse(s)
+            .map(|inner| Self { inner })
+            .map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
+    /// Build a tree from a row-major `n × n` distance matrix (flat list of
+    /// `n²` floats) with `method` `"nj"` or `"upgma"`.
+    #[staticmethod]
+    fn from_distances(matrix: Vec<f64>, labels: Vec<String>, method: &str) -> PyResult<Self> {
+        let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
+        let built = match method {
+            "nj" => tree_build::neighbor_joining(&matrix, &labels),
+            "upgma" => tree_build::upgma(&matrix, &labels),
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "method must be 'nj' or 'upgma', got '{other}'"
+                )))
+            }
+        };
+        built
+            .map(|inner| Self { inner })
+            .map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
+    /// Build a tree from a SciPy linkage matrix (flat list, 4 floats per row).
+    #[staticmethod]
+    fn from_linkage(linkage: Vec<f64>, labels: Vec<String>) -> PyResult<Self> {
+        let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
+        tree_build::from_linkage(&linkage, &labels)
             .map(|inner| Self { inner })
             .map_err(|e| PyValueError::new_err(e.to_string()))
     }

@@ -3,7 +3,7 @@ project: treescape
 # Structured fields follow docs/conventions.md, "EVIDENT manifest";
 # tests/oracle/test_manifest.py checks pins and corpus hashes.
 vocabularies:
-  subsystem: [parser, layout, text-metrics, render, style, metadata, julia-binding, ffi]
+  subsystem: [parser, layout, text-metrics, render, style, metadata, julia-binding, ffi, tree-building]
   oracle:
     - Biopython
     - ete3
@@ -14,7 +14,12 @@ vocabularies:
     - self-consistency
     - treescape-python
     - julia-subprocess
-  tolerance_metric: [mismatch_count]
+    - scikit-bio
+    - SciPy
+    - ape
+    - phangorn
+    - generating-tree
+  tolerance_metric: [mismatch_count, time_ratio]
 claims:
   - id: treescape-newick-roundtrip
     title: Newick parser round-trips and matches Biopython on canonical fixtures
@@ -1070,10 +1075,10 @@ claims:
       assumptions).
     subsystem: style
     inputs:
-      corpus: "gallery-14"
+      corpus: "gallery"
       n: 20
       classes: [fixture, random-sample, synthetic]
-      corpus_sha: "sha256:788a77c23f5c75fde399daf8b4780984615413a6efbc5deb2c6b138491363022"
+      corpus_sha: "sha256:8076cb5a3214ea9f3178f2555cfdaf77bc2bf5859a880cae4007d2903a2964ab"
     pinned_versions:
       treescape: "0.5.0"
       treescape-reference: "0.5.0"
@@ -1155,9 +1160,9 @@ claims:
     subsystem: julia-binding
     inputs:
       corpus: "parity-cases"
-      n: 48
+      n: 51
       class: fixture
-      corpus_sha: "sha256:b100557676a686aefc95fb23fa4279e52670a32eb47ff35b7837e785dfcfe82b"
+      corpus_sha: "sha256:fc5704460be09ad68a2de46a7571084ae344b82fb66f996ce9f858a931dcec39"
     pinned_versions:
       treescape: "0.5.0"
       julia: "1.10 and 1.12"
@@ -1219,7 +1224,7 @@ claims:
     subsystem: ffi
     inputs:
       corpus: "packages/Treescape.jl/test/ffi_no_abort.jl"
-      n: 1601
+      n: 1611
       class: synthetic
     pinned_versions:
       treescape: "0.5.0"
@@ -1245,3 +1250,364 @@ claims:
       - A panic on a path the case list does not reach. Mitigated by
         the crate-level clippy deny-list (unwrap/expect/panic/
         indexing) on the connector and by Miri over the in-process tests.
+
+  - id: treescape-tree-build-rust-vs-reference
+    title: Rust NJ and UPGMA build the same trees as the Python reference, ties included
+    case: cases/treescape.md
+    source: treescape-core
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/docs/reference/patterns.md#reference-shadowing
+    claim: >
+      For every matrix in the distance-v1 corpus (additive and noisy
+      matrices derived from pinned random trees) and in the
+      distance-ties corpus (hand-written matrices where several pairs
+      share the minimum), the Rust tree builders in treescape-core
+      (neighbor joining and UPGMA, via treescape_connector) produce the
+      same rooted tree as treescape_reference.tree_build: identical
+      topology including child order, identical tip names, and branch
+      lengths within 1e-12 absolute. Because the conventions pin the
+      tie rule and the floating-point order, this includes every tie.
+      This is Rust<->Python parity, not correctness; correctness comes
+      from the oracle claims.
+    subsystem: tree-building
+    inputs:
+      corpus: "distance-all"
+      n: 75
+      classes: [synthetic, fixture]
+      corpus_sha: "sha256:af4a1450b6053c2b4d70c292ffade228debc236eb81a1e66955bd59157b22703"
+    pinned_versions:
+      treescape: "0.5.0"
+      treescape-reference: "0.5.0"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Topology (with child order) and tip names identical."
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-12
+        prose: "1e-12 absolute on every branch length."
+    evidence:
+      oracle:
+        - treescape-reference
+      command: pytest tests/oracle/test_tree_build_vs_reference.py -v
+      artifact: tests/oracle/reports/tree_build_vs_reference.json
+    assumptions:
+      - The reference is the convention owner (docs/conventions.md, "Trees
+        from distance matrices"); if its conventions are wrong this claim
+        still passes, hence the oracle claims.
+    failure_modes:
+      - Both implementations share a misreading of the algorithm (the
+        Agreement Trap); the external oracles and the additive-recovery
+        property are the guard.
+
+  - id: treescape-nj-vs-oracles
+    title: Neighbor joining agrees with scikit-bio and Biopython (unrooted, within 1e-9)
+    case: cases/treescape.md
+    source: treescape-core
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
+    claim: >
+      On every matrix of the distance-v1 corpus, the neighbor-joining
+      trees built by both treescape implementations (the Rust core via
+      treescape_connector, and treescape_reference) agree with
+      scikit-bio's nj (run with neg_as_zero=False, so negative lengths
+      are kept as treescape keeps them) and with Biopython's
+      DistanceTreeConstructor.nj, compared as unrooted trees: the same
+      set of splits exactly, and every edge length within 1e-9 absolute.
+      The corpus is tie-free; the oracles break ties differently
+      (docs/conventions.md), so ties are covered by the Rust<->reference
+      claim, not by this one.
+    subsystem: tree-building
+    inputs:
+      corpus: "distance-v1"
+      n: 72
+      class: synthetic
+      corpus_sha: "sha256:b40c0736e13ad47f8d410c45e063299dfede712f3b5c30faf764caaf6ac3ef53"
+    pinned_versions:
+      treescape: "0.5.0"
+      scikit-bio: "0.7.3"
+      Biopython: "1.88"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Unrooted topology: identical split sets."
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-9
+        prose: "1e-9 absolute on every edge length (edges matched by split; a two-child root merged into one edge)."
+    evidence:
+      oracle:
+        - scikit-bio
+        - Biopython
+      command: pytest tests/oracle/test_nj_vs_oracles.py -v
+      artifact: tests/oracle/reports/nj_vs_oracles.json
+    assumptions:
+      - scikit-bio's nj and Biopython's nj are independent implementations
+        (compiled Cython vs pure Python, different bookkeeping); neither
+        is derived from treescape.
+      - The corpus has no exact ties in the Q criterion; the runner
+        checks this and fails on a tied matrix rather than skipping it.
+    failure_modes:
+      - An oracle version changes its NJ variant or rooting; the version
+        pins and the unrooted comparison guard against the latter.
+      - Negative lengths clamped by an oracle default and the claim
+        silently tolerating it; the runner passes neg_as_zero=False.
+
+  - id: treescape-nj-vs-ape
+    title: Neighbor joining agrees with R ape::nj (unrooted, within 1e-9)
+    case: cases/treescape.md
+    source: treescape-core
+    tier: release
+    trust_strategy:
+      - validation
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
+    claim: >
+      On every matrix of the distance-v1 corpus, the neighbor-joining
+      trees built by both treescape implementations agree with R's
+      ape::nj, compared as unrooted trees: the same set of splits
+      exactly, and every edge length within 1e-9 absolute. Tier release
+      because it requires R; runs inside
+      workflow/Dockerfile.evident-release before any release tag.
+    subsystem: tree-building
+    inputs:
+      corpus: "distance-v1"
+      n: 72
+      class: synthetic
+      corpus_sha: "sha256:b40c0736e13ad47f8d410c45e063299dfede712f3b5c30faf764caaf6ac3ef53"
+    pinned_versions:
+      treescape: "0.5.0"
+      ape: "5.8.1"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Unrooted topology: identical split sets."
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-9
+        prose: "1e-9 absolute on every edge length."
+    evidence:
+      oracle:
+        - ape
+      command: pytest tests/oracle/test_tree_build_vs_r.py -v -m release_only -k nj
+      artifact: tests/oracle/reports/tree_build_vs_r.json
+    assumptions:
+      - ape is an independent implementation (R/C) of the same canonical
+        NJ; the matrices reach R as text with 17 significant digits.
+    failure_modes:
+      - Precision lost in the matrix hand-off to R shows up as a tolerance
+        failure, not as a silent pass.
+
+  - id: treescape-upgma-vs-scipy
+    title: UPGMA agrees with SciPy average linkage (clades exact, heights within 1e-9)
+    case: cases/treescape.md
+    source: treescape-core
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
+    claim: >
+      On every matrix of the distance-v1 corpus, the UPGMA trees built
+      by both treescape implementations agree with
+      scipy.cluster.hierarchy.linkage(method="average"): the same rooted
+      clades exactly, and every node height (half the merge distance)
+      within 1e-9 absolute. Biopython's DistanceTreeConstructor.upgma is
+      not used: it computes WPGMA (docs/conventions.md, disagreement
+      log). scikit-bio's upgma wraps SciPy and would not be independent.
+    subsystem: tree-building
+    inputs:
+      corpus: "distance-v1"
+      n: 72
+      class: synthetic
+      corpus_sha: "sha256:b40c0736e13ad47f8d410c45e063299dfede712f3b5c30faf764caaf6ac3ef53"
+    pinned_versions:
+      treescape: "0.5.0"
+      SciPy: "1.18.1"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Rooted topology: identical clade sets."
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-9
+        prose: "1e-9 absolute on every node height."
+    evidence:
+      oracle:
+        - SciPy
+      command: pytest tests/oracle/test_upgma_vs_scipy.py -v
+      artifact: tests/oracle/reports/upgma_vs_scipy.json
+    assumptions:
+      - SciPy's average linkage (nearest-neighbour chain, C) is
+        independent of treescape; it may break ties differently, and the
+        corpus is tie-free (checked by the runner).
+    failure_modes:
+      - A non-reducible linkage method is passed by mistake; the runner
+        uses method="average" only.
+
+  - id: treescape-upgma-vs-phangorn
+    title: UPGMA agrees with R phangorn::upgma (clades exact, heights within 1e-9)
+    case: cases/treescape.md
+    source: treescape-core
+    tier: release
+    trust_strategy:
+      - validation
+    pattern: evident/docs/reference/patterns.md#oracle-comparison
+    claim: >
+      On every matrix of the distance-v1 corpus, the UPGMA trees built
+      by both treescape implementations agree with R's phangorn::upgma:
+      the same rooted clades exactly, and every node height within 1e-9
+      absolute. Tier release because it requires R; runs inside
+      workflow/Dockerfile.evident-release before any release tag.
+    subsystem: tree-building
+    inputs:
+      corpus: "distance-v1"
+      n: 72
+      class: synthetic
+      corpus_sha: "sha256:b40c0736e13ad47f8d410c45e063299dfede712f3b5c30faf764caaf6ac3ef53"
+    pinned_versions:
+      treescape: "0.5.0"
+      phangorn: "2.12.1"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Rooted topology: identical clade sets."
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-9
+        prose: "1e-9 absolute on every node height."
+    evidence:
+      oracle:
+        - phangorn
+      command: pytest tests/oracle/test_tree_build_vs_r.py -v -m release_only -k upgma
+      artifact: tests/oracle/reports/tree_build_vs_r.json
+    assumptions:
+      - phangorn is an independent R implementation of UPGMA (average
+        linkage).
+    failure_modes:
+      - phangorn's upgma calls into a shared R clustering routine
+        (hclust); agreement with SciPy is then two implementations, not
+        three. Documented in docs/conventions.md if confirmed.
+
+  - id: treescape-nj-recovers-additive-trees
+    title: Neighbor joining recovers the generating tree from exact tree distances
+    case: cases/treescape.md
+    source: treescape-core
+    tier: ci
+    trust_strategy:
+      - validation
+      - proof
+    pattern: evident/docs/reference/patterns.md#property-based-testing
+    claim: >
+      For every binary tree with positive branch lengths in the layout-v2
+      random corpus (the yule, pda and ladder shapes), the path-length
+      (patristic) distance matrix is additive, and neighbor joining is
+      guaranteed to recover that tree (Saitou and Nei 1987; Atteson
+      1999). Both treescape implementations return the generating tree
+      as an unrooted tree: the same split set exactly, and every edge
+      length within 1e-9 absolute. This checks correctness against
+      ground truth, independently of any oracle's implementation.
+    subsystem: tree-building
+    inputs:
+      corpus: "distance-v1"
+      n: 36
+      class: synthetic
+      corpus_sha: "sha256:b40c0736e13ad47f8d410c45e063299dfede712f3b5c30faf764caaf6ac3ef53"
+    pinned_versions:
+      treescape: "0.5.0"
+      generating-tree: "0.5.0"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Unrooted topology identical to the generating tree."
+      - metric: absolute_error
+        op: "<"
+        value: 1.0e-9
+        prose: "1e-9 absolute on every edge length against the generating tree."
+    evidence:
+      oracle:
+        - generating-tree
+      command: pytest tests/oracle/test_nj_additive.py -v
+      artifact: tests/oracle/reports/nj_additive.json
+    assumptions:
+      - The generating trees are binary with strictly positive branch
+        lengths, so the additive matrix determines a unique unrooted
+        tree; the zeros and polytomy shapes are excluded for that reason.
+    failure_modes:
+      - Floating-point accumulation on large trees (up to 200 tips) makes
+        recovered lengths drift past 1e-9; that would be reported, not
+        absorbed.
+
+  - id: treescape-tree-build-performance
+    title: Tree building speed against scikit-bio, Biopython and SciPy (bounded ratios)
+    kind: performance
+    case: cases/treescape.md
+    source: treescape-core
+    tier: release
+    trust_strategy:
+      - validation
+    pattern: evident/docs/reference/patterns.md#oracle-backed-release-gate
+    claim: >
+      On seeded matrices of 500, 1000 and 2000 taxa (path lengths of a
+      seeded Yule tree, each pair scaled by 1 +/- 0.1), measured as the
+      median of 5 single-threaded wall-clock runs including the hand-off
+      from Python, and only after each contender's tree has been checked
+      against treescape's: treescape's neighbor joining takes at most 5x
+      the time of scikit-bio's nj and less time than Biopython's
+      DistanceTreeConstructor.nj (timed up to 1000 taxa); treescape's
+      UPGMA takes at most 5x the time of SciPy's average linkage. This is
+      NOT a claim that treescape is faster than the optimized tools: it
+      is exact O(n^3) neighbor joining with a pinned summation order, and
+      scikit-bio and SciPy are faster. Measured ratios and the machine are
+      published on the docs site (Performance page).
+    subsystem: tree-building
+    inputs:
+      corpus: "bench-v1"
+      n: 3
+      class: synthetic
+      corpus_sha: "sha256:0613dda53a1f79abdb14e725aa1d145284952c0bc5dcadccc77fde35c8abdefe"
+    pinned_versions:
+      treescape: "0.5.0"
+      scikit-bio: "0.7.3"
+      Biopython: "1.88"
+      SciPy: "1.18.1"
+    tolerances:
+      - metric: time_ratio
+        op: "<="
+        value: 5.0
+        prose: "treescape NJ time / scikit-bio nj time, at every size."
+      - metric: time_ratio
+        op: "<"
+        value: 1.0
+        prose: "treescape NJ time / Biopython nj time, at every size where Biopython was timed."
+      - metric: time_ratio
+        op: "<="
+        value: 5.0
+        prose: "treescape UPGMA time / SciPy average-linkage time, at every size."
+    evidence:
+      oracle:
+        - scikit-bio
+        - Biopython
+        - SciPy
+      command: pytest tests/oracle/test_tree_build_performance.py -v -m bench
+      artifact: tests/oracle/reports/tree_build_performance.json
+    assumptions:
+      - Wall-clock ratios depend on the machine; the bounds leave headroom
+        over the measured ratios (NJ 2.0-3.7x scikit-bio, UPGMA 2.4-3.7x
+        SciPy on the reference machine) and are a regression guard, not a
+        speed ranking.
+      - Single-threaded (OMP_NUM_THREADS=1 and friends); multi-threaded
+        BLAS would change scikit-bio's and SciPy's times, not correctness.
+    failure_modes:
+      - A shared or throttled CI runner inflates one side of a ratio;
+        rerun on a quiet machine before treating a failure as a regression.
+      - An optimization that changes a result is caught by the
+        Rust<->reference and oracle claims, which run on every push.

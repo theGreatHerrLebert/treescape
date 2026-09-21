@@ -184,3 +184,52 @@ def test_non_finite_geometry_raises_instead_of_writing_nan(opts):
     SVG attributes (invalid SVG). The emitter now rejects them."""
     with pytest.raises(RuntimeError, match="non-finite"):
         TreePlot("((a:1,b:1):1,c:1);").options(**opts).to_svg()
+
+
+TEXTBOOK = [[0, 5, 9, 9, 8], [5, 0, 10, 10, 9], [9, 10, 0, 8, 7], [9, 10, 8, 0, 3], [8, 9, 7, 3, 0]]
+
+
+def test_from_distances_builds_the_textbook_nj_tree() -> None:
+    plot = TreePlot.from_distances(TEXTBOOK, list("abcde"))
+    assert plot.to_newick() == "(d:2.0,e:1.0,(c:4.0,(a:2.0,b:3.0):3.0):2.0);"
+    assert "<svg" in plot.layout("circular").to_svg()
+
+
+def test_from_distances_accepts_numpy_and_matches_from_linkage() -> None:
+    np = pytest.importorskip("numpy")
+    hierarchy = pytest.importorskip("scipy.cluster.hierarchy")
+    distance = pytest.importorskip("scipy.spatial.distance")
+    d = np.array(TEXTBOOK, dtype=float)
+    upgma = TreePlot.from_distances(d, list("abcde"), method="upgma").to_newick()
+    z = hierarchy.linkage(distance.squareform(d), method="average")
+    assert TreePlot.from_linkage(z, list("abcde")).to_newick() == upgma
+
+
+@pytest.mark.parametrize(
+    "matrix,labels,method,message",
+    [
+        (TEXTBOOK, list("abcde"), "wpgma", "method must be 'nj' or 'upgma'"),
+        (TEXTBOOK[:4], list("abcd"), "nj", "row 0 has 5 entries"),
+        (TEXTBOOK, list("abcd"), "nj", "4 labels for a 5 x 5 matrix"),
+        ([[0, 1], [2, 0]], ["a", "b"], "nj", "D[0][1] = 1.0 but D[1][0] = 2.0"),
+        ([[0, float("nan")], [float("nan"), 0]], ["a", "b"], "upgma", "D[0][1] is not finite"),
+        ([[0, 1], [1, 0]], ["a", "a"], "nj", "duplicate label 'a'"),
+    ],
+)
+def test_from_distances_rejects_bad_input(matrix, labels, method, message) -> None:
+    with pytest.raises(ValueError, match=message.replace("[", r"\[").replace("]", r"\]")):
+        TreePlot.from_distances(matrix, labels, method=method)
+
+
+@pytest.mark.parametrize(
+    "z,labels,message",
+    [
+        ([[0, 1, 2, 2], [0, 2, 2, 2]], ["a", "b", "c"], "linkage row 1 joins invalid clusters"),
+        ([[0, 1, 2, 2], [3, 3, 2, 2]], ["a", "b", "c"], "linkage row 1 joins invalid clusters"),
+        ([[0, 1, 2, 2], [2, 3, 2, 2]], ["a", "a", "c"], "duplicate label 'a'"),
+        ([[0, 1, 2, 2]], ["a", "b", "c"], "a linkage matrix for 3 labels has 2 rows, got 1"),
+    ],
+)
+def test_from_linkage_rejects_malformed_matrices(z, labels, message) -> None:
+    with pytest.raises(ValueError, match=message):
+        TreePlot.from_linkage(z, labels)

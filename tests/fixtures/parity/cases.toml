@@ -15,6 +15,10 @@
 primates = { path = "tests/fixtures/trees/medium/primates.nwk" }
 support = { newick = "((a:0.1,b:0.2)95:0.3,(c:0.15,(d:0.05,e:0.07)70:0.1)88:0.2);" }
 multi = { newick = "((a:1,b:1,c:1):1,(d:1,:1):2,e:0.5);" }
+# Trees built from distance matrices (v0.6 Phase 3).
+textbook_nj = { distances = "tests/fixtures/distances/ties_textbook_5.tsv", method = "nj" }
+textbook_upgma = { distances = "tests/fixtures/distances/ties_textbook_5.tsv", method = "upgma" }
+zeros_upgma = { distances = "tests/fixtures/distances/ties_zero_pairs_6.tsv", method = "upgma" }
 
 [tables.primates]
 tip = ["Homo_sapiens", "Pan_troglodytes", "Gorilla_gorilla", "Pongo_abelii", "Hylobates_lar", "Macaca_mulatta", "Papio_anubis", "Cercopithecus_mitis", "Chlorocebus_sabaeus", "Callithrix_jacchus", "Saimiri_sciureus"]
@@ -363,3 +367,38 @@ name = "scale_bar_bool_label"
 tree = "support"
 ops = [{ op = "scale_bar", args = [0.1, true] }]
 
+
+# --- trees from distance matrices (v0.6 Phase 3) ----------------------------
+
+[[cases]]
+name = "distances_nj_rectangular"
+tree = "textbook_nj"
+ops = [{ op = "scale_bar", args = [1.0] }]
+
+[[cases]]
+name = "distances_nj_circular"
+tree = "textbook_nj"
+ops = [{ op = "layout", args = ["circular"] }]
+
+[[cases]]
+name = "distances_upgma_with_ties"
+tree = "zeros_upgma"
+ops = [{ op = "highlight_clade", args = [["s1", "s2"]] }]
+
+[[cases]]
+name = "gallery_14_nj_from_distances"
+tree = "textbook_nj"
+expect_file = "assets/gallery/14_nj_from_distances.svg"
+ops = [
+  { op = "options", kwargs = { padding = 16, px_per_x = 40, font_size = 12 } },
+  { op = "scale_bar", args = [1.0] },
+]
+
+[[cases]]
+name = "gallery_15_upgma_from_distances"
+tree = "textbook_upgma"
+expect_file = "assets/gallery/15_upgma_from_distances.svg"
+ops = [
+  { op = "options", kwargs = { padding = 16, px_per_x = 40, font_size = 12 } },
+  { op = "scale_bar", args = [1.0] },
+]

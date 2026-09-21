@@ -1,4 +1,5 @@
 [tool.pytest.ini_options]
 markers = [
     "release_only: claim runners gated to the release-tier validation image (R + Bioconductor + ggtree). Excluded from `ci` runs via -m \"not release_only\"; included by -m release_only inside workflow/Dockerfile.evident-release.",
+    "bench: timing claims (scripts/bench_tree_build.py). Excluded from ordinary runs; run with -m bench on a quiet machine (CI job `bench`, manual or on a tag).",
 ]

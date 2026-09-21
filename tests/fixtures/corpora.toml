@@ -51,9 +51,11 @@ files = [
   "tests/fixtures/parity/cases.toml",
   "docs/examples.md",
   "tests/fixtures/trees/medium/primates.nwk",
+  "tests/fixtures/distances/ties_textbook_5.tsv",
+  "tests/fixtures/distances/ties_zero_pairs_6.tsv",
 ]
 
-[corpora.gallery-14]
+[corpora.gallery]
 description = "Committed gallery and README SVGs, the script that defines them, and their input tree"
 files = [
   "assets/gallery/01_rectangular.svg",
@@ -69,6 +71,8 @@ files = [
   "assets/gallery/11_circular_color_tips_by_clade.svg",
   "assets/gallery/12_circular_scale_bar.svg",
   "assets/gallery/13_branch_width_by_support.svg",
+  "assets/gallery/14_nj_from_distances.svg",
+  "assets/gallery/15_upgma_from_distances.svg",
   "assets/primates.svg",
   "scripts/regen_assets.py",
   "tests/fixtures/trees/medium/primates.nwk",
@@ -143,4 +147,99 @@ files = [
   "tests/fixtures/trees/random/zeros_100.nwk",
   "tests/fixtures/trees/random/zeros_150.nwk",
   "tests/fixtures/trees/random/zeros_200.nwk",
+]
+
+[corpora.distance-v1]
+description = "Generated distance matrices (scripts/gen_distance_matrices.py): additive and noisy matrices from the binary random trees"
+files = [
+  "scripts/gen_distance_matrices.py",
+  "tests/fixtures/trees/random/ladder_003.nwk",
+  "tests/fixtures/trees/random/ladder_004.nwk",
+  "tests/fixtures/trees/random/ladder_005.nwk",
+  "tests/fixtures/trees/random/ladder_007.nwk",
+  "tests/fixtures/trees/random/ladder_010.nwk",
+  "tests/fixtures/trees/random/ladder_016.nwk",
+  "tests/fixtures/trees/random/ladder_025.nwk",
+  "tests/fixtures/trees/random/ladder_040.nwk",
+  "tests/fixtures/trees/random/ladder_064.nwk",
+  "tests/fixtures/trees/random/ladder_100.nwk",
+  "tests/fixtures/trees/random/ladder_150.nwk",
+  "tests/fixtures/trees/random/ladder_200.nwk",
+  "tests/fixtures/trees/random/pda_003.nwk",
+  "tests/fixtures/trees/random/pda_004.nwk",
+  "tests/fixtures/trees/random/pda_005.nwk",
+  "tests/fixtures/trees/random/pda_007.nwk",
+  "tests/fixtures/trees/random/pda_010.nwk",
+  "tests/fixtures/trees/random/pda_016.nwk",
+  "tests/fixtures/trees/random/pda_025.nwk",
+  "tests/fixtures/trees/random/pda_040.nwk",
+  "tests/fixtures/trees/random/pda_064.nwk",
+  "tests/fixtures/trees/random/pda_100.nwk",
+  "tests/fixtures/trees/random/pda_150.nwk",
+  "tests/fixtures/trees/random/pda_200.nwk",
+  "tests/fixtures/trees/random/yule_003.nwk",
+  "tests/fixtures/trees/random/yule_004.nwk",
+  "tests/fixtures/trees/random/yule_005.nwk",
+  "tests/fixtures/trees/random/yule_007.nwk",
+  "tests/fixtures/trees/random/yule_010.nwk",
+  "tests/fixtures/trees/random/yule_016.nwk",
+  "tests/fixtures/trees/random/yule_025.nwk",
+  "tests/fixtures/trees/random/yule_040.nwk",
+  "tests/fixtures/trees/random/yule_064.nwk",
+  "tests/fixtures/trees/random/yule_100.nwk",
+  "tests/fixtures/trees/random/yule_150.nwk",
+  "tests/fixtures/trees/random/yule_200.nwk",
+]
+
+[corpora.distance-all]
+description = "distance-v1 plus the hand-written tie fixtures (Rust<->reference parity, ties included)"
+files = [
+  "scripts/gen_distance_matrices.py",
+  "tests/fixtures/trees/random/ladder_003.nwk",
+  "tests/fixtures/trees/random/ladder_004.nwk",
+  "tests/fixtures/trees/random/ladder_005.nwk",
+  "tests/fixtures/trees/random/ladder_007.nwk",
+  "tests/fixtures/trees/random/ladder_010.nwk",
+  "tests/fixtures/trees/random/ladder_016.nwk",
+  "tests/fixtures/trees/random/ladder_025.nwk",
+  "tests/fixtures/trees/random/ladder_040.nwk",
+  "tests/fixtures/trees/random/ladder_064.nwk",
+  "tests/fixtures/trees/random/ladder_100.nwk",
+  "tests/fixtures/trees/random/ladder_150.nwk",
+  "tests/fixtures/trees/random/ladder_200.nwk",
+  "tests/fixtures/trees/random/pda_003.nwk",
+  "tests/fixtures/trees/random/pda_004.nwk",
+  "tests/fixtures/trees/random/pda_005.nwk",
+  "tests/fixtures/trees/random/pda_007.nwk",
+  "tests/fixtures/trees/random/pda_010.nwk",
+  "tests/fixtures/trees/random/pda_016.nwk",
+  "tests/fixtures/trees/random/pda_025.nwk",
+  "tests/fixtures/trees/random/pda_040.nwk",
+  "tests/fixtures/trees/random/pda_064.nwk",
+  "tests/fixtures/trees/random/pda_100.nwk",
+  "tests/fixtures/trees/random/pda_150.nwk",
+  "tests/fixtures/trees/random/pda_200.nwk",
+  "tests/fixtures/trees/random/yule_003.nwk",
+  "tests/fixtures/trees/random/yule_004.nwk",
+  "tests/fixtures/trees/random/yule_005.nwk",
+  "tests/fixtures/trees/random/yule_007.nwk",
+  "tests/fixtures/trees/random/yule_010.nwk",
+  "tests/fixtures/trees/random/yule_016.nwk",
+  "tests/fixtures/trees/random/yule_025.nwk",
+  "tests/fixtures/trees/random/yule_040.nwk",
+  "tests/fixtures/trees/random/yule_064.nwk",
+  "tests/fixtures/trees/random/yule_100.nwk",
+  "tests/fixtures/trees/random/yule_150.nwk",
+  "tests/fixtures/trees/random/yule_200.nwk",
+  "tests/fixtures/distances/ties_equidistant_4.tsv",
+  "tests/fixtures/distances/ties_textbook_5.tsv",
+  "tests/fixtures/distances/ties_zero_pairs_6.tsv",
+]
+
+[corpora.bench-v1]
+description = "Seeded benchmark matrices: fully determined by these scripts (seed, sizes, noise)"
+files = [
+  "scripts/bench_tree_build.py",
+  "scripts/gen_random_trees.py",
+  "scripts/gen_distance_matrices.py",
 ]

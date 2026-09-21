@@ -168,6 +168,21 @@ const META = (tip=["a", "b", "c", "d", "e"], grp=["x", "x", "y", "y", "z"], w=[0
         @test highlight_clade!(TreePlot(NEWICK), ["a"]; alpha=1e307).highlights[1][2][4] == 0xff
     end
 
+    @testset "trees from distances" begin
+        D = [0 5 9 9 8; 5 0 10 10 9; 9 10 0 8 7; 9 10 8 0 3; 8 9 7 3 0]
+        labels = ["a", "b", "c", "d", "e"]
+        @test to_newick(TreePlot(D, labels)) == "(d:2.0,e:1.0,(c:4.0,(a:2.0,b:3.0):3.0):2.0);"
+        @test to_newick(TreePlot(D, labels; method = :upgma)) ==
+              "((a:2.5,b:2.5):2.083333333333333,(c:3.75,(d:1.5,e:1.5):2.25):0.833333333333333);"
+        @test_throws ArgumentError TreePlot(D, labels; method = :wpgma)
+        @test_throws ArgumentError TreePlot(D[1:4, :], labels)
+        @test_throws ArgumentError TreePlot(D, labels[1:4])
+        A = Float64.(D); A[1, 2] = 5.5   # only the upper triangle is read; asymmetry is reported there
+        @test_throws "D[0][1] = 5.5 but D[1][0] = 5.0" TreePlot(A, labels)
+        @test_throws "duplicate label" TreePlot(D, ["a", "a", "c", "d", "e"])
+        @test occursin("<svg", to_svg(layout!(TreePlot(D, labels), :circular)))
+    end
+
     @testset "annotations" begin
         p = scale_bar!(TreePlot(NEWICK), 1e-5)
         @test p.scale_bar == (1e-5, "1e-05")

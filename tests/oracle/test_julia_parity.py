@@ -59,8 +59,12 @@ def _tuplify(value):
 
 def _python_svg(case: dict) -> str:
     source = SPEC["trees"][case["tree"]]
-    src = str(REPO / source["path"]) if "path" in source else source["newick"]
-    plot = TreePlot(src)
+    if "distances" in source:
+        lines = (REPO / source["distances"]).read_text().splitlines()
+        matrix = [[float(v) for v in line.split("\t")] for line in lines[1:]]
+        plot = TreePlot.from_distances(matrix, lines[0].split("\t"), method=source["method"])
+    else:
+        plot = TreePlot(str(REPO / source["path"]) if "path" in source else source["newick"])
     for step in case["ops"]:
         op = step["op"]
         args = list(step.get("args", []))

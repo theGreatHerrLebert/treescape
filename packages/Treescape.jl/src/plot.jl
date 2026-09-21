@@ -28,9 +28,29 @@ mutable struct TreePlot
     branch_widths::Dict{Int,Float64}
 end
 
-function TreePlot(source::AbstractString)
+TreePlot(source::AbstractString) = TreePlot(Tree(_newick_text(source)))
+
+"""
+    TreePlot(D::AbstractMatrix{<:Real}, labels; method = :nj)
+
+Plot the tree built from a pairwise distance matrix: `method = :nj`
+(neighbor joining; unrooted, drawn from its last join) or `:upgma`
+(average linkage; rooted, ultrametric). Same conventions and same trees
+as Python's `TreePlot.from_distances`.
+"""
+TreePlot(D::AbstractMatrix{<:Real}, labels::AbstractVector; method::Symbol = :nj) =
+    TreePlot(Tree(D, labels; method = method))
+
+"""
+    to_newick(p) -> String
+
+The plot's tree as a Newick string (also for trees built from distances).
+"""
+to_newick(p::TreePlot) = newick(p.tree)
+
+function TreePlot(tree::Tree)
     return TreePlot(
-        Tree(_newick_text(source)),
+        tree,
         :rectangular,
         default_scene_options(),
         default_circular_scene_options(),

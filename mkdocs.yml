@@ -43,6 +43,7 @@ nav:
   - Home: index.md
   - Examples: examples.md
   - Julia package: julia.md
+  - Performance: performance.md
   - Trust:
       - The trust case: trust-case.md
       - Claims: claims.md

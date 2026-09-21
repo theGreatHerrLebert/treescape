@@ -76,3 +76,14 @@ Where the Julia host layer mirrors Python (source heuristic, color
 parsing, alpha rounding, numeric detection, label formatting), the rules
 are listed in `docs/conventions.md`, section "Julia binding (v0.5
 Phase 2)".
+
+## Trees from distance matrices
+
+```julia
+D = [0 5 9 9 8; 5 0 10 10 9; 9 10 0 8 7; 9 10 8 0 3; 8 9 7 3 0]
+p = TreePlot(D, ["a", "b", "c", "d", "e"])                   # neighbor joining
+q = TreePlot(D, ["a", "b", "c", "d", "e"]; method = :upgma)  # UPGMA
+to_newick(p)
+```
+
+Same trees, same bytes as Python's `TreePlot.from_distances`. Error messages carry the same text as Python's, including **0-based** matrix indices: `D[0][1]` is Julia's `D[1, 2]`. Only the upper triangle is read, so an asymmetric matrix is reported at its upper-triangle cell.

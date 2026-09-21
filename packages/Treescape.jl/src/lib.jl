@@ -1,6 +1,6 @@
 # C-ABI loading and error plumbing (docs/conventions.md, "Julia binding").
 
-const ABI_VERSION = UInt32(1)
+const ABI_VERSION = UInt32(2)
 
 const TS_OK = Int32(0)
 const TS_INVALID_ARGUMENT = Int32(1)
@@ -29,7 +29,7 @@ const _LOCK = ReentrantLock()
 # table is only read, so `sym` needs no lock (and is safe in finalizers).
 const _SYMBOL_NAMES = (
     :ts_abi_version, :ts_string_free,
-    :ts_tree_parse_newick, :ts_tree_free, :ts_tree_n_nodes, :ts_tree_n_tips, :ts_tree_root,
+    :ts_tree_parse_newick, :ts_tree_from_distances, :ts_tree_from_linkage, :ts_tree_write_newick, :ts_tree_free, :ts_tree_n_nodes, :ts_tree_n_tips, :ts_tree_root,
     :ts_tree_preorder, :ts_tree_is_tip, :ts_tree_node_name, :ts_tree_tip_name,
     :ts_style_new, :ts_style_free, :ts_style_add_highlight, :ts_style_set_tip_color,
     :ts_style_set_branch_color, :ts_style_set_branch_width, :ts_style_set_scale_bar,

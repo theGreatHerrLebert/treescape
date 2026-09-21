@@ -77,6 +77,59 @@ mod tests {
     const NEWICK: &str = "((a:0.1,b:0.2)95:0.3,(c:0.15,(d:0.05,e:0.07)70:0.1)88:0.2);";
 
     #[test]
+    fn tree_from_distances_and_linkage_plumbing() {
+        let names: Vec<CString> = ["a", "b", "c", "d"]
+            .iter()
+            .map(|s| CString::new(*s).unwrap())
+            .collect();
+        let ptrs: Vec<*const c_char> = names.iter().map(|c| c.as_ptr()).collect();
+        let d = [
+            0.0, 1.0, 2.0, 3.0, 1.0, 0.0, 2.0, 3.0, 2.0, 2.0, 0.0, 3.0, 3.0, 3.0, 3.0, 0.0,
+        ];
+        for method in [0u32, 1] {
+            let (mut tree, mut err) = (null_mut(), null_mut());
+            assert_eq!(
+                ts_tree_from_distances(d.as_ptr(), 4, ptrs.as_ptr(), method, &mut tree, &mut err),
+                TS_OK
+            );
+            assert!(err.is_null() && !tree.is_null());
+            let mut out = null_mut();
+            assert_eq!(ts_tree_write_newick(tree, &mut out, null_mut()), TS_OK);
+            assert!(take(out).contains("a:"));
+            ts_tree_free(tree);
+        }
+        // Rejections return a status and a message, and write no tree.
+        let (mut tree, mut err) = (null_mut(), null_mut());
+        assert_eq!(
+            ts_tree_from_distances(d.as_ptr(), 4, ptrs.as_ptr(), 9, &mut tree, &mut err),
+            TS_INVALID_ARGUMENT
+        );
+        assert!(tree.is_null() && take(err).contains("method"));
+        let mut asym = d;
+        asym[1] = 5.0;
+        let mut err = null_mut();
+        assert_eq!(
+            ts_tree_from_distances(asym.as_ptr(), 4, ptrs.as_ptr(), 0, &mut tree, &mut err),
+            TS_INVALID_ARGUMENT
+        );
+        assert!(take(err).contains("not symmetric"));
+        let mut err = null_mut();
+        assert_eq!(
+            ts_tree_from_distances(null(), 4, ptrs.as_ptr(), 0, &mut tree, &mut err),
+            TS_INVALID_ARGUMENT
+        );
+        assert!(take(err).contains("null"));
+        // Linkage: ((a,b),(c,d)) then the root.
+        let z = [0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 2.0, 4.0, 5.0, 4.0, 4.0];
+        let (mut tree, mut err) = (null_mut(), null_mut());
+        assert_eq!(
+            ts_tree_from_linkage(z.as_ptr(), 4, ptrs.as_ptr(), &mut tree, &mut err),
+            TS_OK
+        );
+        ts_tree_free(tree);
+    }
+
+    #[test]
     fn parse_inspect_free() {
         let (status, tree, _) = parse(NEWICK);
         assert_eq!(status, TS_OK);
