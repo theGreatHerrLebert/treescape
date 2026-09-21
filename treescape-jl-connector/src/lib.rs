@@ -133,7 +133,66 @@ mod tests {
         ts_string_free(null_mut());
     }
 
+    // Miri: builder plumbing (pointer arrays, owned strings, free) is
+    // checked here without rendering. Rendering parses the embedded font,
+    // which takes Miri tens of minutes and is safe code; the render tests
+    // below are skipped under Miri.
     #[test]
+    fn style_builder_plumbing() {
+        let style = ts_style_new();
+        let names: Vec<CString> = ["a", "b", "c"]
+            .iter()
+            .map(|s| CString::new(*s).unwrap())
+            .collect();
+        let ptrs: Vec<*const c_char> = names.iter().map(|s| s.as_ptr()).collect();
+        assert_eq!(
+            ts_style_add_highlight(style, ptrs.as_ptr(), 3, 1, 2, 3, 4, null_mut()),
+            TS_OK
+        );
+        let mut err = null_mut();
+        assert_eq!(
+            ts_style_add_highlight(style, null(), 2, 1, 2, 3, 4, &mut err),
+            TS_INVALID_ARGUMENT
+        );
+        take(err);
+        let a = CString::new("a").unwrap();
+        assert_eq!(
+            ts_style_set_tip_color(style, a.as_ptr(), 9, 9, 9, 255, null_mut()),
+            TS_OK
+        );
+        assert_eq!(
+            ts_style_set_branch_color(style, 2, 1, 2, 3, 255, null_mut()),
+            TS_OK
+        );
+        assert_eq!(ts_style_set_branch_width(style, 1, 2.5, null_mut()), TS_OK);
+        let label = CString::new("0.1").unwrap();
+        assert_eq!(
+            ts_style_set_scale_bar(style, 0.1, label.as_ptr(), null_mut()),
+            TS_OK
+        );
+        assert_eq!(
+            ts_style_set_support_labels(style, 1, 80.0, null_mut()),
+            TS_OK
+        );
+        let mut opts = TsCircularSceneOptions {
+            px_per_r: 0.0,
+            padding: 0.0,
+            font_size: 0.0,
+            label_offset: 0.0,
+            stroke_width: 0.0,
+            start_angle: 0.0,
+            sweep_total: 0.0,
+        };
+        assert_eq!(
+            ts_circular_scene_options_default(&mut opts, null_mut()),
+            TS_OK
+        );
+        assert_eq!(opts.px_per_r, 60.0);
+        ts_style_free(style);
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "renders: font parsing is too slow under Miri")]
     fn styled_render_roundtrip_and_errors() {
         let (_, tree, _) = parse(NEWICK);
         let style = ts_style_new();
@@ -397,6 +456,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "renders: font parsing is too slow under Miri")]
     fn non_finite_geometry_is_a_render_error() {
         let (_, tree, _) = parse(NEWICK);
         let mut opts = TsSceneOptions {
