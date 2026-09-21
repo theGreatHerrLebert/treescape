@@ -8,5 +8,6 @@ pub mod clades;
 pub mod ladderize;
 pub mod layout;
 pub mod newick;
+pub mod style;
 pub mod traversal;
 pub mod tree;

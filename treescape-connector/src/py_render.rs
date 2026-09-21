@@ -167,6 +167,9 @@ type ScaleBarSpec = (f64, String);
     branch_colors = Vec::new(),
     branch_widths = Vec::new(),
 ))]
+// Keyword arguments on the Python side; a struct would only move the
+// argument list into a PyO3 class.
+#[allow(clippy::too_many_arguments)]
 fn render_rectangular_styled_svg(
     tree: &PyTree,
     opts: Option<&PySceneOptions>,
@@ -342,6 +345,9 @@ fn render_circular_svg(tree: &PyTree, opts: Option<&PyCircularSceneOptions>) -> 
     support_min = None,
     branch_widths = Vec::new(),
 ))]
+// Keyword arguments on the Python side; a struct would only move the
+// argument list into a PyO3 class.
+#[allow(clippy::too_many_arguments)]
 fn render_circular_styled_svg(
     tree: &PyTree,
     opts: Option<&PyCircularSceneOptions>,

@@ -13,6 +13,7 @@ use pyo3::wrap_pymodule;
 pub mod py_layout;
 pub mod py_metadata;
 pub mod py_render;
+pub mod py_style;
 pub mod py_tree;
 
 #[pymodule]
@@ -21,6 +22,7 @@ fn treescape_connector(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pymodule!(py_layout::py_layout))?;
     m.add_wrapped(wrap_pymodule!(py_render::py_render))?;
     m.add_wrapped(wrap_pymodule!(py_metadata::py_metadata))?;
+    m.add_wrapped(wrap_pymodule!(py_style::py_style))?;
 
     // Register submodules in sys.modules so they are importable as
     // dotted paths.
@@ -28,7 +30,13 @@ fn treescape_connector(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
         .import("sys")?
         .getattr("modules")?
         .downcast_into::<PyDict>()?;
-    for name in ["py_tree", "py_layout", "py_render", "py_metadata"] {
+    for name in [
+        "py_tree",
+        "py_layout",
+        "py_render",
+        "py_metadata",
+        "py_style",
+    ] {
         let submodule = m.getattr(name)?;
         sys_modules.set_item(format!("treescape_connector.{name}"), submodule)?;
     }

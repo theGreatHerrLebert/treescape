@@ -34,11 +34,11 @@ What moves, what stays host-side:
 
 | Concern | Where | Why |
 |---|---|---|
-| hex/tuple color parsing, Tableau-10, viridis LUT | Rust | pinned conventions; must be identical in every host |
+| Tableau-10, viridis LUT | Rust | pinned conventions; must be identical in every host |
 | normalize (incl. `hi <= lo → 0.5`), clamp, value range | Rust | same |
 | monophyly rule, subtree mean, width scaling, terminal-branch rule | Rust | same |
-| join-key validation (duplicates, extras, collisions) | Rust | error semantics must match across hosts |
-| dataframe handling (polars / Tables.jl) | host | host-native types |
+| dataframe handling (polars / Tables.jl) and join-key validation | host | host-native types; join keys may be non-strings (a polars `Int64` key must fail with the v0.3 "not a tree tip" error, not an FFI type error). *Revised during Phase 1 — originally planned for Rust.* |
+| color *input* parsing (`"#rrggbb"`, tuples) | host | hosts have idiomatic color types; palette entries must be parsed lazily exactly where v0.4 did. *Revised during Phase 1 — originally planned for Rust.* |
 | numeric-vs-discrete dtype detection | host | host type systems differ (Python `bool` is excluded from numeric; Julia `Bool <: Integer`) — pinned per host in `docs/conventions.md` |
 | user-callable `cmap` | host | Rust returns per-node `t ∈ [0,1]`; built-in `"viridis"` maps in Rust, a callable maps in the host |
 | emitting `TreescapeStyleWarning` | host | Rust returns non-monophyletic node ids; host formats the (unchanged) message and warns. Keeps the round-3 `simplefilter("error")` atomicity fix intact |
@@ -48,7 +48,8 @@ Boundary shape: columns cross as tip-order-aligned vectors — numeric as `Vec<O
 **Byte-parity traps to pin in `docs/conventions.md` before porting** (these are exactly where a naive port silently diverges):
 
 - **Rounding.** `_viridis` uses Python `round()`, which is **round-half-to-even**. Rust `f64::round` is half-away-from-zero. Port must use `f64::round_ties_even`. Include a fixture that hits an exact `.5` channel value.
-- **Summation order.** Subtree means sum in `_descendant_tips` order (stack-based left-to-right preorder) with a sequential fold. Rust must iterate in the same order; no pairwise/SIMD sum.
+- **Summation algorithm.** Subtree means sum in `_descendant_tips` order (left-to-right preorder) with builtin `sum()` — which since **Python 3.12 is Neumaier-compensated**, not a sequential fold (`sum([1e16, 1.0, -1e16])` is `0.0` on 3.11, `1.0` on 3.12). treescape supports ≥ 3.11, so v0.4 output was already interpreter-dependent; goldens came from 3.12. Pin the 3.12 algorithm explicitly in both the reference and Rust. *(Found during Phase 1; the first draft of this plan said "sequential fold".)*
+- **NaN.** Python `min()`/`max()` with NaN are order-dependent, and `int(round(nan))` raises `cannot convert float NaN to integer`; replicate both.
 - **Float→int.** `int(round(x))` on the interpolated channel; no truncation shortcuts.
 
 **EVIDENT:**
@@ -99,7 +100,9 @@ Mirrors rustims' `imsjl_connector` / `IMSJL`, with three deliberate improvements
 - New claim `treescape-jl-ffi-no-abort` (ci-tier, property-style): malformed Newick, null/invalid-UTF-8 inputs, out-of-range node ids, empty columns, mismatched column lengths → error status + message, and the Julia process survives. Runner spawns a Julia subprocess per case so an abort shows up as a failure rather than taking down the harness.
 - CI: new `julia` job (`julia-actions/setup-julia@v2` with `version: '1.12'`, plus `'1.10'` as compat floor), builds the connector, runs `Pkg.test("Treescape")` and the parity runner. Julia added to `workflow/Dockerfile.evident-release` so release-tier runs include it.
 
-### Phase 3 — docs page with Python + Julia examples
+### Phase 3 — docs site (GitHub Pages) with Python + Julia examples
+
+- **GitHub Pages site** built from `docs/` and deployed by a CI workflow on push to `main` (and on tags): use cases (`cases/`), the examples page, `docs/conventions.md`, the EVIDENT claim table rendered from `evident.yaml`, and the gallery. Generator choice (MkDocs-Material vs Documenter.jl for the Julia API pages) is locked at the start of Phase 3. Enabling Pages in the repo settings is a one-time user action.
 
 - `docs/examples.md`: 6–8 examples on the primates fixture, each shown as a Python block and a Julia block producing the **same SVG** (embedded from `assets/gallery/`):
   1. Minimal rectangular render

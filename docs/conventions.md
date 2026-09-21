@@ -209,11 +209,34 @@ Closes the v0.2 `NotImplementedError` for `TreePlot.highlight_clade(...)` with `
 ### Continuous coloring by metadata
 
 - `TreePlot.color_tips_by(column, cmap=...)` and `TreePlot.color_branches_by(column, cmap=...)` map a numeric metadata column through a colormap. Dispatch is auto-detected from the column's observed dtype: all-numeric (excluding `bool`) → continuous; otherwise → discrete. Pass `cmap=` (continuous) or `palette=` (discrete) to force the path; passing both raises `ValueError`.
-- **Default colormap: viridis.** treescape ships its own pinned 11-keystop viridis LUT in `packages/treescape/src/treescape/plot.py::_VIRIDIS_LUT`, with linear RGB interpolation between stops. This is *not* byte-identical to matplotlib's full 256-stop viridis; visual fidelity is approximate, byte-determinism is exact. The LUT endpoints are `#440154` at `t=0` and `#fde725` at `t=1`. A LUT change is a treescape-version-level break and regenerates golden SVG bytes — track it explicitly in CHANGELOG.
+- **Default colormap: viridis.** treescape ships its own pinned 11-keystop viridis LUT (since v0.5 in `treescape-core/src/style.rs::VIRIDIS_LUT`; oracle copy in `treescape_reference.style.VIRIDIS_LUT`), with linear RGB interpolation between stops. This is *not* byte-identical to matplotlib's full 256-stop viridis; visual fidelity is approximate, byte-determinism is exact. The LUT endpoints are `#440154` at `t=0` and `#fde725` at `t=1`. A LUT change is a treescape-version-level break and regenerates golden SVG bytes — track it explicitly in CHANGELOG.
 - **Range:** `vmin` and `vmax` default to the column's observed min/max across the tree's tip universe. Pin them explicitly to keep colors stable across plots that share a scale (e.g., subplots). Values outside `[vmin, vmax]` are clamped to the colormap endpoints, not extrapolated.
 - **Degenerate range:** when `vmin == vmax` (or the column has all-equal observed values), `t = 0.5` (colormap midpoint) for every value. Avoids divide-by-zero; deterministic; one colormap step rather than half. Documented choice; revisit only if a real fixture argues otherwise.
 - **Branch coloring (numeric):** every branch (internal **and** terminal as of v0.4 Phase 3) is colored by the **mean** of its descendant tips' non-missing values for `column`, mapped through `cmap`. For a terminal branch the descendant set is the single tip itself, so the "mean" equals the tip's own value — terminal-branch color matches its tip's color when both `color_tips_by("col")` and `color_branches_by("col")` run on the same column. A branch with no observed values keeps the default color silently — no warning, since "no data" is not a paraphyletic miscoloring (contrast with the discrete monophyly claim, which warns on mixed/partial-data). Tip and branch coloring share the same `(vmin, vmax)` by default, so coloring on the same column produces a coherent scale.
 - **Callable cmaps** are accepted (`cmap=callable`) and called as `cmap(t: float) -> "#rrggbb"`. The callable must be deterministic and locale-independent for the EVIDENT byte-determinism claim to hold.
+
+### Styling resolution in Rust (v0.5 Phase 1)
+
+v0.3–v0.4 resolved metadata-driven styling in `plot.py`. v0.5 Phase 1 moves the resolution rules into `treescape-core::style` so every host language (Python now, Julia in Phase 2) shares one implementation. **Behavior-preserving:** every v0.4 golden and gallery SVG is byte-identical before and after. The Python oracle is `treescape_reference.style`, extracted from the v0.4 `plot.py` before the Rust port existed.
+
+**Moves to Rust:** Tableau-10 palette and default-palette assignment (>10 values raises), the pinned viridis LUT, `value_range`, `normalize`, the discrete monophyly rule, subtree means for continuous color and width, and width scaling.
+
+**Stays in the host:**
+
+- **Dataframe handling and join validation.** Join keys are host-native values (a polars `Int64` key column is legitimate and must fail with the v0.3 "not a tree tip" error, not a type error at the FFI). Each host implements the v0.3 join semantics above; the shared error semantics are pinned by the existing `treescape-metadata-join-roundtrip` fixtures.
+- **Numeric-vs-discrete detection.** Python excludes `bool`; Julia's `Bool <: Integer` needs its own explicit exclusion (Phase 2).
+- **Color *input* parsing** (`"#rrggbb"`, tuples). Hosts have idiomatic color types; Rust never parses user color strings. Palette entries are parsed by the host, lazily, exactly where v0.4 parsed them.
+- **Callable `cmap`.** Rust returns per-node `t ∈ [0, 1]`; the built-in `"viridis"` maps through Rust, a callable maps in the host.
+- **`TreescapeStyleWarning`.** Rust returns the non-monophyletic node ids in preorder; the host formats the unchanged v0.4 message and emits it before the atomic assignment (v0.4 review round 3).
+
+**Boundary shape.** Columns cross as vectors aligned to `tip_order()` (preorder tips, unnamed tips included): numeric as `Option<f64>`, discrete as `Option<u32>` codes. Codes are indices into the first-occurrence list of distinct values over tip order — the same order the default palette assigns in. Descendant-tip sets skip unnamed tips, as v0.4's `_descendant_tips` did.
+
+**Numeric semantics pinned for byte parity** (each one is a place a naive port silently diverges):
+
+- **Subtree-mean summation is Neumaier-compensated**, exactly as CPython ≥ 3.12's builtin `sum()` over floats: running sum `s`, compensation `c`; per term `t = s + x`, `c += (s − t) + x` if `|s| ≥ |x|` else `(x − t) + s`, `s = t`; at the end `s += c` only when `c` is nonzero and finite. Terms are added in `_descendant_tips` order (left-to-right preorder). *Why pinned:* v0.4 used builtin `sum()`, whose float algorithm changed in Python 3.12 (`sum([1e16, 1.0, -1e16])` is `0.0` on 3.11, `1.0` on 3.12). treescape supports Python ≥ 3.11, so v0.4 subtree-mean colors and widths could differ by interpreter version; goldens were generated on 3.12. Pinning the 3.12 algorithm in Rust keeps the goldens and makes 3.11 output match them.
+- **Viridis channel rounding is round-half-to-even** (Python `round()`), i.e. Rust `f64::round_ties_even`, not `f64::round`.
+- **Observed min/max follow Python `min()`/`max()`**: start from the first observed value, replace on strict `<` (min) / `>` (max). With NaN present the result is order-dependent — preserved rather than "fixed", since fixing it would be a behavior change.
+- **NaN through viridis is an error**, with Python's message: `cannot convert float NaN to integer` (what `int(round(nan))` raised in v0.4). A callable `cmap` receives the NaN `t` unchanged, as before.
 
 ## Convention gaps vs external oracles
 

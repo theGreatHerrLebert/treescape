@@ -33,6 +33,7 @@ from treescape_connector.py_render import (
     render_rectangular_svg,
 )
 from treescape_connector.py_tree import Tree as _RustTree
+from treescape_connector import py_style as _style
 
 
 def _parse_color(spec: Union[str, tuple]) -> tuple:
@@ -67,56 +68,9 @@ def _parse_color(spec: Union[str, tuple]) -> tuple:
     raise TypeError(f"color must be str or tuple, got {type(spec).__name__}")
 
 
-_TABLEAU_10 = (
-    "#4e79a7",
-    "#f28e2b",
-    "#e15759",
-    "#76b7b2",
-    "#59a14f",
-    "#edc948",
-    "#b07aa1",
-    "#ff9da7",
-    "#9c755f",
-    "#bab0ac",
-)
-
-
-# treescape's pinned viridis approximation: 11 keystops, linearly
-# interpolated. Visually faithful to matplotlib's viridis but not
-# byte-identical — see docs/conventions.md (v0.3, continuous color).
-_VIRIDIS_LUT = (
-    (68, 1, 84),
-    (72, 36, 117),
-    (64, 65, 132),
-    (52, 91, 140),
-    (42, 116, 142),
-    (34, 139, 141),
-    (30, 161, 133),
-    (68, 185, 116),
-    (135, 206, 69),
-    (211, 226, 45),
-    (253, 231, 37),
-)
-
-
-def _viridis(t: float) -> str:
-    """Map ``t in [0, 1]`` to a ``#rrggbb`` hex color via the pinned LUT."""
-    if t <= 0.0:
-        r, g, b = _VIRIDIS_LUT[0]
-        return f"#{r:02x}{g:02x}{b:02x}"
-    if t >= 1.0:
-        r, g, b = _VIRIDIS_LUT[-1]
-        return f"#{r:02x}{g:02x}{b:02x}"
-    n = len(_VIRIDIS_LUT) - 1
-    pos = t * n
-    lo = int(pos)
-    frac = pos - lo
-    r0, g0, b0 = _VIRIDIS_LUT[lo]
-    r1, g1, b1 = _VIRIDIS_LUT[lo + 1]
-    r = int(round(r0 + frac * (r1 - r0)))
-    g = int(round(g0 + frac * (g1 - g0)))
-    b = int(round(b0 + frac * (b1 - b0)))
-    return f"#{r:02x}{g:02x}{b:02x}"
+def _viridis(t: float) -> tuple:
+    """Built-in viridis: the pinned LUT lives in the resolver (docs/conventions.md)."""
+    return _style.viridis(t)
 
 
 _BUILTIN_CMAPS = {"viridis": _viridis}
@@ -412,38 +366,24 @@ class TreePlot:
         # touching self._branch_colors.
         discrete_palette = self._resolve_discrete_palette(column, palette)
 
-        new_colors: dict = {}
-        deferred_warnings: list[str] = []
-        root = self._tree.root
         # v0.4 Phase 3 lifted v0.3's "internal branches only" rule.
-        # Terminal branches now participate: a 1-tip subtree is
-        # trivially monophyletic, so the terminal branch picks up the
-        # tip's color (matching what users expect when both
-        # color_tips_by and color_branches_by run on the same column).
-        for node_id in self._tree.preorder():
-            if node_id == root:
-                continue
-            tips = self._descendant_tips(node_id)
-            values = [self._metadata_rows.get(tip, {}).get(column) for tip in tips]
-            observed = [value for value in values if value is not None]
-            distinct = []
-            for value in observed:
-                if value not in distinct:
-                    distinct.append(value)
-            if len(distinct) == 1 and len(observed) == len(tips):
-                new_colors[node_id] = _parse_color(discrete_palette[distinct[0]])
-                continue
-            if not observed:
-                # All descendants missing this column. Default + silent —
-                # matches the continuous-color path's "no data is not
-                # paraphyletic miscoloring" convention. Mainly affects
-                # terminal branches whose tip is absent from the joined
-                # frame, where warning would just be noise.
-                continue
-            deferred_warnings.append(
-                f"branch {self._branch_label(node_id)} is not monophyletic for metadata column "
-                f"{column!r}; leaving default branch color"
-            )
+        # Terminal branches participate: a 1-tip subtree is trivially
+        # monophyletic, so the terminal branch picks up the tip's color.
+        # All-missing subtrees default silently (no data is not
+        # paraphyletic miscoloring). The monophyly rule itself lives in
+        # the resolver (docs/conventions.md, v0.5 Phase 1).
+        distinct_values = self._distinct_values(column)
+        colored, non_monophyletic = _style.discrete_branch_codes(
+            self._tree, self._column_codes(column, distinct_values)
+        )
+        new_colors: dict = {}
+        for node_id, code in colored:
+            new_colors[node_id] = _parse_color(discrete_palette[distinct_values[code]])
+        deferred_warnings = [
+            f"branch {self._branch_label(node_id)} is not monophyletic for metadata column "
+            f"{column!r}; leaving default branch color"
+            for node_id in non_monophyletic
+        ]
 
         # Emit warnings BEFORE the atomic assign. If the user has
         # warnings.simplefilter("error", TreescapeStyleWarning) set,
@@ -521,20 +461,9 @@ class TreePlot:
                 "NaN / inf are rejected"
             )
 
-        lo, hi = self._column_value_range(column, vmin, vmax)
-        new_widths: dict = {}
-        root = self._tree.root
-        for node_id in self._tree.preorder():
-            if node_id == root:
-                continue
-            tips = self._descendant_tips(node_id)
-            values = [self._metadata_rows.get(tip, {}).get(column) for tip in tips]
-            numeric = [float(v) for v in values if v is not None]
-            if not numeric:
-                continue  # no data → keep default stroke_width, silent
-            mean_value = sum(numeric) / len(numeric)
-            t = self._normalize(mean_value, lo, hi)
-            new_widths[node_id] = wlo + t * (whi - wlo)
+        values = self._numeric_column(column)
+        lo, hi = self._column_value_range(values, vmin, vmax)
+        new_widths = dict(_style.branch_widths(self._tree, values, lo, hi, wlo, whi))
         self._branch_widths = new_widths
         return self
 
@@ -569,32 +498,26 @@ class TreePlot:
             return cmap
         raise TypeError(f"cmap must be a string name or callable; got {type(cmap).__name__}")
 
+    def _numeric_column(self, column: str) -> list:
+        """Column values aligned to tip order, as floats (None = missing)."""
+        return [
+            None if value is None else float(value)
+            for value in (
+                self._metadata_rows.get(tip, {}).get(column) for tip in self._tree.tip_order()
+            )
+        ]
+
     def _column_value_range(
         self,
-        column: str,
+        values: list,
         vmin: Optional[float],
         vmax: Optional[float],
     ) -> tuple[float, float]:
-        observed = [
-            self._metadata_rows.get(tip, {}).get(column) for tip in self._tree.tip_order()
-        ]
-        numeric = [float(v) for v in observed if v is not None]
-        lo = float(vmin) if vmin is not None else (min(numeric) if numeric else 0.0)
-        hi = float(vmax) if vmax is not None else (max(numeric) if numeric else 1.0)
-        return lo, hi
-
-    def _normalize(self, value: float, lo: float, hi: float) -> float:
-        if hi <= lo:
-            # Degenerate range (all values equal, or pinned vmin>=vmax). Map to
-            # the colormap midpoint — deterministic, unambiguous, no
-            # divide-by-zero.
-            return 0.5
-        t = (float(value) - lo) / (hi - lo)
-        if t < 0.0:
-            return 0.0
-        if t > 1.0:
-            return 1.0
-        return t
+        return _style.value_range(
+            values,
+            None if vmin is None else float(vmin),
+            None if vmax is None else float(vmax),
+        )
 
     def _resolve_continuous_tip_colors(
         self,
@@ -604,13 +527,10 @@ class TreePlot:
         vmax: Optional[float],
     ) -> dict:
         cmap_fn = self._resolve_cmap(cmap)
-        lo, hi = self._column_value_range(column, vmin, vmax)
+        values = self._numeric_column(column)
+        lo, hi = self._column_value_range(values, vmin, vmax)
         out = {}
-        for tip in self._tree.tip_order():
-            value = self._metadata_rows.get(tip, {}).get(column)
-            if value is None:
-                continue
-            t = self._normalize(value, lo, hi)
+        for tip, t in _style.continuous_tip_t(self._tree, values, lo, hi):
             out[tip] = cmap_fn(t)
         return out
 
@@ -624,57 +544,45 @@ class TreePlot:
         """Build the per-branch color map for a continuous column.
         Pure: does not touch self._branch_colors. Caller assigns at the
         end of the parent method so failed validation (e.g., bad cmap
-        name) leaves prior state untouched (round-2 review fix)."""
+        name) leaves prior state untouched (round-2 review fix).
+
+        Every branch, terminals included (v0.4 Phase 3), is colored by
+        the subtree mean; subtrees with no data keep the default."""
         cmap_fn = self._resolve_cmap(cmap)
-        lo, hi = self._column_value_range(column, vmin, vmax)
-        root = self._tree.root
+        values = self._numeric_column(column)
+        lo, hi = self._column_value_range(values, vmin, vmax)
         new_colors: dict = {}
-        # v0.4 Phase 3 lifts the is_tip skip — terminals participate.
-        # subtree-of-one mean = the tip's own value, so terminal-branch
-        # color matches its tip's color when both color_tips_by and
-        # color_branches_by run on the same column.
-        for node_id in self._tree.preorder():
-            if node_id == root:
-                continue
-            tips = self._descendant_tips(node_id)
-            values = [self._metadata_rows.get(tip, {}).get(column) for tip in tips]
-            numeric = [float(v) for v in values if v is not None]
-            if not numeric:
-                continue  # no data → keep default, silent
-            mean_value = sum(numeric) / len(numeric)
-            t = self._normalize(mean_value, lo, hi)
+        for node_id, t in _style.continuous_branch_t(self._tree, values, lo, hi):
             new_colors[node_id] = _parse_color(cmap_fn(t))
         return new_colors
 
-    def _resolve_discrete_palette(self, column: str, palette: Optional[dict]) -> dict:
+    def _distinct_values(self, column: str) -> list:
+        """Distinct non-missing values in first-occurrence tip order."""
         values = []
         for tip in self._tree.tip_order():
             value = self._metadata_rows.get(tip, {}).get(column)
             if value is not None and value not in values:
                 values.append(value)
+        return values
+
+    def _column_codes(self, column: str, distinct_values: list) -> list:
+        """Column aligned to tip order as indices into ``distinct_values``."""
+        codes = []
+        for tip in self._tree.tip_order():
+            value = self._metadata_rows.get(tip, {}).get(column)
+            codes.append(None if value is None else distinct_values.index(value))
+        return codes
+
+    def _resolve_discrete_palette(self, column: str, palette: Optional[dict]) -> dict:
+        values = self._distinct_values(column)
 
         if palette is None:
-            if len(values) > len(_TABLEAU_10):
-                raise ValueError("default categorical palette supports at most 10 values")
-            return {value: _TABLEAU_10[i] for i, value in enumerate(values)}
+            return dict(zip(values, _style.default_palette(len(values))))
 
         missing = [value for value in values if value not in palette]
         if missing:
             raise ValueError(f"palette missing value(s) for {column!r}: {missing}")
         return palette
-
-    def _descendant_tips(self, node_id: int) -> list[str]:
-        out = []
-        stack = [node_id]
-        while stack:
-            current = stack.pop()
-            if self._tree.is_tip(current):
-                name = self._tree.name(current)
-                if name:
-                    out.append(name)
-            else:
-                stack.extend(reversed(self._tree.children(current)))
-        return out
 
     def _branch_label(self, node_id: int) -> str:
         name = self._tree.name(node_id)

@@ -734,3 +734,56 @@ claims:
       - Layout overflow on extreme aspect ratios silently clips tips,
         but a tip count check still passes because clipping happens in
         the renderer.
+
+  - id: treescape-style-resolution-rust-vs-reference
+    title: Rust styling resolver equals the Python reference exactly
+    case: cases/treescape.md
+    source: treescape-core
+    tier: ci
+    trust_strategy:
+      - validation
+    pattern: evident/patterns/README.md#reference-shadowing
+    claim: >
+      `treescape-core::style` (v0.5 Phase 1) returns exactly the same
+      resolution results as `treescape_reference.style`, the readable
+      Python oracle extracted verbatim from the v0.4 `plot.py` before
+      the Rust port existed: default Tableau-10 palette assignment,
+      viridis LUT colors, observed value range, normalization, discrete
+      monophyly codes plus the preorder list of non-monophyletic
+      branches, continuous per-tip and per-branch `t`, and branch
+      widths. Equality is exact — identical integers and identical f64
+      bits, no tolerance. Coverage includes Neumaier-sensitive subtree
+      sums, exact `.5` viridis channel values (round-half-to-even),
+      degenerate ranges, NaN handling, unnamed tips, and
+      hypothesis-generated trees and columns. Because the refactor is
+      behavior-preserving, every v0.4 golden SVG under
+      `tests/fixtures/golden/` and every `assets/gallery/` file is
+      byte-identical after the move; those bytes are asserted by the
+      existing determinism claims, which this claim does not restate.
+    evidence:
+      oracle:
+        - treescape_reference.style (Python, extracted from v0.4 plot.py)
+      tolerance: Exact equality (integers and f64 bit patterns).
+      command: pytest tests/oracle/test_style_resolution.py -v
+      artifact: tests/oracle/reports/style_resolution.json
+    assumptions:
+      - The reference pins CPython 3.12+ float `sum()` semantics
+        (Neumaier compensation) explicitly instead of calling builtin
+        `sum()`, so the oracle does not change with the interpreter.
+        On Python 3.12+ the runner also asserts the explicit summation
+        equals builtin `sum()`, tying the pin to the v0.4 goldens'
+        provenance (generated on 3.12).
+      - Host-side concerns (dataframe handling, join validation, dtype
+        detection, color-string parsing, callable cmaps, warning
+        emission) are out of scope; see docs/conventions.md, v0.5
+        Phase 1.
+    failure_modes:
+      - The reference and the Rust port share a misreading of v0.4
+        behavior. Mitigated by extracting the reference before porting
+        and by the golden and gallery SVGs staying byte-identical, which
+        compares end-to-end output against pre-refactor bytes rather
+        than against either implementation.
+      - This claim is Rust-vs-Python parity within treescape, not
+        independent evidence that the styling conventions are "right";
+        the conventions are design choices recorded in
+        docs/conventions.md.
