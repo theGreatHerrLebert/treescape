@@ -17,7 +17,9 @@ inputs (EVIDENT claim `treescape-julia-python-svg-parity`).
 """
 module Treescape
 
+using Artifacts
 using Libdl
+import Pkg
 using Preferences
 using Tables
 

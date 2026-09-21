@@ -1611,3 +1611,53 @@ claims:
         rerun on a quiet machine before treating a failure as a regression.
       - An optimization that changes a result is caught by the
         Rust<->reference and oracle claims, which run on every push.
+
+  - id: treescape-installed-packages-reproduce-gallery
+    title: The published packages, installed on each platform, reproduce the gallery byte for byte
+    case: cases/treescape.md
+    source: treescape-connector
+    tier: release
+    trust_strategy:
+      - validation
+    pattern: evident/docs/reference/patterns.md#oracle-backed-release-gate
+    claim: >
+      For every platform treescape publishes (Linux x86-64 and aarch64,
+      macOS arm64 and x86-64, Windows x86-64), the wheels built by
+      .github/workflows/release.yml, installed into a clean virtual
+      environment with no access to the repository's sources, reproduce
+      every gallery and README SVG byte for byte; and on the platforms
+      with a Julia runner (Linux x86-64, macOS arm64 and x86-64, Windows
+      x86-64), Treescape.jl loading the connector library from its
+      release artifact reproduces every gallery SVG byte for byte too.
+      This tests what users install, not the development build, and it
+      extends byte determinism to every published platform.
+    subsystem: render
+    inputs:
+      corpus: "gallery"
+      n: 16
+      class: fixture
+      corpus_sha: "sha256:8076cb5a3214ea9f3178f2555cfdaf77bc2bf5859a880cae4007d2903a2964ab"
+    pinned_versions:
+      treescape: "0.6.0"
+      golden-snapshots: "0.6.0"
+    tolerances:
+      - metric: mismatch_count
+        op: "=="
+        value: 0
+        prose: "Byte equality of every gallery SVG, on every published platform, from the installed packages."
+    evidence:
+      oracle:
+        - golden-snapshots
+      command: python workflow/installed/check_installed.py (release.yml, per platform)
+      artifact: installed-check-<platform>.json (release.yml artifacts)
+    assumptions:
+      - The check runs from a directory outside the repository with the
+        repository's package sources not on sys.path, so it can only
+        import the installed wheels (it asserts this).
+      - aarch64 Linux wheels are built but tested under emulation only if
+        the runner provides it; the release notes say which platforms ran.
+    failure_modes:
+      - A platform's floating-point or font path differs and one byte
+        changes; that is reported per platform, not averaged away.
+      - A wheel is missing the embedded font license; caught by the
+        wheel-contents check in the same job.

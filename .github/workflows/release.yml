@@ -1,0 +1,285 @@
+name: release
+
+# Builds, tests and publishes the installable packages (docs/conventions.md,
+# "Distribution"; claim treescape-installed-packages-reproduce-gallery).
+#
+#   * Manual run, stage "build-and-test": build every wheel and test it
+#     installed on every platform (and the Julia artifact, once
+#     packages/Treescape.jl/Artifacts.toml exists). Publishes nothing.
+#   * Manual run, stage "julia-libs": build the Julia connector library on
+#     every platform, attach the tarballs to the GitHub release
+#     jl-connector-v<version>, and produce Artifacts.toml (download the
+#     workflow artifact and commit it) — step 1 of a release.
+#   * Tag v*: build and test everything, then publish to PyPI through
+#     trusted publishing after the owner approves the `pypi` environment.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: What to run
+        type: choice
+        options: [build-and-test, julia-libs]
+        default: build-and-test
+      publish_jl_release:
+        description: "julia-libs only: create the public jl-connector-v<version> release (otherwise a dry run with file:// URLs, checked on Linux)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  wheels:
+    if: github.event_name == 'push' || inputs.stage == 'build-and-test'
+    name: wheel ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x86_64, os: ubuntu-latest, target: x86_64 }
+          - { name: linux-aarch64, os: ubuntu-latest, target: aarch64 }
+          - { name: macos-arm64, os: macos-14, target: aarch64-apple-darwin }
+          - { name: macos-x86_64, os: macos-15-intel, target: x86_64-apple-darwin }
+          - { name: windows-x86_64, os: windows-latest, target: x64 }
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: "2014"
+          args: --release --out dist -m treescape-connector/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.name }}
+          path: dist/*.whl
+
+  sdist-and-pure:
+    if: github.event_name == 'push' || inputs.stage == 'build-and-test'
+    name: sdist and pure-Python wheels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist -m treescape-connector/Cargo.toml
+      - name: Pure-Python wheels
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel --outdir dist packages/treescape
+          python -m build --wheel --outdir dist packages/treescape-reference
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-pure
+          path: dist/*
+
+  check-metadata:
+    name: twine check
+    needs: [wheels, sdist-and-pure]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+      - run: |
+          python -m pip install --upgrade twine
+          twine check --strict dist/*
+
+  test-installed:
+    name: installed ${{ matrix.name }} py${{ matrix.python }}
+    needs: [wheels, sdist-and-pure]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+        name: [linux-x86_64, linux-aarch64, macos-arm64, macos-x86_64, windows-x86_64]
+        include:
+          - { name: linux-x86_64, os: ubuntu-latest }
+          - { name: linux-aarch64, os: ubuntu-24.04-arm }
+          - { name: macos-arm64, os: macos-14 }
+          - { name: macos-x86_64, os: macos-15-intel }
+          - { name: windows-x86_64, os: windows-latest }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: repo
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+      - name: Install the built wheels only (no sources, no index for treescape)
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          if [ -x "$RUNNER_TEMP/venv/Scripts/python.exe" ]; then PY="$RUNNER_TEMP/venv/Scripts/python.exe"; else PY="$RUNNER_TEMP/venv/bin/python"; fi
+          echo "PY=$PY" >> "$GITHUB_ENV"
+          "$PY" -m pip install --upgrade pip
+          # The treescape packages come only from the built files; only
+          # their dependencies (polars) come from PyPI.
+          "$PY" -m pip install --no-index --no-deps --only-binary :all: --find-links dist treescape-connector treescape treescape-reference
+          "$PY" -m pip install --find-links dist treescape treescape-reference
+      - name: Reproduce the gallery from the installed packages
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: '"$PY" "$GITHUB_WORKSPACE/repo/workflow/installed/check_installed.py" "$GITHUB_WORKSPACE/repo" "installed-check.json"'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installed-check-${{ matrix.name }}-py${{ matrix.python }}
+          path: ${{ runner.temp }}/installed-check.json
+
+  test-julia-installed:
+    name: installed Julia ${{ matrix.name }}
+    if: github.event_name == 'push' || inputs.stage == 'build-and-test'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x86_64, os: ubuntu-latest }
+          - { name: linux-aarch64, os: ubuntu-24.04-arm }
+          - { name: macos-arm64, os: macos-14 }
+          - { name: macos-x86_64, os: macos-15-intel }
+          - { name: windows-x86_64, os: windows-latest }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Artifacts.toml present?
+        shell: bash
+        run: |
+          if [ -f packages/Treescape.jl/Artifacts.toml ]; then exit 0; fi
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            echo "::error::A release tag needs packages/Treescape.jl/Artifacts.toml (run stage julia-libs and commit it first)"; exit 1
+          fi
+          echo "::notice::No Artifacts.toml yet; Julia installed check skipped (run stage julia-libs first)"
+          echo "SKIP_JULIA=1" >> "$GITHUB_ENV"
+      - uses: julia-actions/setup-julia@v2
+        if: env.SKIP_JULIA != '1'
+        with:
+          version: "1.12"
+      - name: Reproduce the gallery with the artifact library
+        if: env.SKIP_JULIA != '1'
+        shell: bash
+        run: julia workflow/installed/check_installed.jl "$GITHUB_WORKSPACE" installed-check-julia.toml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installed-check-julia-${{ matrix.name }}
+          path: installed-check-julia.toml
+
+  julia-libs:
+    if: github.event_name == 'workflow_dispatch' && inputs.stage == 'julia-libs'
+    name: Julia library ${{ matrix.triplet }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { triplet: x86_64-linux-gnu, os: ubuntu-latest, target: x86_64-unknown-linux-gnu, zig: "2.17", lib: libtreescape_jl_connector.so }
+          - { triplet: aarch64-linux-gnu, os: ubuntu-latest, target: aarch64-unknown-linux-gnu, zig: "2.17", lib: libtreescape_jl_connector.so }
+          - { triplet: aarch64-apple-darwin, os: macos-14, target: aarch64-apple-darwin, lib: libtreescape_jl_connector.dylib }
+          - { triplet: x86_64-apple-darwin, os: macos-15-intel, target: x86_64-apple-darwin, lib: libtreescape_jl_connector.dylib }
+          - { triplet: x86_64-w64-mingw32, os: windows-latest, target: x86_64-pc-windows-msvc, lib: treescape_jl_connector.dll }
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/setup-python@v5
+        if: matrix.zig
+        with:
+          python-version: "3.12"
+      - name: Build (glibc ${{ matrix.zig }} via zig)
+        if: matrix.zig
+        run: |
+          python -m pip install ziglang cargo-zigbuild
+          cargo zigbuild --release -p treescape-jl-connector --target ${{ matrix.target }}.${{ matrix.zig }}
+      - name: Build
+        if: ${{ !matrix.zig }}
+        run: cargo build --release -p treescape-jl-connector --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jl-lib-${{ matrix.triplet }}
+          path: target/${{ matrix.target }}/release/${{ matrix.lib }}
+
+  julia-artifacts:
+    if: github.event_name == 'workflow_dispatch' && inputs.stage == 'julia-libs'
+    name: Julia artifacts and release jl-connector-v<version>
+    needs: julia-libs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the jl-connector-v<version> release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: jl-lib-*
+          path: libs
+      - name: Tarballs and Artifacts.toml
+        shell: bash
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' packages/Treescape.jl/Project.toml)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          if [ "${{ inputs.publish_jl_release }}" = "true" ]; then
+            BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/jl-connector-v$VERSION"
+          else
+            BASE="file://$GITHUB_WORKSPACE/out"
+          fi
+          args=()
+          for d in libs/jl-lib-*; do args+=("${d#libs/jl-lib-}=$(ls "$d"/* | head -1)"); done
+          julia workflow/installed/make_artifacts.jl "$GITHUB_WORKSPACE" out "$BASE" "${args[@]}"
+      - name: Dry run - load the artifact and reproduce the gallery (Linux x86-64)
+        if: ${{ !inputs.publish_jl_release }}
+        shell: bash
+        run: |
+          cp out/Artifacts.toml packages/Treescape.jl/Artifacts.toml
+          julia workflow/installed/check_installed.jl "$GITHUB_WORKSPACE" installed-check-julia.toml
+      - name: Release jl-connector-v<version>
+        if: ${{ inputs.publish_jl_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "jl-connector-v$VERSION" out/*.tar.gz --target "$GITHUB_SHA" \
+            --title "Julia connector library v$VERSION" \
+            --notes "Prebuilt libtreescape_jl_connector for Treescape.jl (loaded through packages/Treescape.jl/Artifacts.toml). Built from $GITHUB_SHA." \
+            || gh release upload "jl-connector-v$VERSION" out/*.tar.gz --clobber
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Artifacts.toml
+          path: out/Artifacts.toml
+
+  publish:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    name: Publish to PyPI
+    needs: [check-metadata, test-installed, test-julia-installed]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # trusted publishing; no token is stored anywhere
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1

@@ -48,7 +48,11 @@ const _LIB_NAMES = ("libtreescape_jl_connector.so", "libtreescape_jl_connector.d
 
 Where the connector library is loaded from: `ENV["TREESCAPE_JL_LIB"]`,
 then the `libpath` preference (see [`set_library!`](@ref)), then a
-development build at `<repo>/target/release/` next to this package.
+development build at `<repo>/target/release/` next to this package, then
+the release artifact for this platform (downloaded on first use; see
+`Artifacts.toml`). A development build wins over the artifact so a
+checkout always runs the code under test (docs/conventions.md,
+"Distribution").
 """
 function library_path()
     haskey(ENV, "TREESCAPE_JL_LIB") && return ENV["TREESCAPE_JL_LIB"]
@@ -59,11 +63,29 @@ function library_path()
         candidate = joinpath(repo, "target", "release", name)
         isfile(candidate) && return candidate
     end
+    artifact = _artifact_library()
+    artifact !== nothing && return artifact
     error(
-        "treescape connector library not found. Build it with " *
+        "treescape connector library not found: no release artifact for this platform " *
+        "($(Sys.MACHINE)) and no development build. Build it with " *
         "`cargo build -p treescape-jl-connector --release` in the treescape repository, " *
         "or point ENV[\"TREESCAPE_JL_LIB\"] / Treescape.set_library!(path) at it.",
     )
+end
+
+const _ARTIFACT = "libtreescape_jl_connector"
+
+"""The library inside this platform's release artifact, or `nothing`."""
+function _artifact_library()
+    toml = joinpath(@__DIR__, "..", "Artifacts.toml")
+    isfile(toml) || return nothing
+    Artifacts.artifact_meta(_ARTIFACT, toml) === nothing && return nothing
+    dir = Pkg.Artifacts.ensure_artifact_installed(_ARTIFACT, toml)
+    for name in _LIB_NAMES
+        candidate = joinpath(dir, name)
+        isfile(candidate) && return candidate
+    end
+    return nothing
 end
 
 """
