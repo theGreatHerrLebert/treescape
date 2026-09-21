@@ -7,6 +7,7 @@
 #
 # Output format: stdout CSV with header. Columns:
 #   node      integer    ggtree node index
+#   parent    integer    parent node index (the root is its own parent)
 #   x         numeric    cumulative branch length from root
 #   y         numeric    pre-order leaf index (top to bottom)
 #   is_tip    boolean    TRUE for leaves
@@ -58,6 +59,7 @@ if (circular) {
   #     opposed children; oracle test compares tips only to sidestep.
   out <- data.frame(
     node   = d$node,
+    parent = d$parent,
     r      = d$x,
     theta  = d$angle * pi / 180,
     is_tip = d$isTip,
@@ -67,6 +69,7 @@ if (circular) {
 } else {
   out <- data.frame(
     node   = d$node,
+    parent = d$parent,
     x      = d$x,
     y      = d$y,
     is_tip = d$isTip,

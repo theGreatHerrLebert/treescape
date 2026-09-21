@@ -84,6 +84,42 @@ jobs:
           name: oracle-reports-ci
           path: tests/oracle/reports/
 
+  determinism-macos:
+    # Backs the "across runs and platforms" wording of
+    # treescape-svg-determinism: the byte-exact golden and gallery
+    # runners, on a second OS and CPU architecture (Apple silicon).
+    name: SVG determinism (macOS)
+    runs-on: macos-latest
+    needs: rust-test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true   # see rust-test job for why not recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install maturin -r tests/requirements-oracles.txt
+          pip install -e ./treescape-connector
+          pip install -e packages/treescape-reference -e packages/treescape
+      - name: Connector imports (several runners skip without it)
+        run: python -c "import treescape_connector.py_render, treescape_connector.py_layout, treescape_connector.py_style"
+      - name: Byte-determinism and golden runners
+        run: >
+          pytest -v -rs
+          tests/oracle/test_svg_determinism.py
+          tests/oracle/test_styling_determinism.py
+          tests/oracle/test_circular_annotations.py
+          tests/oracle/test_gallery_bytes.py
+          tests/oracle/test_color_tips_by_metadata.py
+          tests/oracle/test_color_by_continuous.py
+          tests/oracle/test_branch_width_by_metadata.py
+          tests/oracle/test_layout_vs_reference.py
+
   julia:
     name: Julia binding (Julia ${{ matrix.julia }})
     runs-on: ubuntu-latest

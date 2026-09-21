@@ -115,3 +115,21 @@ def test_ggtree_pin_matches_release_image() -> None:
     )
     actual = subprocess.run([rscript, "-e", expr], capture_output=True, text=True, check=True).stdout.strip()
     assert _pins("ggtree") == {actual}
+
+
+def test_random_corpus_matches_its_generator() -> None:
+    """The checked-in random trees are exactly what scripts/gen_random_trees.py writes."""
+    proc = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "gen_random_trees.py"), "--check"],
+        capture_output=True, text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_tree_corpus_counts_match_n() -> None:
+    """For a claim over a corpus of tree files only, inputs.n is the number of trees."""
+    for claim in CLAIMS:
+        inputs = claim.get("inputs", {})
+        files = CORPORA.get(inputs.get("corpus"), [])
+        if files and inputs.get("class") == "fixture" and all(f.endswith(".nwk") for f in files):
+            assert inputs.get("n") == len(files), f"{claim['id']}: n={inputs.get('n')} but corpus has {len(files)} trees"

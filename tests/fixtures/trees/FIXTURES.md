@@ -11,13 +11,15 @@ Every fixture used by an EVIDENT claim lives here. Fixtures are versioned with t
 | `edge/nhx_comments.nwk` | 2 | hand-written | NHX `[&&NHX:...]` annotations |
 | `edge/neg_branches.nwk` | 2 | hand-written | negative branch length (legal but unusual) |
 | `edge/trifurcation_root.nwk` | 3 | hand-written | unrooted-style 3-way root |
+| `edge/evenly_spread_inner.nwk` | 6 | hand-written | inner node `(b,(c,d,e),f)` whose three children sit exactly 120° apart in the circular layout: the degenerate-mean rule on a drawn node (v0.6) |
+| `random/<shape>_<NNN>.nwk` (60 files) | 3–200 | generated, `scripts/gen_random_trees.py` (seed 20260921) | layout oracle corpus (v0.6): shapes `yule`, `pda`, `ladder`, `polytomy` (multifurcations), `zeros` (zero-length branches); names `t001`…; rules in `docs/conventions.md`. Regenerate only through the script; a test fails if files and script disagree |
 | `medium/primates.nwk` | 11 | hand-written, schematic | demo fixture for the README screenshot; topology approximates a primate phylogeny but branch lengths are illustrative, not literature-derived |
 
 ## Adding a fixture
 
 1. Hand-check the topology and branch lengths against the Newick string before committing.
 2. Add a row to this table with source and what edge case it exercises.
-3. If a claim should consume it, list it in that claim's `evidence.fixtures` in `evident.yaml`.
+3. If a claim should consume it, add it to that claim's corpus in `tests/fixtures/corpora.toml` and update the claim's `inputs.corpus_sha` in `evident.yaml` (`python scripts/corpus_sha.py <corpus>`); `tests/oracle/test_manifest.py` fails until they agree.
 4. Never edit a fixture in place — claims may have golden artifacts pinned against the exact bytes. Add a new fixture instead.
 
 ## Medium and large fixtures

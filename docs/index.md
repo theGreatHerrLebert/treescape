@@ -6,7 +6,7 @@ Phylogenetic tree plots with deterministic SVG output, a Rust core, and bindings
 
 ## What you get
 
-- **Layouts:** rectangular and circular phylograms, laid out from branch lengths. The readable Python reference, which the Rust core matches within 1e-9, agrees with ete3, Biopython.Phylo and R/ggtree (rectangular) and with ete3 and R/ggtree (circular), so far on small fixtures (2–5 tips); where they differ, [Conventions](conventions.md) says how and why.
+- **Layouts:** rectangular and circular phylograms, laid out from branch lengths. Both the Rust core and the readable Python reference agree with ete3, Biopython.Phylo and R/ggtree (rectangular) and with ete3 and R/ggtree (circular) on 66 trees of 2–200 tips, node by node wherever the oracle defines the node; where they differ, [Conventions](conventions.md) says how and why.
 - **Styling from metadata:** join a table on tip names, then color tips and branches by category (Tableau-10) or number (viridis), scale branch widths, highlight clades, and add scale bars and support labels.
 - **Deterministic output:** the same inputs give byte-identical SVG, in Python and in Julia alike (verified on Linux).
 - **Trust you can check:** the [claims](claims.md) page lists every EVIDENT claim, its oracle, and the command that verifies it.

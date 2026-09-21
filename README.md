@@ -72,8 +72,8 @@ Every correctness claim is pinned in [`evident.yaml`](evident.yaml) — the [EVI
 | What | Checked against | Tolerance |
 |---|---|---|
 | Newick parsing (Python reference and Rust parsers) | Biopython | exact topology (every clade); every branch length 1e-9 |
-| Rectangular layout | ete3, Biopython, R/ggtree | 1e-6 (ggtree 1e-4) |
-| Circular layout | ete3, R/ggtree | 1e-4 (ggtree 1e-3) in (r, θ) |
+| Rectangular layout (Rust core and Python reference, every node) | ete3, Biopython, R/ggtree | 1e-6 (ggtree 1e-4) |
+| Circular layout (Rust core and Python reference) | ete3, R/ggtree | 1e-4 (ggtree 1e-3) in (r, θ) |
 | Rust core vs readable Python reference | `treescape-reference` | 1e-9 layout; exact styling rules |
 | Label widths | fontTools reading the same font | 0.5 px |
 | Python ↔ Julia output | each other, and every gallery file | byte-identical |
@@ -81,7 +81,7 @@ Every correctness claim is pinned in [`evident.yaml`](evident.yaml) — the [EVI
 
 Where the external tools disagree with each other or with treescape — sweep direction, default ladderization, y offsets — the difference is documented in [conventions](docs/conventions.md), not hidden in a tolerance.
 
-**Known limits of that evidence**, stated plainly: external layout agreement is currently established on small fixtures (2–5 tips); rendered SVG geometry is snapshot-tested rather than checked against the validated coordinates; byte determinism is verified on Linux only; branch styling is O(nodes × depth). Closing these is tracked for the next release.
+**Known limits of that evidence**, stated plainly: external layout agreement is established on 66 trees of 2–200 tips (hand-written fixtures plus a pinned random corpus with multifurcations, zero-length branches and ladders), not on large real-world trees; rendered SVG geometry is snapshot-tested rather than checked against the validated coordinates; byte determinism is verified on Linux only; branch styling is O(nodes × depth). Closing these is tracked for the next release.
 
 ## Design philosophy
 

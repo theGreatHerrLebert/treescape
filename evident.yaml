@@ -66,7 +66,7 @@ claims:
       - NHX annotations dropped on write without a warning.
 
   - id: treescape-layout-rust-vs-reference
-    title: Rust rectangular layout agrees with the Python reference within 1e-9
+    title: Rust rectangular and circular layouts agree with the Python reference within 1e-9
     case: cases/treescape.md
     source: treescape-core
     tier: ci
@@ -74,18 +74,21 @@ claims:
       - validation
     pattern: evident/docs/reference/patterns.md#reference-shadowing
     claim: >
-      Rectangular layout coordinates produced by treescape-core agree
-      with the readable Python reference in treescape-reference within
-      1e-9 absolute on every small and medium fixture. This proves
-      Rust<->Python parity, NOT correctness in absolute terms; it must
-      hold alongside layout-vs-ete3, layout-vs-biopython, and
-      layout-vs-ggtree.
+      Layout coordinates produced by treescape-core, rectangular (x, y)
+      and circular (r, θ), agree with the readable Python reference in
+      treescape-reference within 1e-9 absolute on every node of every
+      tree in the layout-v2 corpus (the small and edge layout fixtures,
+      the medium primates fixture, and 60 pinned random trees from 3 to
+      200 tips with multifurcations, zero-length branches and ladders;
+      scripts/gen_random_trees.py). This proves Rust<->Python parity,
+      NOT correctness in absolute terms; correctness comes from the
+      external-oracle claims, which check both implementations.
     subsystem: layout
     inputs:
-      corpus: "layout-core-4"
-      n: 4
+      corpus: "layout-v2"
+      n: 66
       class: fixture
-      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+      corpus_sha: "sha256:9d790ad3e3daa307bc745e7223873881632c566499b4e09d038ef3e5418b1b68"
     pinned_versions:
       treescape: "0.5.0"
       treescape-reference: "0.5.0"
@@ -93,7 +96,7 @@ claims:
       - metric: absolute_error
         op: "<"
         value: 1.0e-09
-        prose: "1e-9 absolute on (x, y) per node."
+        prose: "1e-9 absolute on (x, y) and on (r, θ) per node."
     evidence:
       oracle:
         - treescape-reference
@@ -101,8 +104,11 @@ claims:
       artifact: tests/oracle/reports/layout_rust_vs_reference.json
     assumptions:
       - The Python reference is the canonical convention owner; if its
-        conventions are wrong, this claim still passes. Hence the three
-        external-oracle claims that follow.
+        conventions are wrong, this claim still passes. Hence the five
+        external-oracle layout claims (ete3, Biopython and ggtree
+        rectangular; ete3 and ggtree circular).
+      - Nodes are matched by clade (the set of tip names below them);
+        corpus tip names are unique.
     failure_modes:
       - Both implementations drift in lockstep because they share an
         author and a fixture set (the closest local Agreement Trap).
@@ -118,17 +124,22 @@ claims:
       - validation
     pattern: evident/docs/reference/patterns.md#oracle-comparison
     claim: >
-      treescape rectangular layout coordinates agree with ete3's
-      coordinate output within 1e-6 absolute on a curated subset of
-      small and medium fixtures. Convention notes in
-      docs/conventions.md document tip-spacing, internal-x, and root-x
-      conventions matched or deliberately diverged.
+      Rectangular layout coordinates from both treescape implementations
+      (the Rust core via treescape_connector, and treescape-reference)
+      agree with ete3 within 1e-6 absolute on the layout-v2 corpus (the
+      small and edge layout fixtures, the medium primates fixture, and
+      60 pinned random trees from 3 to 200 tips with multifurcations,
+      zero-length branches and ladders; scripts/gen_random_trees.py): x
+      of every node against ete3's root distance (get_distance), and y
+      of every tip against its index in ete3's leaf order (iter_leaves).
+      ete3 has no internal-y rule, so internal y is not compared here.
+      Conventions: docs/conventions.md.
     subsystem: layout
     inputs:
-      corpus: "layout-core-4"
-      n: 4
+      corpus: "layout-v2"
+      n: 66
       class: fixture
-      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+      corpus_sha: "sha256:9d790ad3e3daa307bc745e7223873881632c566499b4e09d038ef3e5418b1b68"
     pinned_versions:
       treescape: "0.5.0"
       ete3: "3.1.3"
@@ -136,16 +147,20 @@ claims:
       - metric: absolute_error
         op: "<"
         value: 1.0e-06
-        prose: "1e-6 absolute, looser to absorb ete3 internal pixel rounding."
+        prose: "1e-6 absolute on x (every node) and y (tips)."
     evidence:
       oracle:
         - ete3
       command: pytest tests/oracle/test_layout_vs_ete3.py -v
       artifact: tests/oracle/reports/layout_vs_ete3.json
     assumptions:
-      - Ete3 coordinate output is read directly from its layout module,
-        not from rendered pixel positions.
-      - Pinned ete3 version recorded in the test environment.
+      - ete3 coordinates are derived from its tree primitives
+        (get_distance, iter_leaves); ete3's Qt renderer is not
+        exercised.
+      - The ete3 version is pinned in pinned_versions and checked
+        against the installed package by tests/oracle/test_manifest.py.
+      - Nodes are matched by clade (the set of tip names below them);
+        corpus tip names are unique.
     failure_modes:
       - Ete3 changes its tip-ordering convention in a minor release and
         we silently bump the tolerance.
@@ -161,17 +176,28 @@ claims:
       - validation
     pattern: evident/docs/reference/patterns.md#oracle-comparison
     claim: >
-      treescape rectangular layout coordinates agree with the x/y
-      positions returned by Biopython.Phylo._get_x_positions and
-      _get_y_positions within 1e-6 absolute on small and medium
-      fixtures. This oracle is independent of ete3 — different parser,
-      different traversal, different coordinate construction.
+      Rectangular layout coordinates from both treescape implementations
+      (the Rust core via treescape_connector, and treescape-reference)
+      agree with the x/y positions computed by Biopython.Phylo's own
+      get_x_positions / get_y_positions (executed from the installed
+      Biopython source) within 1e-6 absolute on the layout-v2 corpus
+      (the small and edge layout fixtures, the medium primates fixture,
+      and 60 pinned random trees from 3 to 200 tips with
+      multifurcations, zero-length branches and ladders;
+      scripts/gen_random_trees.py): x of every node, y of every tip
+      (after Biopython's 1-based offset), and y of every internal node
+      whose whole subtree is binary. At a multifurcation Biopython places
+      the node at the midpoint of its first and last child and treescape
+      at the mean of all children, and the difference propagates to every
+      ancestor; that documented gap is excluded, not tolerated. This
+      oracle is independent of ete3: different parser, different
+      traversal, different coordinate construction.
     subsystem: layout
     inputs:
-      corpus: "layout-core-4"
-      n: 4
+      corpus: "layout-v2"
+      n: 66
       class: fixture
-      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+      corpus_sha: "sha256:9d790ad3e3daa307bc745e7223873881632c566499b4e09d038ef3e5418b1b68"
     pinned_versions:
       treescape: "0.5.0"
       Biopython: "1.88"
@@ -179,17 +205,21 @@ claims:
       - metric: absolute_error
         op: "<"
         value: 1.0e-06
-        prose: "1e-6 absolute on (x, y) per node."
+        prose: "1e-6 absolute on (x, y) per compared node."
     evidence:
       oracle:
         - Biopython
       command: pytest tests/oracle/test_layout_vs_biopython.py -v
       artifact: tests/oracle/reports/layout_vs_biopython.json
     assumptions:
-      - Bio.Phylo's _get_*_positions are private but stable — version pin
-        records the SHA we tested against.
+      - Biopython's get_x_positions / get_y_positions are inner functions
+        of Bio.Phylo._utils.draw, not public API; the runner executes the
+        installed source, and the Biopython version is pinned and checked
+        by tests/oracle/test_manifest.py.
       - Independence from ete3 holds because the two libraries derive
         from different code lineages with no shared layout heritage.
+      - Nodes are matched by clade (the set of tip names below them);
+        corpus tip names are unique.
     failure_modes:
       - Biopython's underscore-prefixed positions API breaks across a
         version bump and we paper over with a workaround instead of
@@ -204,27 +234,31 @@ claims:
       - validation
     pattern: evident/docs/reference/patterns.md#oracle-comparison
     claim: >
-      treescape rectangular layout coordinates agree with R ggtree's
-      x/y output within 1e-4 absolute on small and edge fixtures, after
-      two convention adjustments documented in docs/conventions.md: the
-      oracle invokes ggtree with ladderize=FALSE (treescape does not
-      ladderize implicitly), and the test applies a +1 offset to our y
-      to match ggtree's 1-based tip indexing. Tier release because it
-      requires R + Bioconductor; runs inside
-      workflow/Dockerfile.evident-release before any release tag.
+      Rectangular layout coordinates from both treescape implementations
+      (the Rust core via treescape_connector, and treescape-reference)
+      agree with R ggtree's x/y output within 1e-4 absolute on every
+      node of the layout-v2 corpus (the small and edge layout fixtures,
+      the medium primates fixture, and 60 pinned random trees from 3 to
+      200 tips with multifurcations, zero-length branches and ladders;
+      scripts/gen_random_trees.py), after two convention adjustments
+      documented in docs/conventions.md: the oracle invokes ggtree with
+      ladderize=FALSE (treescape does not ladderize implicitly), and the
+      test applies a +1 offset to our y to match ggtree's 1-based tip
+      indexing. Tier release because it requires R + Bioconductor; runs
+      inside workflow/Dockerfile.evident-release before any release tag.
     subsystem: layout
     inputs:
-      corpus: "layout-core-4"
-      n: 4
+      corpus: "layout-v2"
+      n: 66
       class: fixture
-      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+      corpus_sha: "sha256:9d790ad3e3daa307bc745e7223873881632c566499b4e09d038ef3e5418b1b68"
     pinned_versions:
       treescape: "0.5.0"
       ggtree: "4.0.5 (Bioconductor 3.22, R 4.5.3)"
     tolerances:
       - metric: absolute_error
         op: "<"
-        value: 0.0001
+        value: 1.0e-04
         prose: "1e-4 absolute on (x, y) per node. Looser than ete3/Biopython because ggplot's internal scaling introduces float drift not present in the other oracles."
     evidence:
       oracle:
@@ -235,7 +269,10 @@ claims:
       - R + Bioconductor + ggtree are available in the release runner;
         pytest skips with a clear message otherwise.
       - workflow/scripts/oracle_ggtree.R emits a deterministic CSV of
-        (node_id, x, y) for a given fixture path with ladderize=FALSE.
+        (node, parent, x, y, is_tip, label) for a given fixture path
+        with ladderize=FALSE.
+      - Nodes are matched by clade (the set of tip names below them);
+        corpus tip names are unique.
     failure_modes:
       - R/ggtree convention drift across Bioconductor releases not
         caught by version pin.
@@ -320,6 +357,9 @@ claims:
     assumptions:
       - All randomness in the render path is seeded or eliminated.
       - Float formatting locale-independent.
+      - Platforms verified by CI (v0.6) - Linux x86-64 (ci-tier job) and
+        macOS arm64 (determinism-macos job) run this runner against the
+        same committed goldens.
     failure_modes:
       - HashMap iteration order leaks into attribute order.
       - Float formatting "{:.}" differs across platforms or locales.
@@ -379,7 +419,7 @@ claims:
         per-glyph drift summed over the string.
 
   - id: treescape-circular-layout-vs-ete3
-    title: Circular layout agrees with ete3 (mode "c") within 1e-4 on (r, θ)
+    title: Circular layout radii and tip order agree with ete3 (1e-4 on (r, θ))
     case: cases/treescape.md
     source: treescape-core
     tier: ci
@@ -387,41 +427,43 @@ claims:
       - validation
     pattern: evident/docs/reference/patterns.md#oracle-comparison
     claim: >
-      treescape's circular layout — radius and angle per node — agrees
-      with ete3's circular-mode coordinates (`TreeStyle(mode="c")`)
-      within 1e-4 absolute on `(r, θ)` per tip on small and medium
-      fixtures, after the convention adjustments documented in
-      `docs/conventions.md`. ete3 may use a different start angle
-      (typically west / 9 o'clock) and/or sweep direction; the test
-      applies the documented transforms before comparing — same pattern
-      the rectangular Biopython oracle uses for its 1-based offset.
+      Circular layout coordinates from both treescape implementations
+      (the Rust core via treescape_connector, and treescape-reference)
+      agree with ete3 within 1e-4 absolute on the layout-v2 corpus (the
+      small and edge layout fixtures, the medium primates fixture, and
+      60 pinned random trees from 3 to 200 tips with multifurcations,
+      zero-length branches and ladders; scripts/gen_random_trees.py): r
+      of every node against ete3's root distance, and θ of every tip
+      against the angle treescape's documented formula assigns to that
+      tip's index in ete3's leaf order. ete3 does not expose its
+      circular-mode coordinates, so this checks radii and tip order, not
+      the angle rule itself; the angle rule is checked against ggtree
+      (release tier) and by Rust<->reference parity.
     subsystem: layout
     inputs:
-      corpus: "layout-core-4"
-      n: 4
+      corpus: "layout-v2"
+      n: 66
       class: fixture
-      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+      corpus_sha: "sha256:9d790ad3e3daa307bc745e7223873881632c566499b4e09d038ef3e5418b1b68"
     pinned_versions:
       treescape: "0.5.0"
       ete3: "3.1.3"
     tolerances:
       - metric: absolute_error
         op: "<"
-        value: 0.0001
-        prose: "1e-4 absolute on (r, θ) per tip after documented convention transforms. Looser than rectangular's 1e-6 because ete3's circular renderer rounds intermediate angles to floats during layout."
+        value: 1.0e-04
+        prose: "1e-4 absolute on r (every node) and θ (tips). The runner asserts 1e-6; the claim keeps its original 1e-4 bound pending a decision (CHANGELOG)."
     evidence:
       oracle:
         - ete3
       command: pytest tests/oracle/test_circular_layout_vs_ete3.py -v
       artifact: tests/oracle/reports/circular_layout_vs_ete3.json
     assumptions:
-      - ete3's coordinate output is read from its layout module, not
-        from rendered pixel positions.
-      - First end-to-end run of this claim will surface convention
-        divergences (start angle, sweep direction, ladderize default).
-        Each is documented in docs/conventions.md before any tolerance
-        is touched. This is the same discipline that surfaced
-        ggtree's default ladderize during v0.1.
+      - ete3 coordinates are derived from its tree primitives
+        (get_distance, iter_leaves); ete3's circular renderer is not
+        exercised.
+      - Nodes are matched by clade (the set of tip names below them);
+        corpus tip names are unique.
     failure_modes:
       - ete3 silently changes its mode="c" defaults across versions;
         oracle catches this only via the version pin.
@@ -437,18 +479,25 @@ claims:
       - validation
     pattern: evident/docs/reference/patterns.md#oracle-comparison
     claim: >
-      treescape's circular layout — radius and angle per node — agrees
-      with `ggtree(tree, layout="circular")` coordinates within 1e-3
-      absolute on `(r, θ)` per tip on small and medium fixtures, after
-      the convention adjustments documented in `docs/conventions.md`.
-      Tier release because it requires R + Bioconductor; runs inside
-      `workflow/Dockerfile.evident-release` before any release tag.
+      Circular layout coordinates from both treescape implementations
+      (the Rust core via treescape_connector, and treescape-reference)
+      agree with ggtree(tree, layout="circular", ladderize=FALSE) within
+      1e-3 absolute on the layout-v2 corpus (the small and edge layout
+      fixtures, the medium primates fixture, and 60 pinned random trees
+      from 3 to 200 tips with multifurcations, zero-length branches and
+      ladders; scripts/gen_random_trees.py): r of every node and θ of
+      every tip, after the angle transform documented in
+      docs/conventions.md (disagreement log). Internal θ is not
+      compared: ggtree takes the linear mean of child angles, treescape
+      the wrap-aware vector mean. Tier release because it requires R +
+      Bioconductor; runs inside workflow/Dockerfile.evident-release
+      before any release tag.
     subsystem: layout
     inputs:
-      corpus: "layout-core-4"
-      n: 4
+      corpus: "layout-v2"
+      n: 66
       class: fixture
-      corpus_sha: "sha256:dd4f5618a9082417a69b6d62f6971c1468d9101354434bdd828d20c414d3a3ee"
+      corpus_sha: "sha256:9d790ad3e3daa307bc745e7223873881632c566499b4e09d038ef3e5418b1b68"
     pinned_versions:
       treescape: "0.5.0"
       ggtree: "4.0.5 (Bioconductor 3.22, R 4.5.3)"
@@ -456,7 +505,7 @@ claims:
       - metric: absolute_error
         op: "<"
         value: 0.001
-        prose: "1e-3 absolute on (r, θ) per tip after documented convention transforms. Looser than rectangular ggtree's 1e-4 because ggtree's circular layout adds an extra normalization step (angle scaling to fit ggplot2's polar coord) that introduces additional float drift."
+        prose: "1e-3 absolute on r (every node) and θ (tips) after the documented transform. Looser than rectangular ggtree's 1e-4 because ggtree's circular layout adds an angle normalization step that introduces additional float drift."
     evidence:
       oracle:
         - ggtree
@@ -464,13 +513,14 @@ claims:
       artifact: tests/oracle/reports/circular_layout_vs_ggtree.json
     assumptions:
       - R + Bioconductor + ggtree are available in the release runner.
-      - workflow/scripts/oracle_ggtree.R supports a `--circular` flag
-        (Phase 2 deliverable) that emits ggtree's circular coordinates
-        with `ladderize = FALSE`.
+      - workflow/scripts/oracle_ggtree.R --circular emits ggtree's
+        circular coordinates (node, parent, r, θ) with ladderize=FALSE.
+      - Nodes are matched by clade (the set of tip names below them);
+        corpus tip names are unique.
     failure_modes:
-      - ggtree's circular coordinate output normalizes radius to
-        [0, 1] internally; oracle test must un-normalize before
-        comparing.
+      - ggtree changes how its circular data frame reports radius (raw
+        branch-length units today) and the r comparison fails for a
+        reason other than a layout difference.
       - Convention adjustment misses an asymmetric reorder (the
         ladderize trap from v0.1 ggtree, but applied to angles).
 

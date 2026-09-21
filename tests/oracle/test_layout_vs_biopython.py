@@ -1,39 +1,45 @@
 """Oracle runner for claim ``treescape-layout-vs-biopython``.
 
-Biopython exposes layout coordinates directly via the private but
-stable functions in ``Bio.Phylo._utils``: ``_get_x_positions`` and
-``_get_y_positions``. These return ``{Clade: float}`` dicts.
+Biopython computes layout coordinates in ``get_x_positions`` /
+``get_y_positions``, inner functions of ``Bio.Phylo._utils.draw``. The
+runner executes Biopython's own source for them (see
+``_extract_biopython_layout_funcs``), so the oracle is Biopython's code,
+not a copy of it.
 
-Documented convention gap (``docs/conventions.md``): Biopython's tip y
-is 1-indexed (1..N) where ours is 0-indexed (0..N-1). The test
-subtracts 1 from Biopython's y values before comparing.
+Compared, for both treescape implementations (Rust core,
+``treescape-reference``) on the ``layout-v2`` corpus, nodes matched by
+clade (``_layouts.py``):
+
+* x of every node;
+* y of every tip, after Biopython's 1-based offset (``y - 1``);
+* y of every internal node whose whole subtree is binary. At a
+  multifurcation Biopython uses the midpoint of the first and last child
+  and treescape the mean of all children (``docs/conventions.md``), and
+  the difference propagates to every ancestor, whose y is the mean of its
+  children's. That documented gap is excluded, not tolerated.
 
 Tolerance: 1e-6 absolute.
 """
 
 from __future__ import annotations
 
+import inspect
 import json
-import pathlib
+import textwrap
 import time
+from io import StringIO
 
 import pytest
 
-from treescape_reference.layout import rectangular_layout, tips_by_name
-from treescape_reference.newick import parse as ref_parse
+from _julia import REPO
+from _layouts import CASE_IDS, CASES, LAYOUT_CORPUS, binary_subtrees, label, rectangular
 
-try:
-    import inspect
-    import re
-    import textwrap
+Phylo = pytest.importorskip("Bio.Phylo", reason="Biopython not installed")
+from Bio.Phylo import _utils as _bio_utils  # noqa: E402
 
-    from Bio import Phylo
-    from Bio.Phylo import _utils as _bio_utils
-    from io import StringIO
-
-    HAVE_BIOPYTHON = True
-except ImportError:  # pragma: no cover - environment-dependent
-    HAVE_BIOPYTHON = False
+REPORT_DIR = REPO / "tests" / "oracle" / "reports"
+TOL = 1e-6
+BIOPYTHON_Y_OFFSET = -1  # Biopython is 1-indexed; we are 0-indexed.
 
 
 def _extract_biopython_layout_funcs():
@@ -103,80 +109,54 @@ def _extract_biopython_layout_funcs():
     )
 
 
-if HAVE_BIOPYTHON:
-    (
-        _biopython_get_x_positions,
-        _biopython_get_y_positions,
-        _BIOPYTHON_VERSION,
-    ) = _extract_biopython_layout_funcs()
-else:
-    _BIOPYTHON_VERSION = "unavailable"
+(
+    _biopython_get_x_positions,
+    _biopython_get_y_positions,
+    _BIOPYTHON_VERSION,
+) = _extract_biopython_layout_funcs()
 
 
-FIXTURES_DIR = pathlib.Path(__file__).parent.parent / "fixtures" / "trees"
-REPORT_DIR = pathlib.Path(__file__).parent / "reports"
-
-LAYOUT_SAFE_FIXTURES = [
-    FIXTURES_DIR / "small" / "two_tip.nwk",
-    FIXTURES_DIR / "small" / "balanced_4.nwk",
-    FIXTURES_DIR / "small" / "unbalanced_5.nwk",
-    FIXTURES_DIR / "edge" / "trifurcation_root.nwk",
-]
-
-TOL = 1e-6
-BIOPYTHON_Y_OFFSET = -1  # Biopython is 1-indexed; we are 0-indexed.
-
-
-def _biopython_tip_coords(src: str) -> dict[str, tuple[float, float]]:
+def biopython_nodes(src: str) -> dict[frozenset, tuple[float, float]]:
     bio_tree = Phylo.read(StringIO(src), "newick")
     xs = _biopython_get_x_positions(bio_tree)
     ys = _biopython_get_y_positions(bio_tree)
-    out: dict[str, tuple[float, float]] = {}
-    for clade in bio_tree.get_terminals():
-        out[clade.name] = (
-            float(xs[clade]),
-            float(ys[clade]) + BIOPYTHON_Y_OFFSET,
-        )
+    clades = list(bio_tree.find_clades())
+    out = {
+        frozenset(t.name for t in clade.get_terminals()): (float(xs[clade]), float(ys[clade]) + BIOPYTHON_Y_OFFSET)
+        for clade in clades
+    }
+    assert len(out) == len(clades), "Biopython clades do not identify nodes"
     return out
 
 
-@pytest.mark.skipif(not HAVE_BIOPYTHON, reason="Biopython not installed")
-@pytest.mark.parametrize("fixture", LAYOUT_SAFE_FIXTURES, ids=lambda p: p.name)
-def test_layout_vs_biopython(fixture: pathlib.Path) -> None:
+@pytest.mark.parametrize("fixture,impl", CASES, ids=CASE_IDS)
+def test_layout_vs_biopython(fixture, impl) -> None:
     src = fixture.read_text()
-    tree = ref_parse(src)
-    coords = rectangular_layout(tree)
-    ours = tips_by_name(tree, coords)
-    theirs = _biopython_tip_coords(src)
-    assert set(ours) == set(theirs), (
-        f"tip name set differs on {fixture.name}: ours={set(ours)} bio={set(theirs)}"
-    )
-    for name in ours:
-        ox, oy = ours[name]
-        bx, by = theirs[name]
-        assert abs(ox - bx) < TOL, (
-            f"x mismatch on {fixture.name}/{name}: ours={ox} biopython={bx}"
-        )
-        assert abs(oy - by) < TOL, (
-            f"y mismatch on {fixture.name}/{name}: ours={oy} biopython={by} (after -1 offset)"
-        )
+    ours, theirs, binary = rectangular(src, impl), biopython_nodes(src), binary_subtrees(src)
+    assert set(ours) == set(theirs), f"clade sets differ on {fixture.name}"
+    for clade, (bx, by) in theirs.items():
+        ox, oy = ours[clade]
+        assert abs(ox - bx) < TOL, f"x mismatch on {fixture.name}/{label(clade)} ({impl}): ours={ox} biopython={bx}"
+        if clade in binary:
+            assert abs(oy - by) < TOL, (
+                f"y mismatch on {fixture.name}/{label(clade)} ({impl}): ours={oy} biopython={by} (after -1 offset)"
+            )
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _emit_report() -> None:
+def _emit_report():
     yield
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     summary = {
         "claim": "treescape-layout-vs-biopython",
-        "version": "0.1",
+        "version": "0.6",
         "timestamp_utc": int(time.time()),
-        "fixtures": [f.name for f in LAYOUT_SAFE_FIXTURES],
+        "corpus": "layout-v2",
+        "fixtures": [f"{f.parent.name}/{f.name}" for f in LAYOUT_CORPUS],
+        "implementations": ["reference", "rust"],
+        "compared": "x of every node; y of every node whose subtree is binary (tips included)",
         "tolerance": TOL,
         "biopython_y_offset_applied": BIOPYTHON_Y_OFFSET,
-        "biopython_available": HAVE_BIOPYTHON,
         "biopython_version": _BIOPYTHON_VERSION,
-        "extraction_method": "inspect.getsource on Bio.Phylo._utils.draw",
     }
-    (REPORT_DIR / "layout_vs_biopython.json").write_text(
-        json.dumps(summary, indent=2, sort_keys=True)
-    )
+    (REPORT_DIR / "layout_vs_biopython.json").write_text(json.dumps(summary, indent=2, sort_keys=True))

@@ -304,6 +304,38 @@ The in-repository oracles are not independent of treescape. They are listed so t
 
 **Pinned versions:** every measurement claim pins `treescape` (the workspace version in `Cargo.toml`) and every oracle it names. The manifest test checks the `treescape` pin against `Cargo.toml`, and the Python oracle pins against the installed packages. The ggtree pin is checked inside the release image.
 
+## Layout oracle corpus and node-level comparison (v0.6 Phase 2)
+
+### Random tree corpus
+
+`scripts/gen_random_trees.py` writes `tests/fixtures/trees/random/*.nwk`. The files are checked in and hashed through the `layout-v2` corpus, so every oracle, including ggtree in the release image, reads the same bytes, and the script only regenerates them. Rules:
+
+- **Seed** `20260921`, one `random.Random` stream for the whole corpus, trees generated in a fixed order.
+- **Sizes** 3, 4, 5, 7, 10, 16, 25, 40, 64, 100, 150, 200 tips.
+- **Shapes**, one tree per size and shape:
+  - `yule`: split a uniformly chosen tip;
+  - `pda`: attach the new tip to a uniformly chosen edge, including above the root;
+  - `ladder`: caterpillar;
+  - `polytomy`: `yule`, then each internal edge collapsed with probability 0.3, giving multifurcations;
+  - `zeros`: `yule` with each branch length set to 0 with probability 0.2.
+- **Branch lengths**: exponential with mean 0.1, rounded to 6 decimals, written with Python `repr` of the rounded float, so the Newick round-trip is exact. The root has no branch length.
+- **Names**: `t001`, `t002`, … (unique, unquoted).
+
+### Node identity across implementations
+
+A node is identified by its **clade**: the set of tip names below it (a tip's clade is its own name). The corpus has unique tip names, so clades identify nodes independently of each tool's internal ids and child order.
+
+### What each oracle is compared on
+
+Both treescape implementations (`treescape-reference` and the Rust core via `treescape_connector`) are compared with each oracle, on every node the oracle defines.
+
+| Oracle | Rectangular | Circular |
+|---|---|---|
+| Rust ↔ reference | every node, `(x, y)` | every node, `(r, θ)` |
+| ete3 | every node `x` (`get_distance`); tip `y` (leaf index in `iter_leaves`). ete3 has no internal-y rule to compare. | every node `r`; tip `θ` from ete3's leaf order through treescape's angle formula. This checks leaf *order* and distances only, not the angle rule. |
+| Biopython | every node `x`; tip `y` (after `−1`); internal `y` on nodes whose whole subtree is binary. At a multifurcation Biopython uses the midpoint of the first and last child, treescape the mean of all children (see the gap table), and because an internal y is the mean of its children's, the difference propagates to every ancestor. | — (no circular layout) |
+| ggtree | every node `x` and `y` (after `+1`; ggtree also uses the mean of the children) | every node `r`; tip `θ` (transform in the disagreement log). Internal `θ` is not compared: ggtree takes the linear mean, treescape the wrap-aware vector mean. |
+
 ## Convention gaps vs external oracles
 
 | Convention | treescape | ete3 | Biopython.Phylo | ggtree |
@@ -345,3 +377,4 @@ When an oracle disagrees with treescape on a fixture and the gap is real (not a 
 |---|---|---|---|---|
 | 2026-04-28 | `small/two_tip.nwk`, `small/balanced_4.nwk`, `small/unbalanced_5.nwk`, `edge/trifurcation_root.nwk` | ggtree 4.0.5 | Tip y values diverged from treescape/ete3/Biopython on first run of claim `treescape-layout-vs-ggtree`. Two causes: ggtree's default `ladderize = TRUE` reorders children by clade size; ggtree's tip y is 1-based. | Pass `ladderize = FALSE` in `workflow/scripts/oracle_ggtree.R` (matches treescape's "no implicit ladderize" convention); apply `+1` offset in the oracle test (matches the Biopython oracle's pattern). No tolerance change. |
 | 2026-04-28 | `small/two_tip.nwk`, `small/balanced_4.nwk`, `small/unbalanced_5.nwk`, `edge/trifurcation_root.nwk` | ggtree 4.0.5 (circular) | Tip θ diverged on first run of claim `treescape-circular-layout-vs-ggtree`. Cause: ggtree places tip *i* (1-based) at angle ``i·2π/N`` sweeping **CCW** with the LAST tip at 3 o'clock (0); treescape places tip *i* (0-based) at ``π/2 − i·2π/N`` sweeping **CW** with the FIRST tip at 12 o'clock (π/2). The two formulas combine into per-tip ``θ_ggtree = 2π/N + π/2 − θ_ours`` (mod 2π). Internal-node angles also diverge (ggtree linear mean, treescape wrap-aware vector mean) but the oracle test compares tips only. | Apply the per-tip θ transform in `tests/oracle/test_circular_layout_vs_ggtree.py`. Internal-node convention covered by Rust↔reference parity instead. No tolerance change. |
+| 2026-09-21 | `random/polytomy_*.nwk` (121 multifurcating nodes in the corpus; 200 nodes whose subtree is not binary) | Biopython 1.88 | Internal y at a node with more than two children: Biopython places it at the midpoint of its first and last child, treescape at the mean of all children. Because an internal y is the mean of its children's, the difference propagates to every ancestor: 136 of the 200 non-binary-subtree nodes differ, by up to 14.8 rows. Known since v0.1 (gap table); first exercised by the v0.6 node-level comparison. | Internal y compared only for nodes whose whole subtree is binary, where both rules agree. The rest is excluded by rule, not by tolerance. No tolerance change. |

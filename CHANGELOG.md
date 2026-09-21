@@ -22,6 +22,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   - Miri is no longer listed as an oracle of a command that does not run it.
   - The manifest test requires every oracle to have a pin check, and every fixture claim to name a hashed corpus.
 
+### Changed — v0.6 Phase 2: layout oracles on real and random trees, against the Rust code
+
+- **Pinned random corpus:** `scripts/gen_random_trees.py` (seeded; rules in `docs/conventions.md`) writes 60 trees to `tests/fixtures/trees/random/`: yule, pda, ladder, polytomy and zero-length shapes, from 3 to 200 tips. Together with the small and edge layout fixtures and `primates.nwk`, and a hand-written tree with an evenly spread inner node (`edge/evenly_spread_inner.nwk`), they form the hashed `layout-v2` corpus (66 trees). A test fails if the files and the generator disagree.
+- **External oracles now check the Rust core, not only the Python reference.** The ete3, Biopython and ggtree runners (rectangular and circular) compare both implementations on every tree of `layout-v2`. Before, they compared `treescape-reference` on 4 trees of 2–5 tips. The README, docs home page and trust case say so.
+- **Every node, not only tips**, wherever the oracle defines it: Rust↔reference on every node of both layouts; ete3 x of every node; Biopython x of every node and y of every two-child node; ggtree x and y of every node (rectangular) and r of every node (circular). Nodes are matched by clade (`tests/oracle/_layouts.py`). `workflow/scripts/oracle_ggtree.R` now also prints each node's parent.
+- The six layout claims now name the new corpus and say which implementation each oracle checks. Tolerances are unchanged.
+- The macOS arm64 CI job runs the byte-determinism, golden and gallery runners against the same goldens.
+
 ### Fixed — found by v0.6 Phase 2 node-level comparison
 
 - **Circular layout: a node whose children are spread evenly got a rounding-noise angle.** The wrap-aware mean of the children's unit vectors is the origin when they are spread evenly. Examples: a star root such as `(a,b,c);`, the two opposite children of a two-tip tree, and a drawn inner node whose arc exceeds π, such as `(b,(c,d,e),f)` in `(a,(b,(c,d,e),f));`. `atan2` then returned noise, and that noise differed between the Rust core and the Python reference. The reference also summed with Python's compensated `sum()` (Neumaier on 3.12+, naive on 3.11) instead of Rust's left-to-right fold.
@@ -30,12 +38,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   - Every golden and gallery SVG is byte-identical: none contains such an inner node, and a root's angle is not drawn.
   - v0.5's tip-only comparisons could not see this. The Phase 2 runners compare every node, and an independent review then found the inner-node case, which the first version of this fix got wrong.
 
-### Noted, not changed (claim text contradicted by the new structured fields; needs a decision)
+### Noted, not changed (needs a decision)
 
 - `treescape-circular-layout-vs-ete3` claims 1e-4, but its runner asserts `< 1e-6`. The claim understates its own evidence.
-- Five layout and determinism claims say "small and medium fixtures", but their corpus (`layout-core-4`) has no medium fixture. Phase 2 adds `primates.nwk` and a random corpus.
-- The ete3, Biopython and ggtree claims (`source: treescape-core`), and the tip-count claim (`source: treescape-render`), are checked against the Python reference, not the Rust code (a known v0.5 audit finding; Phase 2 moves them to Rust). Two ete3 claim sentences are also inaccurate: its coordinates are derived with `get_distance`/`iter_leaves` and treescape's own angle formula, not "read directly from its layout module", and the 1e-6 is not needed to "absorb ete3 pixel rounding".
-- Changing claim text changes the trust contract, so these wait for approval.
+- *Resolved by Phase 2:* the layout claims' "small and medium fixtures" wording (they now name `layout-v2`, which includes the medium fixture); the external-oracle claims testing only the Python reference (they now check both implementations); the two inaccurate ete3 sentences (rewritten). Still open from the same Phase 1 finding: `treescape-tip-count-invariant` (`source: treescape-render`) runs the Python reference renderer only. It moves to the v0.7 render-fidelity work.
 
 ## [0.5.0] — 2026-09-21
 
